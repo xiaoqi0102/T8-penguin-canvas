@@ -4,12 +4,20 @@
  */
 
 export interface GenerateImageRequest {
-  model: string;
+  model: string;          // 节点 id (gpt-image-2 / nano-banana-2 / nano-banana-pro)
+  apiModel?: string;       // 上游真实模型名(优先使用)
+  paramKind?: 'gpt-size' | 'banana-ratio';
   prompt: string;
   n?: number;
-  size?: string;
+  // 主参数(双协议通用):
+  aspect_ratio?: string;   // 1:1 / 16:9 / Auto …
+  image_size?: string;     // 1K / 2K / 4K (banana) 或像素串(GPT 也可透传)
+  // 多张参考图(base64 dataURL 或 http(s):// URL)
+  images?: string[];
   quality?: string;
-  image?: string; // 图生图引用(base64 或 URL)
+  // 兼容旧参数:若传了 size(像素串)则优先用、image 单张也会并入 images
+  size?: string;
+  image?: string;
 }
 
 export interface GenerateImageResult {

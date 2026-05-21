@@ -1,72 +1,97 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
-import { AlertCircle, Image as ImageIcon, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, Image as ImageIcon, Loader2, Plus, Sparkles, X } from 'lucide-react';
 import { IMAGE_MODELS } from '../../providers/models';
 import { generateImage } from '../../services/generation';
+import { uploadFile } from '../../services/generation';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { useThemeStore } from '../../stores/theme';
 
 /**
  * ImageNode - 图像生成(ZhenzhenMagic)
- * 多 TAB 切换:GPT Image 2 / Nano Banana Pro / Nano Banana 2
- * 对应主项目 gpt-image-2-web 的 Tab 0/1/2 设计
- * 自动从上游连接的 text 节点读取 prompt,从上游 image 节点读取参考图
+ * 多 TAB 切换:GPT2 / 香蕉2 / 香蕉Pro,参数与主项目 gpt-image-2-web 对齐
+ * 参数:模型 TAB / 比例 / 尺寸 / 多张参考图 / 本地 prompt
+ * 上游 text 节点 → prompt(优先);上游 image 节点 → 参考图(并入 references)
  */
-// TAB 短名(按 IMAGE_MODELS 顺序)
-const MODEL_TAB_LABELS: Record<string, string> = {
-  'gpt-image-2': 'GPT2',
-  'nano-banana-2': '香蕉2',
-  'nano-banana-pro': '香蕉Pro',
-};
 const ImageNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const { getEdges, getNodes } = useReactFlow();
   const { style } = useThemeStore();
   const isPixel = style === 'pixel';
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [error, setError] = useState<string | null>(null);
   const d = data as any;
   const model = d?.model || IMAGE_MODELS[0].id;
-  const size = d?.size || IMAGE_MODELS[0].defaultSize;
+  const modelDef = useMemo(() => IMAGE_MODELS.find((m) => m.id === model) || IMAGE_MODELS[0], [model]);
+
+  const aspectRatio = d?.aspectRatio || modelDef.defaultAspectRatio;
+  const sizeLevel = d?.sizeLevel || modelDef.defaultSize;
   const status: 'idle' | 'generating' | 'success' | 'error' = d?.status || 'idle';
   const imageUrl = d?.imageUrl as string | undefined;
   const localPrompt = d?.prompt || '';
+  // 节点内本地上传的参考图(除了上游接入的,这里是手动上传)
+  const refImages: string[] = Array.isArray(d?.referenceImages) ? d.referenceImages : [];
 
-  const modelDef = useMemo(() => IMAGE_MODELS.find((m) => m.id === model) || IMAGE_MODELS[0], [model]);
+  // 切换模型时,如果当前比例/尺寸不在新模型选项里则重置
+  const switchModel = (mId: string) => {
+    const newDef = IMAGE_MODELS.find((m) => m.id === mId) || IMAGE_MODELS[0];
+    const patch: any = { model: mId };
+    if (!newDef.aspectRatios.includes(aspectRatio)) patch.aspectRatio = newDef.defaultAspectRatio;
+    if (!newDef.sizes.includes(sizeLevel)) patch.sizeLevel = newDef.defaultSize;
+    update(patch);
+  };
 
-  // 从上游节点收集 prompt + image
-  const collectUpstream = (): { prompt: string; imageUrl?: string } => {
+  // 从上游节点收集 prompt + 参考图(多张)
+  const collectUpstream = (): { prompt: string; images: string[] } => {
     const edges = getEdges();
     const nodes = getNodes();
     const upstreamIds = edges.filter((e) => e.target === id).map((e) => e.source);
     const prompts: string[] = [];
-    let imageUrl: string | undefined;
+    const images: string[] = [];
     for (const uid of upstreamIds) {
       const n = nodes.find((x) => x.id === uid);
       const p = (n?.data as any)?.prompt;
       if (p && typeof p === 'string') prompts.push(p.trim());
       const u = (n?.data as any)?.imageUrl;
-      if (u && typeof u === 'string' && !imageUrl) imageUrl = u;
+      if (u && typeof u === 'string' && images.length < modelDef.maxReferenceImages) images.push(u);
+      const us = (n?.data as any)?.imageUrls;
+      if (Array.isArray(us)) {
+        for (const it of us) if (typeof it === 'string' && images.length < modelDef.maxReferenceImages) images.push(it);
+      }
     }
-    return { prompt: prompts.join('\n').trim(), imageUrl };
+    return { prompt: prompts.join('\n').trim(), images };
   };
 
-  // 本地 URL 转 base64(仅需要时)
-  const urlToBase64 = async (url: string): Promise<string> => {
-    const r = await fetch(url);
-    const blob = await r.blob();
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+  // 手动上传参考图
+  const handlePickFile = () => fileInputRef.current?.click();
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setError(null);
+    try {
+      const remain = modelDef.maxReferenceImages - refImages.length;
+      const accepted = files.slice(0, Math.max(0, remain));
+      const uploaded: string[] = [];
+      for (const f of accepted) {
+        const r = await uploadFile(f);
+        uploaded.push(r.url);
+      }
+      update({ referenceImages: [...refImages, ...uploaded] });
+    } catch (err: any) {
+      setError(err?.message || '上传失败');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+  const removeRef = (idx: number) => {
+    update({ referenceImages: refImages.filter((_, i) => i !== idx) });
   };
 
   const handleGenerate = async () => {
     setError(null);
-    const { prompt: upstreamPrompt, imageUrl: upstreamImage } = collectUpstream();
+    const { prompt: upstreamPrompt, images: upstreamImages } = collectUpstream();
     const finalPrompt = (upstreamPrompt || localPrompt || '').trim();
     if (!finalPrompt) {
       setError('未连接 text 节点也未填写 prompt');
@@ -74,22 +99,16 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
     }
     update({ status: 'generating', error: null });
     try {
-      // 如果上游有图像且模型支持 i2i,转 base64
-      let imageParam: string | undefined;
-      const supportsI2I = modelDef.capabilities.includes('i2i') || modelDef.capabilities.includes('edit');
-      if (supportsI2I && upstreamImage) {
-        try {
-          imageParam = await urlToBase64(upstreamImage);
-        } catch (e) {
-          console.warn('上游图像转码失败', e);
-        }
-      }
+      const allRefs = [...refImages, ...upstreamImages].slice(0, modelDef.maxReferenceImages);
       const res = await generateImage({
-        model,
+        model: modelDef.id,
+        apiModel: modelDef.apiModel,
+        paramKind: modelDef.paramKind,
         prompt: finalPrompt,
-        size,
+        aspect_ratio: aspectRatio,
+        image_size: sizeLevel,
+        images: allRefs,
         n: 1,
-        image: imageParam,
       });
       const url = res.urls?.[0];
       if (!url) throw new Error('上游未返回有效图像');
@@ -97,7 +116,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         status: 'success',
         imageUrl: url,
         lastPrompt: finalPrompt,
-        usedI2I: !!imageParam,
+        usedI2I: allRefs.length > 0,
       });
     } catch (e: any) {
       setError(e?.message || '生成失败');
@@ -110,7 +129,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
 
   return (
     <div
-      className={`relative rounded-xl border-2 transition-all w-[280px] ${
+      className={`relative rounded-xl border-2 transition-all w-[320px] ${
         selected ? 'border-amber-400 shadow-2xl shadow-amber-500/20' : 'border-white/15 hover:border-white/30'
       }`}
       style={{ background: 'rgba(20,20,22,.92)', backdropFilter: 'blur(8px)' }}
@@ -143,53 +162,97 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           >
             {IMAGE_MODELS.map((m) => {
               const isActive = m.id === model;
-              const tabLabel = MODEL_TAB_LABELS[m.id] || m.label;
               return (
                 <button
                   key={m.id}
-                  onClick={() => update({ model: m.id, size: m.defaultSize })}
+                  onClick={() => switchModel(m.id)}
                   title={m.description}
                   className={`flex-1 py-1 text-[10px] font-semibold rounded transition-all ${
-                    isActive
-                      ? 'bg-amber-500/30 text-amber-200'
-                      : 'text-zinc-400 hover:text-zinc-200'
+                    isActive ? 'bg-amber-500/30 text-amber-200' : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                   style={
                     isPixel && isActive
-                      ? {
-                          background: 'var(--px-yellow)',
-                          color: 'var(--px-ink)',
-                          border: '1.5px solid var(--px-ink)',
-                          boxShadow: '1px 1px 0 var(--px-ink)',
-                        }
-                      : isPixel
-                        ? { color: 'var(--px-ink-soft)' }
-                        : undefined
+                      ? { background: 'var(--px-yellow)', color: 'var(--px-ink)', border: '1.5px solid var(--px-ink)', boxShadow: '1px 1px 0 var(--px-ink)' }
+                      : isPixel ? { color: 'var(--px-ink-soft)' } : undefined
                   }
                 >
-                  {tabLabel}
+                  {m.tabLabel}
                 </button>
               );
             })}
           </div>
         </div>
-        {/* 尺寸 */}
-        <div>
-          <label className="text-[10px] text-white/50 block mb-1">尺寸</label>
-          <select
-            value={size}
-            onChange={(e) => update({ size: e.target.value })}
-            className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
-          >
-            {modelDef.sizes.map((s) => (
-              <option key={s} value={s} className="bg-zinc-900">
-                {s}
-              </option>
-            ))}
-          </select>
+
+        {/* 比例 + 尺寸 并排 */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-white/50 block mb-1">比例</label>
+            <select
+              value={aspectRatio}
+              onChange={(e) => update({ aspectRatio: e.target.value })}
+              className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+            >
+              {modelDef.aspectRatios.map((r) => (
+                <option key={r} value={r} className="bg-zinc-900">{r}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-white/50 block mb-1">尺寸</label>
+            <select
+              value={sizeLevel}
+              onChange={(e) => update({ sizeLevel: e.target.value })}
+              className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+            >
+              {modelDef.sizes.map((s) => (
+                <option key={s} value={s} className="bg-zinc-900">{s}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* 备用本地 prompt(若无上游) */}
+        {/* 参考图(多张) */}
+        {modelDef.supportsReference && (
+          <div>
+            <label className="text-[10px] text-white/50 block mb-1">
+              参考图 · {refImages.length}/{modelDef.maxReferenceImages}
+              <span className="text-white/30 ml-1">(上游节点会自动并入)</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {refImages.map((url, i) => (
+                <div key={i} className="relative w-12 h-12 rounded overflow-hidden border border-white/15">
+                  <img src={url} alt={`ref-${i}`} className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => removeRef(i)}
+                    className="absolute top-0 right-0 w-4 h-4 bg-red-500/80 hover:bg-red-500 flex items-center justify-center rounded-bl"
+                    title="移除"
+                  >
+                    <X size={9} className="text-white" />
+                  </button>
+                </div>
+              ))}
+              {refImages.length < modelDef.maxReferenceImages && (
+                <button
+                  onClick={handlePickFile}
+                  className="w-12 h-12 rounded border-2 border-dashed border-white/20 hover:border-amber-400/60 flex items-center justify-center text-white/40 hover:text-amber-300 transition-colors"
+                  title="上传参考图(可多选)"
+                >
+                  <Plus size={14} />
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFiles}
+                className="hidden"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 本地 prompt(优先取上游) */}
         <div>
           <label className="text-[10px] text-white/50 block mb-1">本地 Prompt(可选,优先取上游 text)</label>
           <textarea
@@ -228,12 +291,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       {/* 结果展示 */}
       {imageUrl && (
         <div className="border-t border-white/10 p-2">
-          <img
-            src={imageUrl}
-            alt="生成结果"
-            className="w-full rounded object-cover"
-            style={{ aspectRatio: size.replace('x', '/') }}
-          />
+          <img src={imageUrl} alt="生成结果" className="w-full rounded object-cover" />
         </div>
       )}
     </div>

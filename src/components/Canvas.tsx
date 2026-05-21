@@ -107,13 +107,14 @@ const SPECIFIC_NODES: Record<string, any> = {
 
 // 节点初始 data(用于区分共享组件的 kind/preset/model 等)
 const INITIAL_DATA: Record<string, Record<string, any>> = {
+  image: { model: 'gpt-image-2', aspectRatio: '1:1', sizeLevel: '1K', referenceImages: [] },
+  edit: { mode: 'edit', model: 'gpt-image-2', aspectRatio: '1:1', sizeLevel: '1K', referenceImages: [] },
   seedance: { model: 'seedance-2.0' },
   cinematic: { kind: 'cinematic' },
   'video-motion': { kind: 'video-motion' },
   'multi-angle-3d': { preset: 'multi-angle-3d' },
   'panorama-720': { preset: 'panorama-720' },
   'penguin-portrait': { preset: 'penguin-portrait' },
-  edit: { mode: 'edit' },
   upload: { uploadType: null },
 };
 

@@ -53,43 +53,185 @@ function saveBase64Image(b64) {
 }
 
 // ========== POST /api/proxy/image — 图像生成 ==========
-// body: { model, prompt, n?, size?, image? }
+// body: { model, apiModel?, paramKind?, prompt, aspect_ratio?, image_size?, images?[], size?, image?, quality?, n? }
+//
+// 主项目对齐的双协议路由:
+//  1. paramKind === 'gpt-size'
+//     - 无参考图 → POST /v1/images/generations (JSON)  body: { model, prompt, size }
+//     - 有参考图 → POST /v1/images/edits        (multipart) image 多次 append
+//     - size 从 (aspect_ratio + image_size 等级) 映射为像素串(1024x1024/1536x1024/1024x1536/2048x2048…)
+//  2. paramKind === 'banana-ratio'
+//     - POST /v1/images/generations (JSON) body: { model, prompt, aspect_ratio, image_size:'1K'|'2K'|'4K', image:[base64...]? }
+
+// 将 (aspectRatio + sizeLevel) 映射成 gpt-image-2 的像素串
+function aspectToGptSize(aspectRatio, sizeLevel, forEdits = false) {
+  const ar = String(aspectRatio || '').trim();
+  const lvl = String(sizeLevel || '1K').toUpperCase();
+  const isAuto = !ar || ar === 'Auto' || ar === 'AUTO';
+  if (isAuto) return forEdits ? '1024x1024' : 'auto';
+  // 正方
+  if (ar === '1:1' || ar === '4:5' || ar === '5:4') {
+    if (forEdits) return '1024x1024';
+    if (lvl === '2K') return '2048x2048';
+    if (lvl === '4K') return '2048x2048';
+    return '1024x1024';
+  }
+  // 横向
+  if (['16:9', '3:2', '21:9', '4:3'].includes(ar)) {
+    if (forEdits) return '1536x1024';
+    if (lvl === '2K') return '2048x1152';
+    if (lvl === '4K') return '3840x2160';
+    return '1536x1024';
+  }
+  // 竖向
+  if (['9:16', '2:3', '1:2', '3:4'].includes(ar)) {
+    if (forEdits) return '1024x1536';
+    if (lvl === '2K') return '1152x2048';
+    if (lvl === '4K') return '2160x3840';
+    return '1024x1536';
+  }
+  // 极端比例低限
+  if (['1:4', '1:8'].includes(ar)) return forEdits ? '1024x1536' : '1024x1536';
+  if (['4:1', '8:1'].includes(ar)) return forEdits ? '1536x1024' : '1536x1024';
+  return forEdits ? '1024x1024' : (lvl === '2K' ? '2048x2048' : '1024x1024');
+}
+
+// 将 base64 dataURL / http(s) URL 转成 multipart Buffer
+async function refToBuffer(ref) {
+  if (typeof ref !== 'string' || !ref) return null;
+  if (ref.startsWith('data:')) {
+    const m = ref.match(/^data:([^;,]+);base64,(.+)$/);
+    if (!m) return null;
+    const mime = m[1] || 'image/png';
+    const buf = Buffer.from(m[2], 'base64');
+    const ext = (mime.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    return { buf, mime, ext };
+  }
+  if (ref.startsWith('http://') || ref.startsWith('https://') || ref.startsWith('/files/')) {
+    // /files/* 是本地静态,走 127.0.0.1:18766
+    const url = ref.startsWith('/') ? `http://127.0.0.1:${config.PORT}${ref}` : ref;
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const ct = r.headers.get('content-type') || 'image/png';
+    const buf = Buffer.from(await r.arrayBuffer());
+    const ext = (ct.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    return { buf, mime: ct, ext };
+  }
+  return null;
+}
+
+// 将 base64/URL 参考图转成 banana 希望的 dataURL 或保留外部 URL
+async function refToBananaImage(ref) {
+  if (typeof ref !== 'string' || !ref) return null;
+  if (ref.startsWith('data:')) return ref;
+  if (ref.startsWith('http://') || ref.startsWith('https://')) return ref;
+  if (ref.startsWith('/files/')) {
+    // 本地资源 → 转 base64
+    try {
+      const r = await fetch(`http://127.0.0.1:${config.PORT}${ref}`);
+      if (!r.ok) return null;
+      const ct = r.headers.get('content-type') || 'image/png';
+      const buf = Buffer.from(await r.arrayBuffer());
+      return `data:${ct};base64,${buf.toString('base64')}`;
+    } catch { return null; }
+  }
+  return null;
+}
+
 router.post('/image', async (req, res) => {
   const settings = loadRawSettings();
   if (!settings?.zhenzhenApiKey) {
     return res.status(400).json({ success: false, error: '未配置贞贞工坊 API Key' });
   }
-  const { model, prompt, n, size, image, quality } = req.body || {};
-  if (!model || !prompt) {
-    return res.status(400).json({ success: false, error: 'model 和 prompt 必填' });
-  }
+  const {
+    model, apiModel, paramKind: paramKindIn,
+    prompt, n,
+    aspect_ratio, image_size,
+    images, image, size, quality,
+  } = req.body || {};
+  if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
 
-  const upstream = `${config.ZHENZHEN_BASE_URL}/v1/images/generations`;
-  const body = {
-    model,
-    prompt,
-    n: n || 1,
-    size: size || '1024x1024',
-    response_format: 'b64_json',
-  };
-  if (image) body.image = image;
-  if (quality) body.quality = quality;
+  // 推断 paramKind:apiModel 含 'nano-banana' → banana-ratio,含 'gpt-image' → gpt-size
+  const m = String(apiModel || model || '');
+  const paramKind = paramKindIn || (m.includes('nano-banana') ? 'banana-ratio' : (m.includes('gpt-image') ? 'gpt-size' : 'gpt-size'));
+  const finalApiModel = apiModel || model;
+  if (!finalApiModel) return res.status(400).json({ success: false, error: 'model 必填' });
+
+  // 合并参考图:image(单) → images, 但以 images 为主
+  const refs = Array.isArray(images) ? images.filter(Boolean) : [];
+  if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
+  const hasRefs = refs.length > 0;
+
+  const upstreamBase = `${config.ZHENZHEN_BASE_URL}/v1/images`;
+  const auth = `Bearer ${settings.zhenzhenApiKey}`;
 
   try {
-    const r = await fetch(upstream, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${settings.zhenzhenApiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    let r;
+    if (paramKind === 'gpt-size' && hasRefs) {
+      // ===== gpt-image-2 图生图 → /v1/images/edits multipart =====
+      // 使用 Node 18+ 内置 FormData / Blob,fetch 自动处理 boundary
+      const form = new FormData();
+      for (let i = 0; i < refs.length; i++) {
+        const conv = await refToBuffer(refs[i]);
+        if (!conv) continue;
+        const blob = new Blob([conv.buf], { type: conv.mime });
+        form.append('image', blob, `ref_${i}.${conv.ext}`);
+      }
+      form.append('prompt', prompt);
+      form.append('model', finalApiModel);
+      const px = size || aspectToGptSize(aspect_ratio, image_size, true);
+      form.append('size', px);
+      form.append('response_format', 'b64_json');
+      if (quality && quality !== 'auto') form.append('quality', quality);
+
+      console.log('[proxy/image] GPT2 图生图 → /edits, model:', finalApiModel, 'size:', px, 'refs:', refs.length);
+      r = await fetch(`${upstreamBase}/edits`, {
+        method: 'POST',
+        headers: { Authorization: auth }, // 不手动设 Content-Type 让 fetch 加 boundary
+        body: form,
+      });
+    } else {
+      // ===== JSON 路径 (GPT2 文生图 或 nano-banana 文/图生图) =====
+      const body = {
+        model: finalApiModel,
+        prompt,
+        n: n || 1,
+        response_format: 'b64_json',
+      };
+      if (paramKind === 'gpt-size') {
+        body.size = size || aspectToGptSize(aspect_ratio, image_size, false);
+      } else {
+        // banana-ratio:aspect_ratio + image_size(等级)
+        const ar = String(aspect_ratio || '').trim();
+        const isAuto = !ar || ar === 'Auto' || ar === 'AUTO';
+        if (!isAuto) body.aspect_ratio = ar; else if (!hasRefs) body.aspect_ratio = '1:1';
+        body.image_size = String(image_size || '2K').toUpperCase();
+        if (hasRefs) {
+          const arr = [];
+          for (const f of refs) {
+            const ok = await refToBananaImage(f);
+            if (ok) arr.push(ok);
+          }
+          if (arr.length) body.image = arr;
+        }
+      }
+      if (quality && quality !== 'auto') body.quality = quality;
+
+      console.log('[proxy/image] JSON → /generations',
+        'kind:', paramKind, 'model:', finalApiModel,
+        'size:', body.size, 'aspect_ratio:', body.aspect_ratio, 'image_size:', body.image_size,
+        'refs:', body.image ? body.image.length : 0);
+      r = await fetch(`${upstreamBase}/generations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: auth },
+        body: JSON.stringify(body),
+      });
+    }
+
     const text = await r.text();
     let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) });
+    try { data = JSON.parse(text); } catch {
+      return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 300) });
     }
     if (!r.ok) {
       return res.status(r.status).json({
@@ -97,7 +239,8 @@ router.post('/image', async (req, res) => {
         error: data?.error?.message || data?.message || `上游 HTTP ${r.status}`,
       });
     }
-    // 处理结果(支持 b64_json 和 url 两种格式)
+
+    // 同步响应 (data:[{url|b64_json}])
     const items = Array.isArray(data?.data) ? data.data : [];
     const urls = [];
     for (const it of items) {
@@ -109,15 +252,50 @@ router.post('/image', async (req, res) => {
         urls.push(u);
       }
     }
-    res.json({
-      success: true,
-      data: { urls, raw: data, model, prompt },
-    });
+
+    // 异步任务轮询(banana 有时返 task_id)
+    if (!urls.length && (typeof data?.data === 'string' || data?.task_id || data?.data?.task_id)) {
+      const taskId = typeof data.data === 'string' ? data.data : (data.task_id || data.data?.task_id);
+      const polled = await pollImageTask(taskId, settings.zhenzhenApiKey);
+      if (polled) urls.push(polled);
+    }
+
+    if (!urls.length) {
+      return res.status(500).json({ success: false, error: '上游未返回图片: ' + JSON.stringify(data).slice(0, 300) });
+    }
+    res.json({ success: true, data: { urls, raw: data, model: finalApiModel, prompt } });
   } catch (e) {
     console.error('proxy/image 错误:', e);
     res.status(500).json({ success: false, error: e.message || '请求失败' });
   }
 });
+
+// ========== 图像异步任务轮询(主要针对 nano-banana 可能返 task_id 的场景) ==========
+async function pollImageTask(taskId, apiKey, maxRetries = 60, interval = 2000) {
+  const url = `${config.ZHENZHEN_BASE_URL}/v1/images/generations/${encodeURIComponent(taskId)}`;
+  for (let i = 0; i < maxRetries; i++) {
+    await new Promise(r => setTimeout(r, interval));
+    try {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+      const text = await r.text();
+      let data; try { data = JSON.parse(text); } catch { continue; }
+      if (!r.ok) continue;
+      const st = String(data?.status || '').toUpperCase();
+      if (st === 'SUCCESS' || data?.data?.[0]?.url || data?.data?.[0]?.b64_json) {
+        const it = Array.isArray(data?.data) ? data.data[0] : data?.data;
+        if (it?.b64_json) return saveBase64Image(it.b64_json);
+        if (it?.url) return await saveRemoteImage(it.url);
+      }
+      if (st === 'FAILURE' || st === 'FAILED' || data?.error) {
+        console.error('[poll] 任务失败:', data?.error || st);
+        return null;
+      }
+    } catch (e) {
+      console.warn('[poll] 轮询异常:', e.message);
+    }
+  }
+  return null;
+}
 
 // ========== POST /api/proxy/llm — LLM Chat(独立 Key) ==========
 // body: { model, messages, temperature?, max_tokens?, stream? }

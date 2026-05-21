@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.0.5",
-  "lastUpdated": "2026-05-21",
+  "version": "1.0.6",
+  "lastUpdated": "2026-05-22",
   "layout": {
     "mode": "single-column-sidebar",
     "description": "画布管理 + 节点列表合并为一列 Sidebar，主体变为两栏布局(Sidebar + Canvas)，紧凑化节省约 96px 横向空间。",
