@@ -1,7 +1,13 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "lastUpdated": "2026-05-22",
+  "layout": {
+    "mode": "single-column-sidebar",
+    "description": "画布管理 + 节点列表合并为一列 Sidebar，主体变为两栏布局(Sidebar + Canvas)，紧凑化节省约 96px 横向空间。",
+    "sidebarWidth": 256,
+    "canvasPanel": { "collapsible": true, "defaultOpen": true, "maxHeight": 224 }
+  },
   "repository": "https://github.com/T8mars/T8-penguin-canvas",
   "totalNodes": 24,
   "phases": {
@@ -11,7 +17,8 @@
     "phase3": { "label": "异步任务节点", "status": "complete", "items": ["视频轮询", "Suno 三模式", "RunningHub 工作流", "sharp 工具箱"] },
     "phase4": { "label": "全部 24 节点上线", "status": "complete", "items": ["辅助 / 数据组织 / 特殊 / 画板 / 浏览器 / 抽帧"] },
     "phase5": { "label": "画布交互", "status": "complete", "items": ["Undo/Redo", "复制/粘贴/删除", "导入导出 JSON", "工作流模板", "CanvasToolbar"] },
-    "phase6": { "label": "批量执行 + 对齐辅助", "status": "complete", "items": ["运行总线 zustand store", "useRunTrigger 节点接入", "拓扑排序串行批量运行", "snap-to-grid + 智能对齐辅助线"] }
+    "phase6": { "label": "批量执行 + 对齐辅助", "status": "complete", "items": ["运行总线 zustand store", "useRunTrigger 节点接入", "拓扑排序串行批量运行", "snap-to-grid + 智能对齐辅助线"] },
+    "phase7": { "label": "侧边栏合并", "status": "complete", "items": ["CanvasManager 收纳到 Sidebar 顶部可折叠区", "移除独立画布管理列", "三栏→两栏布局"] }
   },
   "categories": {
     "core": {

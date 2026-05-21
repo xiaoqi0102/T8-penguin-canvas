@@ -4,14 +4,13 @@ import { useThemeStore } from './stores/theme';
 import { useApiKeysStore } from './stores/apiKeys';
 import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
-import CanvasManager from './components/CanvasManager';
 import ApiSettingsModal from './components/ApiSettings';
 import * as api from './services/api';
 import type { NodeType } from './types/canvas';
 
 /**
  * T8-penguin-canvas 应用根组件 (Phase 1)
- * 布局: [画布管理列] [节点侧边栏] [画布主体] + 头部状态栏
+ * 布局: [侧边栏(画布管理 + 节点列表)] [画布主体] + 头部状态栏
  */
 function App() {
   const { theme, toggleTheme } = useThemeStore();
@@ -95,9 +94,8 @@ function App() {
         </div>
       </header>
 
-      {/* 主体三栏布局 */}
+      {/* 主体两栏布局 */}
       <div className="flex-1 flex overflow-hidden">
-        <CanvasManager />
         <Sidebar onAddNode={handleAddNode} />
         <Canvas onAddNodeRef={addNodeRef} />
       </div>
