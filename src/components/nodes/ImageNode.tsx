@@ -198,7 +198,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           <ImageIcon size={13} />
         </div>
         <div className="flex-1">
-          <div className="text-sm font-semibold text-white">图像节点</div>
+          <div className="text-sm font-semibold text-white">图像</div>
           <div className="text-[10px] text-white/40">{modelDef.label} · {modelDef.description}</div>
         </div>
       </div>
