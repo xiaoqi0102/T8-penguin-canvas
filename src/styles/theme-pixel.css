@@ -288,6 +288,16 @@ html[data-theme-style="pixel"] .react-flow__node.selected:not(.react-flow__node-
   box-shadow: var(--px-shadow-hard-lg) !important;
 }
 
+/* LLM 节点右侧会话面板(像素风适配) */
+html[data-theme-style="pixel"] .react-flow__node-llm .llm-chat-panel {
+  background: var(--px-surface) !important;
+  border: var(--px-border-w) solid var(--px-ink) !important;
+  border-radius: var(--px-radius-card) !important;
+  box-shadow: var(--px-shadow-hard) !important;
+  backdrop-filter: none !important;
+  color: var(--px-ink) !important;
+}
+
 /* 节点内部文本颜色多重保底(text-white 、 text-zinc-*、 text-white/x ) */
 html[data-theme-style="pixel"] .react-flow__node .text-white,
 html[data-theme-style="pixel"] .react-flow__node .text-zinc-100,

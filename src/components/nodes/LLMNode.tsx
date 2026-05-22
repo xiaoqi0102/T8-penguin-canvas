@@ -552,10 +552,10 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
     {hasChat && (
       <div
         ref={chatRef}
-        className={`w-[260px] rounded-xl border-2 overflow-y-auto p-2.5 space-y-1.5 ${
+        className={`llm-chat-panel w-[260px] rounded-xl border-2 overflow-y-auto p-2.5 space-y-1.5 ${
           selected ? 'border-emerald-400/60' : 'border-white/10'
         }`}
-        style={{ background: 'rgba(20,20,22,.94)', backdropFilter: 'blur(8px)', maxHeight: '100%', alignSelf: 'stretch' }}
+        style={{ background: 'rgba(20,20,22,.94)', backdropFilter: 'blur(8px)', maxHeight: '520px' }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {history.map((t, i) => (
