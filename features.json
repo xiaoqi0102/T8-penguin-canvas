@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.0.8",
-  "lastUpdated": "2026-05-22",
+  "version": "1.0.9",
+  "lastUpdated": "2026-05-21",
   "layout": {
     "mode": "single-column-sidebar",
     "description": "画布管理 + 节点列表合并为一列 Sidebar，主体变为两栏布局(Sidebar + Canvas)，紧凑化节省约 96px 横向空间。",
@@ -59,7 +59,8 @@
     "phase7": { "label": "侧边栏合并", "status": "complete", "items": ["CanvasManager 收纳到 Sidebar 顶部可折叠区", "移除独立画布管理列", "三栏→两栏布局"] },
     "phase8": { "label": "像素糖果风主题", "status": "complete", "items": ["theme store 扩展 themeStyle(tech|pixel) 双轨", "theme-pixel.css 全套 CSS 变量 + 工具类(px-card/px-btn/px-chip/px-input/px-row/px-modal-mask)", "Sidebar / CanvasToolbar / ApiSettings 框架级像素化", "24 节点零侵入 CSS 兜底层(react-flow__node 全局覆盖)", "ReactFlow 背景点 / 边线 / 对齐辅助线 像素化校色", "顶部 Sparkles/Cpu 切换按钮 + localStorage 持久化"] },
     "phase9": { "label": "侧边栏分类重整", "status": "complete", "items": ["图像节点 label 从 'ZhenzhenMagic' 改为 '图像生成' 避免误解", "runninghub + rh-config 从 core 抽出,新建独立 'RH' 分类", "NodeCategory 类型增加 'rh' 枚举值", "ImageNode 模型选择从 select 重构为 3 TAB 胶囊切换(GPT2 / 香蕉2 / 香蕉Pro),对应主项目 gpt-image-2-web Tab 0/1/2"] },
-    "phase10": { "label": "上传节点 + 节点间联动(连接类型校验)", "status": "complete", "items": ["新增 UploadNode 上传素材节点(图像/视频/音频三合一,动态输出端口色)", "创建端口语义注册表 src/config/portTypes.ts(7 种 PortType + 25 节点 inputs/outputs 声明)", "ReactFlow 接入 isValidConnection ⏱ 预览阶段拦截不兼容连接(如文本不能连到文本、音频不能连到图像节点的 image 入口)", "连线按上游输出类型自动染色(文本=sky / 图像=amber / 视频=rose / 音频=violet / metadata=cyan / config=indigo / any=slate)", "upload 节点 outputs 动态依赖 data.uploadType,未选择类型时不可连出", "relay 中继节点以 'any' 透传,可接任何输入 / 输出任何类型"] }
+    "phase10": { "label": "上传节点 + 节点间联动(连接类型校验)", "status": "complete", "items": ["新增 UploadNode 上传素材节点(图像/视频/音频三合一,动态输出端口色)", "创建端口语义注册表 src/config/portTypes.ts(7 种 PortType + 25 节点 inputs/outputs 声明)", "ReactFlow 接入 isValidConnection ⏱ 预览阶段拦截不兼容连接(如文本不能连到文本、音频不能连到图像节点的 image 入口)", "连线按上游输出类型自动染色(文本=sky / 图像=amber / 视频=rose / 音频=violet / metadata=cyan / config=indigo / any=slate)", "upload 节点 outputs 动态依赖 data.uploadType,未选择类型时不可连出", "relay 中继节点以 'any' 透传,可接任何输入 / 输出任何类型"] },
+    "phase11": { "label": "FAL 渠道接入(gpt-image-2-fal + nano-banana-pro-fal)", "status": "complete", "items": ["严格对齐 gpt-image-2-web 主项目 FAL Queue API 接入规范(SKILL.md §FAL模型渠道接入规范)", "models.ts 新增 FAL_REGISTRY/FalParamKind/isFalModel + gpt-fal/nbpro-fal 两类参数体", "后端新增独立路由 POST /api/proxy/image/fal/submit + GET /api/proxy/image/fal/query(零破坏,不混入 /image/submit)", "baseUrl/fal 前缀代理 queue.fal.run,response_url 域名一次性修复", "submit 同步直返 images[](saveRemoteImage 转存),异步返 requestId+responseUrl+endpoint", "query 轮询规范:HTTP 非200时 body.status=IN_QUEUE/IN_PROGRESS 视为 pending,真错误才抛", "gpt-fal 自定义尺寸 16 倍数对齐(snap16),image_size 7 档枚举 + custom", "nbpro-fal aspect_ratio×resolution(1K/2K/4K) + safety_tolerance(1严-6松) + enable_web_search + system_prompt + seed + image_mode(image_url/base64)", "ImageNode FAL UI 蓝色边框面板 + FAL 专属 state(falXxx/nbXxx)与原标准模型(aspectRatio/sizeLevel)完全隔离,maxRefs 动态切换(gpt-fal=5 / nbpro-fal=8)", "FAL 子模型保持原 TAB 分类(gpt-image-2-fal 在 GPT2 TAB,nano-banana-pro-fal 在 香蕉Pro TAB),对齐主项目'不新增 Tab'原则", "前端轮询 600×3s = 30min 上限"] }
   },
   "categories": {
     "input": {
@@ -166,8 +167,10 @@
   "modelRegistry": {
     "image": [
       { "id": "gpt-image-2", "label": "GPT Image 2", "provider": "zhenzhen", "endpoint": "/v1/images/generations" },
+      { "id": "gpt-image-2-fal", "label": "GPT Image 2 (FAL)", "provider": "zhenzhen-fal", "endpoint": "/fal/openai/gpt-image-2[/edit]", "paramKind": "gpt-fal", "maxRefs": 5 },
       { "id": "nano-banana-2", "label": "Nano Banana 2", "provider": "zhenzhen", "endpoint": "/v1/images/generations" },
-      { "id": "nano-banana-pro", "label": "Nano Banana Pro", "provider": "zhenzhen", "endpoint": "/v1/images/generations" }
+      { "id": "nano-banana-pro", "label": "Nano Banana Pro", "provider": "zhenzhen", "endpoint": "/v1/images/generations" },
+      { "id": "nano-banana-pro-fal", "label": "Nano Banana Pro (FAL)", "provider": "zhenzhen-fal", "endpoint": "/fal/fal-ai/nano-banana-pro/edit", "paramKind": "nbpro-fal", "maxRefs": 8 }
     ],
     "video": [
       { "id": "veo-3.1", "label": "Veo 3.1", "provider": "zhenzhen", "endpoint": "/v1/videos/generations" },
@@ -238,6 +241,8 @@
       ],
       "proxy": [
         "POST /api/proxy/image — 图像生成(贞贞工坊,自动转存)",
+        "POST /api/proxy/image/fal/submit — FAL Queue 提交(gpt-image-2-fal / nano-banana-pro-fal,同步返 images[] 或异步返 requestId+responseUrl)",
+        "GET /api/proxy/image/fal/query?requestId&endpoint&responseUrl — FAL 任务轮询(HTTP 非200 时 IN_QUEUE/IN_PROGRESS 视为 pending,完成 images[] 转存)",
         "POST /api/proxy/llm — LLM Chat(独立 Key)",
         "POST /api/proxy/video/submit — 视频任务提交",
         "GET /api/proxy/video/query?taskId — 视频任务轮询(转存)",

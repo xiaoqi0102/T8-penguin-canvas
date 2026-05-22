@@ -408,6 +408,77 @@ Grok 参考图上传：
 - 切主模型时调 `switchMainModel()` **重置** ratio/duration/resolution 为该 kind 默认值，避免跨模型参数遗留（如从 grok 切到 veo 还带着 `2:3`）。
 - 旧画布兼容：接受 `model='veo-3.1'`/`'grok-video'` 这些旧值时 `find` 不到会退回 `VIDEO_MODELS[0]`，不报错。
 
+### 11.7 FAL 渠道接入实例（gpt-image-2-fal / nano-banana-pro-fal）
+
+> 严格对齐 [`gpt-image-2-web/SKILL.md` §FAL模型渠道接入规范](file:///E:/PenguinPravite/gpt-image-2-web/SKILL.md)。FAL 是**独立 Queue API**，与原 `/v1/images/*` 协议完全不同，故走**新增独立路由**（不污染原 `/image/submit`）。
+
+#### 协议核心
+
+| 项 | 取值 |
+|---|---|
+| URL 前缀 | `${ZHENZHEN_BASE_URL}/fal/${endpoint}` （替换官方 `https://queue.fal.run`） |
+| 认证 | `Authorization: Bearer ${apiKey}` |
+| GPT FAL endpoint | `openai/gpt-image-2`（gen）/ `openai/gpt-image-2/edit`（edit） |
+| NBPro FAL endpoint | `fal-ai/nano-banana-pro/edit`（只有 edit） |
+| 同步返回 | `result.images[]` 直接拿 URL |
+| 异步返回 | `result.request_id` + `result.response_url` → 轮询 |
+| **response_url 域名修复** | `queue.fal.run` → `${baseUrl}/fal`，否则会走到公网 |
+| 轮询 HTTP 非 200 | body 中 `status==='IN_QUEUE'` / `'IN_PROGRESS'` 视为进行中（必须重试，不能抛错） |
+| 轮询完成 | `pd.images[]` |
+| 轮询失败 | `pd.status === 'FAILED'` / `'CANCELLED'` |
+| 自定义尺寸 | 宽高必须 **16 整数倍**，后端 `snap16()` 自动对齐 |
+| 参考图 | 上传 `${baseUrl}/v1/files` 拿 URL（复用现有 `uploadRefToZhenzhen()`） |
+
+#### 两个模型 payload 字段对照
+
+| 范畴 | gpt-image-2-fal（`runGPTFal`） | nano-banana-pro-fal（`runNanoFal`） |
+|---|---|---|
+| paramKind | `gpt-fal` | `nbpro-fal` |
+| 模式 | `mode: 'edit' \| 'gen'`（有参考图默认 edit） | 仅 edit |
+| 尺寸 | `image_size: 'auto'\|'square_hd'\|'square'\|'portrait_4_3'\|'portrait_16_9'\|'landscape_4_3'\|'landscape_16_9'` 或 `{width,height}`（custom，16倍数） | `aspect_ratio: 'auto'/'21:9'/...` + `resolution: '1K'/'2K'/'4K'` |
+| 张数 | `num_images: 1-4` | `num_images: 1-4` |
+| 质量 | `quality: 'low'/'medium'/'high'/'auto'`（默认 medium） | — |
+| 输出 | `output_format: 'png'/'jpeg'/'webp'` | `output_format` |
+| 同步开关 | `sync_mode: true`（贞贞接受时同步返） | — |
+| 安全 | — | `safety_tolerance: '1'(严)..'6'(松)`，默认 `'4'` |
+| 系统词 | — | `system_prompt`（可选） |
+| 联网 | — | `enable_web_search: bool` |
+| 种子 | — | `seed`（0 不传） |
+| 参考图字段 | `image_urls: string[]` 仅 edit | `image_urls: string[]`（必填） |
+| 参考图上限 | 5 | 8 |
+| 参考图编码 | URL（贞贞上传） | URL 或 base64 dataURI（`image_mode` 切换） |
+
+#### 后端分支（零破坏原则）
+
+[`/api/proxy/image/fal/submit`](file:///e:/PenguinPravite/T8-penguin-canvas/backend/src/routes/proxy.js) 与 [`/api/proxy/image/fal/query`](file:///e:/PenguinPravite/T8-penguin-canvas/backend/src/routes/proxy.js) 是**新增独立路由**，与原 `/image` / `/image/submit` / `/image/status/:tid` 平行存在。
+
+- 后端 `FAL_REGISTRY` 表按 apiModel 索引 → 找到 endpoint + paramKind → 分支组装 payload。
+- 不在 `/image/submit` 内做 fal 分流，避免参数集污染（FAL 字段集和原 GPT2/nano-banana 完全不一样）。
+- `fixFalResponseUrl()` 在 submit 时立刻修域名 + 写库，query 时不再依赖前端是否替换。
+- 提交成功时若上游同步返 images[]，后端会立即 `saveRemoteImage()` 转存到 `/files/output` 并返本地相对路径，与原协议产物一致。
+
+#### 前端节点改造要点
+
+- [`isFalModel(apiModel)`](file:///e:/PenguinPravite/T8-penguin-canvas/src/providers/models.ts) 在 [ImageNode](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/nodes/ImageNode.tsx) 首部统一判断 → `isFal && falDef`。
+- isFal 为 true 时：**隐藏**原“比例 + 尺寸”行，**渲染** FAL 专属面板（gpt-fal / nbpro-fal 两套），参数 store 字段独立命名（`falMode/falSize/falQuality/falN/falFormat/falSync/falCustomW/falCustomH/nbAspect/nbResolution/nbSafety/nbImgMode/nbWebSearch/nbSysPrompt/nbSeed`），与原 `aspectRatio/sizeLevel` 不冲突。
+- `handleGenerate` 内 `if (isFal && falDef) {...}` 分支独立调 `submitImageFal` + 内置轮询（600 × 3s = 30min 上限）。
+- 参考图上限同步用 `falDef?.maxRefs ?? modelDef.maxReferenceImages`。
+- **不要**在节点 UI 内 fal/非 fal 共用 setState，避免“切回标准模型时拿到上次 FAL 设置”。
+- 切 apiModel 不切 TAB（gpt-image-2-fal 仍在 GPT2 TAB；nano-banana-pro-fal 在 香蕉Pro TAB）—— 与主项目 "不新增 Tab" 原则一致。
+
+#### 关键参考位置（gpt-image-2-web/index.html）
+
+| 内容 | 行号 |
+|---|---|
+| `runGPTFal` 全文 | line 2890-2973 |
+| `_finishFal` | line 2975-2982 |
+| `_toggleFalPanel` / `_toggleFalCustomSize` | line 2887-2888 |
+| `gf_panel` HTML（gpt FAL 控件） | line 1069-1080 |
+| `runNanoFal` 全文 | line 3587-3679 |
+| `nano_fal_panel` HTML | line 1154-1173 |
+| `uploadFileToAPI` | line 3104 |
+| FAL 渠道接入规范文档 | SKILL.md line 264-307 |
+
 ---
 
 ## 12. 日志总线 / 终端面板规范

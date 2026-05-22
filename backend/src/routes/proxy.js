@@ -396,6 +396,269 @@ async function pollImageTask(taskId, apiKey, maxRetries = 60, interval = 2000) {
   return null;
 }
 
+// ========================================================================
+// FAL 渠道 —— 完全对齐 gpt-image-2-web SKILL.md §FAL模型渠道接入规范
+// 不破坏原有 /image · /image/submit · /image/status/:tid 三个路由。
+//
+// 核心路由:
+//   POST /api/proxy/image/fal/submit   -> { sync, urls?, requestId?, responseUrl?, endpoint? }
+//   POST /api/proxy/image/fal/query    -> { status, images?, error? }   body: { responseUrl, endpoint, requestId }
+//
+// 主项目上游协议(index.html line 2890 runGPTFal / line 3587 runNanoFal):
+//   URL: ${baseUrl}/fal/${endpoint}
+//   Auth: Bearer ${apiKey}
+//   GPT FAL  endpoint: 'openai/gpt-image-2' 或 'openai/gpt-image-2/edit'
+//   NBPro FAL endpoint: 'fal-ai/nano-banana-pro/edit'
+//   参考图上传: POST ${baseUrl}/v1/files  (复用现有 uploadRefToZhenzhen)
+//   response_url 域名修复: queue.fal.run → ${baseUrl}/fal
+//   轮询 HTTP 非200时 body 中 status=IN_QUEUE/IN_PROGRESS 仍视为进行中
+// ========================================================================
+
+const FAL_REGISTRY = {
+  'gpt-image-2-fal': {
+    endpoint: 'openai/gpt-image-2',
+    editEndpoint: 'openai/gpt-image-2/edit',
+    paramKind: 'gpt-fal',
+    maxRefs: 5,
+  },
+  'nano-banana-pro-fal': {
+    endpoint: 'fal-ai/nano-banana-pro/edit',
+    editEndpoint: 'fal-ai/nano-banana-pro/edit',
+    paramKind: 'nbpro-fal',
+    maxRefs: 8,
+  },
+};
+
+// 按 16 倍数对齐(主项目 line 2904)
+function snap16(v, fallback) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.max(256, Math.min(3840, Math.round(n / 16) * 16));
+}
+
+// 修复 response_url 域名(主项目 line 2954)
+function fixFalResponseUrl(responseUrl, baseUrl, endpoint, requestId) {
+  let url = String(responseUrl || '');
+  if (url.includes('queue.fal.run')) {
+    url = url.replace('https://queue.fal.run', `${baseUrl}/fal`);
+  }
+  if (!url) {
+    url = `${baseUrl}/fal/${endpoint}/requests/${requestId}`;
+  }
+  return url;
+}
+
+// POST /api/proxy/image/fal/submit
+//   body 公用: { apiModel, prompt, images?, n?, format?, sync?, ... }
+//   gpt-fal 专属: { mode?: 'edit'|'gen', size?: '1024x1024'|'square'|...|'custom', customW?, customH?, quality?: low|medium|high|auto }
+//   nbpro-fal 专属: { aspect_ratio, resolution, safety_tolerance, seed?, system_prompt?, enable_web_search?, image_mode?: 'image_url'|'base64' }
+router.post('/image/fal/submit', async (req, res) => {
+  const settings = loadRawSettings();
+  if (!settings?.zhenzhenApiKey) {
+    return res.status(400).json({ success: false, error: '未配置贞贞工坊 API Key' });
+  }
+  const apiKey = settings.zhenzhenApiKey;
+  const baseUrl = config.ZHENZHEN_BASE_URL;
+  const {
+    apiModel, prompt, images, n, format, sync,
+    // gpt-fal
+    mode, size, customW, customH, quality,
+    // nbpro-fal
+    aspect_ratio, resolution, safety_tolerance, seed,
+    system_prompt, enable_web_search, image_mode,
+  } = req.body || {};
+
+  if (!apiModel) return res.status(400).json({ success: false, error: 'apiModel 必填' });
+  if (!prompt) return res.status(400).json({ success: false, error: 'prompt 不得为空' });
+
+  const reg = FAL_REGISTRY[apiModel];
+  if (!reg) return res.status(400).json({ success: false, error: `未知的 FAL 模型: ${apiModel}` });
+
+  const refs = Array.isArray(images) ? images.filter(Boolean) : [];
+  const trimmedRefs = refs.slice(0, reg.maxRefs);
+  const numImages = Math.max(1, Math.min(4, parseInt(n ?? 1, 10) || 1));
+  const outputFormat = String(format || 'png').toLowerCase();
+
+  // ========== 根据 paramKind 组装 payload ==========
+  let payload;
+  let endpoint;
+  try {
+    if (reg.paramKind === 'gpt-fal') {
+      // 选 endpoint: edit 或 gen
+      const useEdit = (mode === 'edit') || (mode !== 'gen' && trimmedRefs.length > 0);
+      endpoint = useEdit ? (reg.editEndpoint || reg.endpoint) : reg.endpoint;
+      // image_size
+      let imageSize;
+      const sz = String(size || 'auto');
+      if (sz === 'custom') {
+        imageSize = { width: snap16(customW, 1280), height: snap16(customH, 1280) };
+      } else if (sz && sz !== 'auto') {
+        imageSize = sz; // 预设字串 square_hd / portrait_16_9 等,或像素串
+      }
+      payload = {
+        prompt,
+        quality: String(quality || 'medium'),
+        num_images: numImages,
+        output_format: outputFormat,
+      };
+      if (imageSize) payload.image_size = imageSize;
+      // image_urls 仅在 edit 下添加
+      if (useEdit && trimmedRefs.length) {
+        const urls = [];
+        for (let i = 0; i < trimmedRefs.length; i++) {
+          const u = await uploadRefToZhenzhen(trimmedRefs[i], apiKey);
+          if (u) urls.push(u);
+          else throw new Error(`FAL 参考图 #${i + 1} 上传失败`);
+        }
+        if (urls.length) payload.image_urls = urls;
+      }
+      if (sync === true || sync === 'true') payload.sync_mode = true;
+    } else if (reg.paramKind === 'nbpro-fal') {
+      // nano-banana-pro 只有 edit 端点
+      endpoint = reg.endpoint;
+      payload = {
+        prompt,
+        num_images: numImages,
+        aspect_ratio: String(aspect_ratio || 'auto'),
+        resolution: String(resolution || '2K'),
+        output_format: outputFormat,
+        safety_tolerance: String(safety_tolerance || '4'),
+      };
+      if (seed && Number(seed) > 0) payload.seed = Number(seed);
+      if (system_prompt) payload.system_prompt = String(system_prompt);
+      if (enable_web_search === true || enable_web_search === 'true') payload.enable_web_search = true;
+      // 参考图(最多 8 张)
+      if (trimmedRefs.length) {
+        const imgs = [];
+        const useBase64 = String(image_mode || 'image_url') === 'base64';
+        for (let i = 0; i < trimmedRefs.length; i++) {
+          const r = trimmedRefs[i];
+          if (useBase64) {
+            // 转 base64 dataURI
+            const conv = await refToBananaImage(r);
+            if (conv) imgs.push(conv);
+          } else {
+            const u = await uploadRefToZhenzhen(r, apiKey);
+            if (u) imgs.push(u);
+            else throw new Error(`FAL 参考图 #${i + 1} 上传失败`);
+          }
+        }
+        if (imgs.length) payload.image_urls = imgs;
+      }
+    } else {
+      return res.status(400).json({ success: false, error: `不支持的 FAL paramKind: ${reg.paramKind}` });
+    }
+
+    const falUrl = `${baseUrl}/fal/${endpoint}`;
+    console.log('[fal/submit]', apiModel, '→', falUrl, '| payload keys:', Object.keys(payload), '| refs:', trimmedRefs.length);
+
+    const resp = await fetch(falUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const text = await resp.text();
+    let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+    if (!resp.ok) {
+      return res.status(resp.status).json({
+        success: false,
+        error: data?.error || data?.detail || data?.message || `FAL HTTP ${resp.status}: ${text.slice(0, 300)}`,
+      });
+    }
+    if (Array.isArray(data)) {
+      return res.status(400).json({ success: false, error: `FAL 参数校验错误: ${JSON.stringify(data).slice(0, 300)}` });
+    }
+    if (data?.detail && !data?.images && !data?.request_id) {
+      return res.status(400).json({ success: false, error: `FAL 错误: ${JSON.stringify(data.detail).slice(0, 300)}` });
+    }
+
+    // 同步返回
+    if (Array.isArray(data?.images) && data.images.length) {
+      const urls = [];
+      for (const it of data.images) {
+        if (it?.url) {
+          const local = await saveRemoteImage(it.url);
+          urls.push(local);
+        }
+      }
+      return res.json({ success: true, data: { sync: true, urls, endpoint, raw: data } });
+    }
+
+    // 异步
+    const requestId = data?.request_id;
+    let responseUrl = data?.response_url || '';
+    if (!requestId) {
+      return res.status(500).json({ success: false, error: '未获取到 request_id: ' + JSON.stringify(data).slice(0, 300) });
+    }
+    responseUrl = fixFalResponseUrl(responseUrl, baseUrl, endpoint, requestId);
+    return res.json({
+      success: true,
+      data: { sync: false, requestId, responseUrl, endpoint, raw: data },
+    });
+  } catch (e) {
+    console.error('proxy/image/fal/submit 错误:', e);
+    return res.status(500).json({ success: false, error: e.message || '请求失败' });
+  }
+});
+
+// POST /api/proxy/image/fal/query
+//   body: { responseUrl, endpoint, requestId }
+//   返回: { status: 'pending'|'completed'|'failed', urls?, error? }
+router.post('/image/fal/query', async (req, res) => {
+  const settings = loadRawSettings();
+  if (!settings?.zhenzhenApiKey) {
+    return res.status(400).json({ success: false, error: '未配置贞贞工坊 API Key' });
+  }
+  const apiKey = settings.zhenzhenApiKey;
+  const baseUrl = config.ZHENZHEN_BASE_URL;
+  const { responseUrl: rawUrl, endpoint, requestId } = req.body || {};
+  const responseUrl = fixFalResponseUrl(rawUrl, baseUrl, endpoint, requestId);
+  if (!responseUrl) return res.status(400).json({ success: false, error: 'responseUrl 或 (endpoint+requestId) 必填' });
+
+  try {
+    const pr = await fetch(responseUrl, { headers: { Authorization: `Bearer ${apiKey}` } });
+    const text = await pr.text();
+    let data; try { data = JSON.parse(text); } catch { data = null; }
+    // HTTP 非200: 主项目规范 - body 中 status=IN_QUEUE/IN_PROGRESS 视为继续等待,其他报错
+    if (!pr.ok) {
+      if (data && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS')) {
+        return res.json({ success: true, data: { status: 'pending', raw: data } });
+      }
+      return res.status(pr.status).json({
+        success: false,
+        error: `FAL Poll HTTP ${pr.status}: ${text.slice(0, 300)}`,
+        raw: data,
+      });
+    }
+    if (!data) {
+      return res.status(500).json({ success: false, error: 'FAL Poll 响应非 JSON: ' + text.slice(0, 200) });
+    }
+    // 完成
+    if (Array.isArray(data.images) && data.images.length) {
+      const urls = [];
+      for (const it of data.images) {
+        if (it?.url) {
+          const local = await saveRemoteImage(it.url);
+          urls.push(local);
+        }
+      }
+      return res.json({ success: true, data: { status: 'completed', urls, raw: data } });
+    }
+    const st = String(data.status || '').toUpperCase();
+    if (st === 'FAILED' || st === 'CANCELLED') {
+      return res.json({
+        success: false,
+        data: { status: 'failed', error: data.error || data.detail || `FAL ${st}` },
+      });
+    }
+    // IN_QUEUE / IN_PROGRESS / 空 => pending
+    return res.json({ success: true, data: { status: 'pending', falStatus: st || 'IN_QUEUE', raw: data } });
+  } catch (e) {
+    console.error('proxy/image/fal/query 错误:', e);
+    return res.status(500).json({ success: false, error: e.message || '查询失败' });
+  }
+});
+
 // ========== POST /api/proxy/llm — LLM Chat(独立 Key) ==========
 // body: { model, messages, temperature?, max_tokens?, stream? }
 router.post('/llm', async (req, res) => {

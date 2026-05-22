@@ -93,6 +93,7 @@ export const IMAGE_MODELS: ImageModelDef[] = [
       { value: 'nano-banana-pro', label: 'nano-banana-pro' },
       { value: 'nano-banana-pro-2k', label: 'nano-banana-pro-2k' },
       { value: 'nano-banana-pro-4k', label: 'nano-banana-pro-4k' },
+      { value: 'nano-banana-pro-fal', label: 'nano-banana-pro-fal' },
     ],
     aspectRatios: BANANA_PRO_RATIOS,
     defaultAspectRatio: '1:1',
@@ -103,6 +104,68 @@ export const IMAGE_MODELS: ImageModelDef[] = [
     description: '高品质 Pro 版本',
   },
 ];
+
+// ========================================================================
+// FAL 渠道注册表(完全对齐 gpt-image-2-web SKILL.md §FAL模型渠道接入规范)
+//   - URL: {baseUrl}/fal/{endpoint}   (替换官方 queue.fal.run)
+//   - 同步: response.images[]; 异步: request_id + response_url + 轮询
+//   - response_url 域名修复: queue.fal.run → {baseUrl}/fal
+//   - 轮询 HTTP 非 200 时,body 中 status==='IN_QUEUE'/'IN_PROGRESS' 时重试,否则抛错
+// ========================================================================
+// FAL 参数协议种类
+//   - 'gpt-fal'      : openai/gpt-image-2(/edit) — quality/num_images/output_format/image_size/sync_mode
+//   - 'nbpro-fal'    : fal-ai/nano-banana-pro/edit — num_images/aspect_ratio/resolution/output_format/safety_tolerance/system_prompt/enable_web_search
+export type FalParamKind = 'gpt-fal' | 'nbpro-fal';
+
+export interface FalEndpointDef {
+  /** 文生图(无参考图)endpoint */
+  endpoint: string;
+  /** 图生图(有参考图,image_urls)endpoint;不填则与 endpoint 相同 */
+  editEndpoint?: string;
+  paramKind: FalParamKind;
+  /** 最大参考图数(主项目: gpt=5, nbpro=8) */
+  maxRefs: number;
+}
+
+/** 按 apiModel(如 'gpt-image-2-fal' / 'nano-banana-pro-fal')索引 */
+export const FAL_REGISTRY: Record<string, FalEndpointDef> = {
+  'gpt-image-2-fal': {
+    endpoint: 'openai/gpt-image-2',
+    editEndpoint: 'openai/gpt-image-2/edit',
+    paramKind: 'gpt-fal',
+    maxRefs: 5,
+  },
+  'nano-banana-pro-fal': {
+    // nano-banana-pro FAL 只对外提供 edit 端点(主项目 line 3623)
+    endpoint: 'fal-ai/nano-banana-pro/edit',
+    editEndpoint: 'fal-ai/nano-banana-pro/edit',
+    paramKind: 'nbpro-fal',
+    maxRefs: 8,
+  },
+};
+
+/** 判断一个 apiModel 是否走 FAL 协议 */
+export function isFalModel(apiModel: string | undefined | null): boolean {
+  if (!apiModel) return false;
+  return !!FAL_REGISTRY[String(apiModel)] || /-fal$/.test(String(apiModel));
+}
+
+/** GPT FAL 预设尺寸枚举(主项目 g_model 切到 fal 时的 gf_size 下拉) */
+export const GPT_FAL_SIZES = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'square_hd', label: 'Square HD' },
+  { value: 'square', label: 'Square' },
+  { value: 'portrait_4_3', label: 'Portrait 4:3' },
+  { value: 'portrait_16_9', label: 'Portrait 16:9' },
+  { value: 'landscape_4_3', label: 'Landscape 4:3' },
+  { value: 'landscape_16_9', label: 'Landscape 16:9' },
+  { value: 'custom', label: 'Custom (16 倍数)' },
+];
+
+/** Nano Banana Pro FAL 比例枚举(主项目 nf_ratio) */
+export const NBPRO_FAL_RATIOS = ['auto', '21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16'];
+/** Nano Banana Pro FAL 分辨率枚举(主项目 nf_resolution) */
+export const NBPRO_FAL_RESOLUTIONS = ['1K', '2K', '4K'];
 
 // ========== 视频 ==========
 // kind 决定上游 payload 协议(后端会根据 model 名自动识别,前端主要用于控制参数 UI 列表)

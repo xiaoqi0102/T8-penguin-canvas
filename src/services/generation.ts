@@ -79,6 +79,88 @@ export async function queryImageStatus(taskId: string): Promise<ImageQueryResult
   return data.data || { status: data.success ? 'pending' : 'failed', progress: '0%', error: data?.error };
 }
 
+// ========================================================================
+// FAL 渠道(独立提交 + 轮询,对齐 gpt-image-2-web runGPTFal / runNanoFal)
+//   submitImageFal 返 { sync, urls? } 或 { sync:false, requestId, responseUrl, endpoint }
+//   queryImageFal  返 { status: 'pending'|'completed'|'failed', urls?, error? }
+// ========================================================================
+export interface FalSubmitRequest {
+  /** 'gpt-image-2-fal' | 'nano-banana-pro-fal' */
+  apiModel: string;
+  prompt: string;
+  /** 参考图 URL(本地 /files/* 或 base64 dataURI),后端会上传到 /v1/files 取 URL */
+  images?: string[];
+  /** 生成张数 1-4 */
+  n?: number;
+  /** 输出格式 png / jpeg / webp */
+  format?: 'png' | 'jpeg' | 'webp';
+  /** 同步模式(true 会在提交请求中附加 sync_mode:true,贞贞上游如果接受会同步返 images) */
+  sync?: boolean;
+
+  // === gpt-fal 专属 ===
+  /** 'edit' | 'gen';不填时有参考图走 edit,无参考图走 gen */
+  mode?: 'edit' | 'gen';
+  /** 'auto' / 'square_hd' / 'square' / 'portrait_4_3' / 'portrait_16_9' / 'landscape_4_3' / 'landscape_16_9' / 'custom' */
+  size?: string;
+  /** size === 'custom' 时有效,后端会 snap 到 16 倍数 */
+  customW?: number;
+  customH?: number;
+  /** 'low' | 'medium' | 'high' | 'auto' 主项目默认 medium */
+  quality?: 'low' | 'medium' | 'high' | 'auto';
+
+  // === nbpro-fal 专属 ===
+  /** 'auto' / '21:9' / '16:9' / '3:2' / '4:3' / '5:4' / '1:1' / '4:5' / '3:4' / '2:3' / '9:16' */
+  aspect_ratio?: string;
+  /** '1K' / '2K' / '4K' */
+  resolution?: string;
+  /** '1'(严)..'6'(松) 默认 '4' */
+  safety_tolerance?: string;
+  /** 0 = 不传 */
+  seed?: number;
+  system_prompt?: string;
+  enable_web_search?: boolean;
+  /** 'image_url'(上传贞贞取 URL) | 'base64' 默认 'image_url' */
+  image_mode?: 'image_url' | 'base64';
+}
+
+export interface FalSubmitResult {
+  sync: boolean;
+  urls?: string[];
+  requestId?: string;
+  responseUrl?: string;
+  endpoint?: string;
+}
+
+export async function submitImageFal(req: FalSubmitRequest): Promise<FalSubmitResult> {
+  const r = await fetch('/api/proxy/image/fal/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  const data = await r.json();
+  if (!r.ok || !data.success) throw new Error(data?.error || `HTTP ${r.status}`);
+  return data.data;
+}
+
+export interface FalQueryResult {
+  status: 'pending' | 'completed' | 'failed' | string;
+  urls?: string[];
+  error?: string;
+  falStatus?: string;
+}
+
+export async function queryImageFal(params: { responseUrl?: string; endpoint?: string; requestId?: string }): Promise<FalQueryResult> {
+  const r = await fetch('/api/proxy/image/fal/query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  const data = await r.json();
+  // 后端在 FAILED 时会 success=false 但 data.status='failed',这里返回结果供上层判断
+  if (!r.ok && !data.data) throw new Error(data?.error || `HTTP ${r.status}`);
+  return data.data || { status: 'failed', error: data?.error || 'unknown' };
+}
+
 // LLM
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant';
