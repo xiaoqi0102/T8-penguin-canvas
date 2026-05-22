@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import {
   AlertCircle,
@@ -62,6 +62,29 @@ function savePresets(map: Record<string, string>) {
   }
 }
 
+/** 将原生 wheel 事件拦截，阻止传递到 ReactFlow 画布缩放 */
+function useWheelIsolation<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      // 只有内容可滚动时才拦截
+      const scrollable = el.scrollHeight > el.clientHeight;
+      if (!scrollable) return;
+      const atTop = el.scrollTop <= 0 && e.deltaY < 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight && e.deltaY > 0;
+      if (!atTop && !atBottom) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+  return ref;
+}
+
 const LLMNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const { getEdges, getNodes } = useReactFlow();
@@ -71,6 +94,10 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
   const [pickedFiles, setPickedFiles] = useState<{ name: string; dataUrl: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const sysRef = useWheelIsolation<HTMLTextAreaElement>();
+  const userRef = useWheelIsolation<HTMLTextAreaElement>();
+  const chatRef = useWheelIsolation<HTMLDivElement>();
 
   const d = data as any;
   const model: string = d?.model || DEFAULT_LLM_MODEL;
@@ -420,10 +447,10 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
             </div>
           </div>
           <textarea
+            ref={sysRef}
             value={systemPrompt}
             onChange={(e) => update({ system: e.target.value })}
             placeholder="设定AI角色和行为..."
-            onWheel={(e) => e.stopPropagation()}
             className="w-full h-36 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30 overflow-y-auto"
           />
         </div>
@@ -432,10 +459,10 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
         <div>
           <label className="text-[10px] text-white/50 block mb-1">用户输入(优先取上游)</label>
           <textarea
+            ref={userRef}
             value={localPrompt}
             onChange={(e) => update({ prompt: e.target.value })}
             placeholder="备用:无上游连接时使用"
-            onWheel={(e) => e.stopPropagation()}
             className="w-full h-60 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30 overflow-y-auto"
           />
         </div>
@@ -515,9 +542,14 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
         )}
       </div>
 
-      {/* 会话历史 / 流式实时区 */}
+      {/* 会话历史 - 右侧面板 */}
       {(history.length > 0 || streamingText) && (
-        <div className="border-t border-white/10 p-2 space-y-1.5 max-h-[36rem] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+        <div
+          ref={chatRef}
+          className="absolute top-0 left-full ml-2 w-[280px] max-h-[480px] overflow-y-auto rounded-xl border border-white/10 p-2.5 space-y-1.5"
+          style={{ background: 'rgba(20,20,22,.94)', backdropFilter: 'blur(8px)' }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {history.map((t, i) => (
             <div key={i} className="text-[11px]">
               <div className={`text-[9px] mb-0.5 ${t.role === 'user' ? 'text-sky-300/60' : 'text-emerald-300/60'}`}>
