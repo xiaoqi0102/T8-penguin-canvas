@@ -186,6 +186,16 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     edges: Edge[];
   } | null>(null);
 
+  // 跟踪最新 nodes/edges 供全局事件回调使用
+  const nodesRef = useRef<Node[]>([]);
+  const edgesRef = useRef<Edge[]>([]);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+
   // 吸附 + 对齐辅助线
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [guides, setGuides] = useState<{ vertical: number[]; horizontal: number[] }>({
@@ -1041,6 +1051,184 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     },
     [screenToFlowPosition, nodes]
   );
+
+  // ===== 全局 SHIFT+Handle 批量移线拦截器 =====
+  // 原因: ReactFlow 的 multiSelectionKeyCode 包含 'Shift'，导致按住 SHIFT 在 handle 上 mousedown
+  // 会被 ReactFlow 拦截为多选事件，onConnectStart 可能不会触发。
+  // 这里使用 capture 阶段全局拦截 + stopImmediatePropagation 完全接管该交互。
+  useEffect(() => {
+    const onMouseDownCapture = (e: MouseEvent) => {
+      if (!e.shiftKey) return;
+      if (e.button !== 0) return; // 仅左键
+      const targetEl = e.target as HTMLElement | null;
+      if (!targetEl) return;
+      const handleEl = targetEl.closest('.react-flow__handle') as HTMLElement | null;
+      if (!handleEl) return;
+
+      // 获取节点 ID
+      const nodeEl = handleEl.closest('.react-flow__node') as HTMLElement | null;
+      const nodeId =
+        handleEl.getAttribute('data-nodeid') || nodeEl?.getAttribute('data-id') || '';
+      if (!nodeId) return;
+
+      // 判断 handle 类型：data-handlepos / class / data-handletype 多重兑底
+      let handleType: 'source' | 'target' | null = null;
+      const dt = handleEl.getAttribute('data-handletype');
+      if (dt === 'target' || dt === 'source') {
+        handleType = dt;
+      } else if (handleEl.classList.contains('react-flow__handle-left')) {
+        handleType = 'target';
+      } else if (handleEl.classList.contains('react-flow__handle-right')) {
+        handleType = 'source';
+      } else {
+        const pos = handleEl.getAttribute('data-handlepos');
+        if (pos === 'left' || pos === 'top') handleType = 'target';
+        else if (pos === 'right' || pos === 'bottom') handleType = 'source';
+      }
+      if (!handleType) return;
+
+      // 收集相关边
+      const relatedEdges =
+        handleType === 'target'
+          ? edgesRef.current.filter((ed) => ed.target === nodeId)
+          : edgesRef.current.filter((ed) => ed.source === nodeId);
+      if (relatedEdges.length === 0) return;
+
+      // 拦截 ReactFlow 默认处理(多选/连接启动)
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      e.preventDefault();
+
+      const startNodeId = nodeId;
+      const startHandleType = handleType;
+      const stashed: Edge[] = JSON.parse(JSON.stringify(relatedEdges));
+      const stashedIds = new Set(stashed.map((ed) => ed.id));
+
+      // 进入拖拽状态: 从画布中暂时隐藏这些边(以免视觉干扰)
+      // （如果释放在空白会复原）
+      setEdges((eds) =>
+        eds.map((ed) =>
+          stashedIds.has(ed.id)
+            ? { ...ed, hidden: true }
+            : ed
+        )
+      );
+
+      // 光标反馈
+      document.body.style.cursor = 'grabbing';
+
+      const cleanup = () => {
+        window.removeEventListener('mouseup', onMouseUp, true);
+        window.removeEventListener('mousemove', onMouseMove, true);
+        window.removeEventListener('keydown', onKeyDown, true);
+        document.body.style.cursor = '';
+      };
+
+      const restoreOriginal = () => {
+        // 取消: 取消隐藏，边保持不变
+        setEdges((eds) =>
+          eds.map((ed) => (stashedIds.has(ed.id) ? { ...ed, hidden: false } : ed))
+        );
+      };
+
+      const onKeyDown = (kev: KeyboardEvent) => {
+        if (kev.key === 'Escape') {
+          cleanup();
+          restoreOriginal();
+        }
+      };
+
+      const onMouseMove = (_mv: MouseEvent) => {
+        // 预留: 可加拖拽预览线，目前依赖鼠标 cursor 反馈
+      };
+
+      const onMouseUp = (upEv: MouseEvent) => {
+        cleanup();
+        const upTargetEl = upEv.target as HTMLElement | null;
+        const upHandleEl = upTargetEl?.closest('.react-flow__handle') as HTMLElement | null;
+        if (!upHandleEl) {
+          restoreOriginal();
+          return;
+        }
+        const upNodeEl = upHandleEl.closest('.react-flow__node') as HTMLElement | null;
+        const upNodeId =
+          upHandleEl.getAttribute('data-nodeid') ||
+          upNodeEl?.getAttribute('data-id') ||
+          '';
+        if (!upNodeId || upNodeId === startNodeId) {
+          restoreOriginal();
+          return;
+        }
+
+        let upHandleType: 'source' | 'target' | null = null;
+        const udt = upHandleEl.getAttribute('data-handletype');
+        if (udt === 'target' || udt === 'source') {
+          upHandleType = udt;
+        } else if (upHandleEl.classList.contains('react-flow__handle-left')) {
+          upHandleType = 'target';
+        } else if (upHandleEl.classList.contains('react-flow__handle-right')) {
+          upHandleType = 'source';
+        } else {
+          const pos = upHandleEl.getAttribute('data-handlepos');
+          if (pos === 'left' || pos === 'top') upHandleType = 'target';
+          else if (pos === 'right' || pos === 'bottom') upHandleType = 'source';
+        }
+
+        // 同类型才重连(target→target 或 source→source)
+        if (upHandleType !== startHandleType) {
+          restoreOriginal();
+          return;
+        }
+
+        // 执行批量重连
+        setEdges((eds) => {
+          const filtered = eds.filter((ed) => !stashedIds.has(ed.id));
+          const ts = Date.now();
+          const newEdges: Edge[] = stashed.map((old) => {
+            const sourceId =
+              startHandleType === 'target' ? old.source : upNodeId;
+            const targetId =
+              startHandleType === 'target' ? upNodeId : old.target;
+            const srcN = nodesRef.current.find((n) => n.id === sourceId);
+            const tgtN = nodesRef.current.find((n) => n.id === targetId);
+            const outs = srcN ? getNodeOutputs(srcN) : [];
+            const ins = tgtN ? getNodeInputs(tgtN) : [];
+            const matched = outs.find(
+              (o) => ins.includes(o) || o === 'any' || ins.includes('any')
+            );
+            const color =
+              matched && matched !== 'any' ? PORT_COLOR[matched] : undefined;
+            return {
+              ...old,
+              hidden: false,
+              id: `e-${sourceId}-${targetId}-${ts}-${Math.random()
+                .toString(36)
+                .slice(2, 6)}`,
+              source: sourceId,
+              target: targetId,
+              sourceHandle: startHandleType === 'target' ? old.sourceHandle : null,
+              targetHandle: startHandleType === 'source' ? old.targetHandle : null,
+              ...(color ? { style: { stroke: color, strokeWidth: 2 } } : {}),
+              data: {
+                ...((old.data as any) || {}),
+                portType: matched ?? 'any',
+              },
+            };
+          });
+          return [...filtered, ...newEdges];
+        });
+      };
+
+      window.addEventListener('mouseup', onMouseUp, true);
+      window.addEventListener('mousemove', onMouseMove, true);
+      window.addEventListener('keydown', onKeyDown, true);
+    };
+
+    window.addEventListener('mousedown', onMouseDownCapture, true);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDownCapture, true);
+    };
+  }, []);
 
   // 计算候选节点列表(根据起始节点输出/输入类型过滤)
   const pickerCandidates = useMemo<Array<NodeMeta & { matchedTypes: PortType[] }>>(() => {
