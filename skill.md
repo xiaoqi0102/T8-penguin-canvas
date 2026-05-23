@@ -1,7 +1,9 @@
 # T8-penguin-canvas · skill.md
 
 > 项目能力 / 接口 / 文件用途速查手册。
-> 版本：v1.5.3 ｜ 仓库：<https://github.com/T8mars/T8-penguin-canvas>
+> 版本：v1.5.4 ｜ 仓库：<https://github.com/T8mars/T8-penguin-canvas>
+>
+> v1.5.4 增量：LLM 多模态 image_url 预处理 · 修复上游 /files/* 本地路径透传被上游误读为 base64 导致 convert_request_failed（37）
 >
 > v1.5.3 增量：节点拖出候选菜单 中继节点置顶（36）
 >
@@ -3213,6 +3215,101 @@ return NODE_REGISTRY.flatMap((meta) => {
 ### 36.4 关键文件
 
 - [src/components/Canvas.tsx](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/Canvas.tsx)——`pickerCandidates` useMemo 末尾 `.sort()`
+
+---
+
+## 37. LLM 多模态 image_url 预处理（v1.5.4）
+
+### 37.1 用户报告
+
+> LLM 节点传入图片后报错：
+>
+> ```
+> 上游 HTTP 500: get file data from 'base64:/files/input/up_1779512616397_ty1b.png'
+> failed: failed to decode base64 data: illegal base64 data at input byte 15
+> code: convert_request_failed
+> ```
+
+### 37.2 根因
+
+错误链路：
+
+1. [UploadNode](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/nodes/UploadNode.tsx) 上传完后后端 `/api/files/upload` 返回本项目本地相对路径 `/files/input/up_xxx.png`。
+2. [LLMNode.collectUpstream](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/nodes/LLMNode.tsx) 取上游 `imageUrl` 后直接放到 `image_url.url`。
+3. 后端 [proxy.js /llm](file:///e:/PenguinPravite/T8-penguin-canvas/backend/src/routes/proxy.js) 原本 **原样透传** `messages` 给上游贞贞工坊 `/v1/chat/completions`。
+4. 上游服务器无法访问本项目本地静态，拿到 `/files/input/...` 后错误地试图当 base64 解码 → 崩溃。
+
+### 37.3 修复思路（对齐 gpt-image-2-web chat 多模态）
+
+在后端 `/llm` 路由进入上游前，扫描 `messages` 中所有 `content` 数组里的 `image_url.url`，按前缀处理：
+
+| 前缀 | 处理 |
+|---|---|
+| `data:` | 保留（已是 base64）|
+| `http://` / `https://` | 保留（外网 URL 上游可访问）|
+| `/files/*` | 本地拉 buffer → 转 `data:image/xxx;base64,xxx` dataURL |
+| 其他 | 保留原值，让上游报真错误 |
+
+### 37.4 实现
+
+在 [proxy.js](file:///e:/PenguinPravite/T8-penguin-canvas/backend/src/routes/proxy.js) `refToBananaImage` 之后新增：
+
+```js
+async function normalizeLlmMessageImages(messages) {
+  if (!Array.isArray(messages)) return messages;
+  for (const msg of messages) {
+    if (!msg || !Array.isArray(msg.content)) continue;
+    for (const part of msg.content) {
+      if (!part || part.type !== 'image_url' || !part.image_url) continue;
+      const url = part.image_url.url;
+      if (typeof url !== 'string' || !url) continue;
+      if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) continue;
+      if (url.startsWith('/files/')) {
+        const dataUrl = await refToBananaImage(url);  // 复用现有 helper
+        if (dataUrl) part.image_url.url = dataUrl;
+        else throw new Error(`本地图片读取失败: ${url}`);
+      }
+    }
+  }
+  return messages;
+}
+```
+
+在 `/llm` 路由头部：
+
+```js
+let normalizedMessages;
+try {
+  normalizedMessages = await normalizeLlmMessageImages(messages);
+} catch (e) {
+  return res.status(400).json({ success: false, error: e.message || '参考图预处理失败' });
+}
+const payload = { model, messages: normalizedMessages, /* ... */ };
+```
+
+### 37.5 零破坏保证
+
+- `content` 为字符串的普通文本消息（非多模态）不动
+- 原本就是 `data:image/xxx;base64,...` 的 dataURL（本地选图）不动
+- 外网 `http(s)://` 参考图（如 ImageNode 生成后转存的 OSS URL）不动
+- LLMNode 前端代码零修改，`buildMessages` / `collectUpstream` / `pickedFiles` 逻辑全保留
+- 其他路由（`/image/*` / `/video/*` / `/audio/*` / MJ / FAL / RH）不受影响
+
+### 37.6 验证清单
+
+- [x] `node -c backend/src/routes/proxy.js` 语法检查通过
+- [x] `npx tsc --noEmit` 无报错
+- [x] `npx vite build` 成功（5.46s）
+- [x] UploadNode(image) → LLMNode 走上游变 base64 dataURL不再报 convert_request_failed
+- [x] OutputNode/ImageNode/RelayNode 生成的纯 `/files/*` 路径进 LLM 同样会被转 base64
+- [x] LLMNode 本地选图（本身就是 data: dataURL）走原路径未受影响
+- [x] 外网 https:// 参考图走原 URL 未受影响
+
+### 37.7 关键文件
+
+- [backend/src/routes/proxy.js](file:///e:/PenguinPravite/T8-penguin-canvas/backend/src/routes/proxy.js)——新增 `normalizeLlmMessageImages` + `/llm` 路由头部调用
+- 参考 helper：同文件 `refToBananaImage`（line 140-155）
+- 上游字段读取：[LLMNode.tsx collectUpstream](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/nodes/LLMNode.tsx#L121-L139)
 
 ---
 

@@ -154,6 +154,39 @@ async function refToBananaImage(ref) {
   return null;
 }
 
+// LLM 多模态 image_url 预处理:
+//   上游 LLM 服务(贞贞工坊)无法访问本地 /files/* 路径,需提前转成 base64 dataURL inline。
+//   - data: 保留
+//   - http(s):// 保留(上游可访问)
+//   - /files/* → 本地拉 buffer 转 base64 dataURL
+//   对齐 gpt-image-2-web chat 模式处理参考图的思路。
+//   零破坏:对于 content 为字符串的普通文本消息不动;仅处理 content 为数组且含 image_url 部分。
+async function normalizeLlmMessageImages(messages) {
+  if (!Array.isArray(messages)) return messages;
+  for (const msg of messages) {
+    if (!msg || !Array.isArray(msg.content)) continue;
+    for (const part of msg.content) {
+      if (!part || part.type !== 'image_url' || !part.image_url) continue;
+      const url = part.image_url.url;
+      if (typeof url !== 'string' || !url) continue;
+      // 已是 base64 或外网 URL→不动
+      if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) continue;
+      // 本地路径→转 base64 dataURL
+      if (url.startsWith('/files/')) {
+        const dataUrl = await refToBananaImage(url);
+        if (dataUrl) {
+          part.image_url.url = dataUrl;
+        } else {
+          // 转换失败:报一个明确错误,避免上游 'base64:/files/...' 这种误导报错
+          throw new Error(`本地图片读取失败: ${url}`);
+        }
+      }
+      // 其它未知前缀:保留原值,让上游报真错误
+    }
+  }
+  return messages;
+}
+
 // ========================================================================
 // 核心 helper:完全对齐主项目 gpt-image-2-web 的上游调用
 //   - GPT2 始终走 multipart /v1/images/edits?async=true(line 2869)
@@ -832,10 +865,20 @@ router.post('/llm', async (req, res) => {
     return res.status(400).json({ success: false, error: 'model 和 messages 必填' });
   }
 
+  // 预处理 messages 中的 image_url:将本地 /files/* 路径转成 base64 dataURL,
+  // 避免上游 LLM 服务拿着 'base64:/files/input/xxx.png' 报 convert_request_failed。
+  // 对齐 gpt-image-2-web chat 多模态参考图预处理思路。
+  let normalizedMessages;
+  try {
+    normalizedMessages = await normalizeLlmMessageImages(messages);
+  } catch (e) {
+    return res.status(400).json({ success: false, error: e.message || '参考图预处理失败' });
+  }
+
   const upstream = `${config.ZHENZHEN_BASE_URL}/v1/chat/completions`;
   const payload = {
     model,
-    messages,
+    messages: normalizedMessages,
     temperature: temperature ?? 0.7,
     max_tokens: max_tokens ?? 4096,
     stream: !!stream,
