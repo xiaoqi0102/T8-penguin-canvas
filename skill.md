@@ -2104,3 +2104,135 @@ output: { inputs: ['text', 'image', 'video', 'audio', 'any'], outputs: ['any'] }
 - [ ] 重跑生成不会重复创建 OutputNode（sig 记忆生效）
 
 ---
+
+## 26. 防回退守则（强制 · 极重要）
+
+> 起因：commit `5656721` 名义上只做了「生成节点自动外挂 OutputNode」（OutputNode.tsx +1），但实际 stat 显示 7 文件 / +107 / **−661**。
+> 它把前两个 commit 的成果一次性静默回退：
+> - `e065970` 的 GroupBoxNode 右侧聚合输出口（−125 行）
+> - `e065970` 的 portTypes outputs（−5 行）
+> - `46e3b4c` 的 NodeActionBar 浮动操作栏（−251 行）
+> - skill.md 第 17-21 章累积沉淀（−214 行）
+>
+> 用户和 agent 都没有察觉，直到这次 UI 反馈「组级聚合输出口不见了」才被发现。
+> 修复 commit：`9a486e3` 用 `git checkout e065970 -- src/components/nodes/GroupBoxNode.tsx` 把 e065970 的版本拉回。
+
+### 26.1 根因（事故学复盘）
+
+典型「工作树未刷新就批量提交」事故。最可能流程：
+
+1. 会话/IDE 早期已把 GroupBoxNode、NodeActionBar、portTypes、skill.md 的 **旧快照** 读入内存或临时副本
+2. 中间 commit（e065970、46e3b4c）只更新了 git 索引 + 工作树物理文件，**没有触发** agent 内存里的文件 buffer 同步
+3. 准备做下一个 commit 时，agent 用 `edit_file` / `search_replace` / `write_file` 对若干「主战场文件」做改动
+4. 用 `git add -A` / `git commit -a` / `git add .` **批量提交**，把 agent 写回的「旧快照」一起当作「用户主动修改」打进 commit
+5. 由于 commit message 只描述了「主战场意图」，回退动作被淹没，static review 难以察觉
+
+### 26.2 防回退强制守则
+
+**1. 严禁 `git add -A` / `git add .` / `git commit -a`**
+
+所有 commit 必须使用精确文件路径：
+
+```bash
+# ❌ 严禁
+git add -A
+git add .
+git commit -a -m "..."
+
+# ✅ 强制
+git add path/to/file1.ts path/to/file2.tsx
+git commit -m "..."
+```
+
+**2. commit 前必校验 `git diff --staged --stat`**
+
+```bash
+git diff --staged --stat
+```
+
+核对清单：
+- [ ] 列出的文件数量与 commit 意图相符（例如「只改 ImageNode」时不应出现 GroupBoxNode）
+- [ ] 每个文件的 +/− 行数大致符合预期（删除大量行的文件必须警惕）
+- [ ] **任何 commit message 没提到的文件，全部 `git restore --staged <file>` 撤回**
+
+**3. commit 后立刻校验 `git show --stat HEAD`**
+
+```bash
+git show --stat HEAD
+```
+
+如果发现混入回退，**立即 `git revert HEAD` 或 `git reset --soft HEAD~1`** 后精挑文件重提。
+
+**4. 会话/任务开始前必查 `git status` + `git diff`**
+
+确认工作树干净（或仅有预期改动）后再开始新动作。如果发现「无来由的修改」，必须先 `git restore <file>` 复位，绝不带着脏改动开始新工作。
+
+**5. 任何「批量改动」任务必须分文件 commit**
+
+例如本次「上游素材聚合预览区」涉及 5 个文件，正确姿势：
+
+```bash
+# 第一波：新建 hook
+git add src/components/nodes/useUpstreamMaterials.ts src/components/nodes/useOrderedMaterials.ts
+git commit -m "feat(materials): 新增 useUpstreamMaterials/useOrderedMaterials hook"
+
+# 第二波：新建 UI 组件
+git add src/components/nodes/MaterialThumbnail.tsx src/components/nodes/MaterialPreviewSection.tsx
+git commit -m "feat(materials): 新增 MaterialThumbnail/MaterialPreviewSection 组件"
+
+# 第三波：节点接入
+git add src/components/nodes/ImageNode.tsx package.json package-lock.json
+git commit -m "feat(image-node): 接入聚合预览区"
+```
+
+**6. 关键文件（功能契约文件）必须建立白名单监控**
+
+下列文件改动必须在 commit message 中显式说明，否则视为事故：
+
+- `src/components/Canvas.tsx`
+- `src/components/nodes/GroupBoxNode.tsx`
+- `src/components/nodes/OutputNode.tsx`
+- `src/components/nodes/ImageNode.tsx`
+- `src/components/nodes/VideoNode.tsx`
+- `src/components/nodes/SeedanceNode.tsx`
+- `src/components/nodes/AudioNode.tsx`
+- `src/components/nodes/LLMNode.tsx`
+- `src/components/nodes/RunningHubNode.tsx`
+- `src/components/NodeActionBar.tsx`
+- `src/config/portTypes.ts`
+- `src/utils/topologicalSort.ts`
+- `skill.md`
+
+### 26.3 事故应急流程
+
+如果发生「功能不见了」类反馈，按以下流程定位：
+
+```bash
+# 1. 找出该文件最后一次「正常」状态的 commit
+git log --oneline -- path/to/file.ts
+
+# 2. 拉对应文件 blob 哈希追溯（关键诊断动作）
+git ls-tree <commit-A> -- path/to/file.ts
+git ls-tree <commit-B> -- path/to/file.ts
+# 如果两个相邻 commit 的 blob 哈希不同, 说明 commit-B 改了该文件
+
+# 3. 用 git show --stat 看该 commit 是否「夹带私货」
+git show --stat <commit-B>
+
+# 4. 单文件回滚到某历史版本（不影响其他文件）
+git checkout <good-commit> -- path/to/file.ts
+
+# 5. 校验后单独 commit
+git add path/to/file.ts
+git commit -m "fix: 恢复 xxx 功能(被 <bad-commit> 误回退)"
+```
+
+### 26.4 关键 Commit 索引
+
+- `e065970` - GroupBoxNode 右侧聚合输出口（被回退原始版本）
+- `46e3b4c` - NodeActionBar 浮动操作栏（被回退原始版本）
+- `5656721` - **事故 commit**：名义「自动外挂 OutputNode」实际夹带 4 项回退（−661 行）
+- `9a486e3` - 修复事故，恢复 GroupBoxNode 聚合输出口 + 取消 MaterialPreviewSection 折叠
+
+---
+
