@@ -129,15 +129,20 @@ const RunningHubNode = ({ id, data, selected }: NodeProps) => {
   };
 
   // ========== 从节点内表单 + 上游 RhConfig 合并出原始 nodeInfoList（同一个 (nodeId,fieldName) 表单优先） ==========
-  const buildRawNodeInfoList = (): any[] => {
+  // 同样接受可选的 override 参数让 handleRun 同步路径能用 freshly fetched 结果
+  const buildRawNodeInfoList = (
+    overrideList?: any[],
+    overrideValues?: Record<string, { value: string; sourceFromUpstream?: boolean }>,
+  ): any[] => {
     const seen = new Set<string>();
     const out: any[] = [];
     // 1. 节点内表单
-    const list: any[] = appInfo?.nodeInfoList || [];
+    const list: any[] = overrideList ?? appInfo?.nodeInfoList ?? [];
+    const values = overrideValues ?? paramValues;
     for (const it of list) {
       const k = paramKey(it.nodeId, it.fieldName);
       const vt = inferValueType(it?.fieldType);
-      const v = paramValues[k]?.value;
+      const v = values[k]?.value;
       // 未填 且 原始 fieldValue 为空且非必填 → 跳过
       const finalVal = v != null && v !== '' ? v : (it?.fieldValue ?? '');
       seen.add(k);
@@ -258,31 +263,59 @@ const RunningHubNode = ({ id, data, selected }: NodeProps) => {
     }, POLL_INT);
   };
 
-  const handleFetchInfo = async () => {
+  // 返回本次拉取与计算后的可用 list + paramValues，供 handleRun 同步路径直接使用
+  // （避免 React state 异步更新后 closure 还指向旧值）
+  const handleFetchInfo = async (): Promise<{
+    list: any[];
+    paramValues: Record<string, { value: string; sourceFromUpstream?: boolean }>;
+  } | null> => {
     setError(null);
     if (!webappId) {
       setError('请先填写 webappId');
-      return;
+      return null;
     }
     setFetchingInfo(true);
     try {
       const info = await fetchRhAppInfo(webappId);
-      // 拉取后用示例值初始化 paramValues（仅填未存在的 key）
       const list: any[] = info?.nodeInfoList || [];
       const next: Record<string, { value: string; sourceFromUpstream?: boolean }> = { ...paramValues };
       for (const it of list) {
         const k = paramKey(it.nodeId, it.fieldName);
-        if (!(k in next)) {
-          next[k] = { value: it?.fieldValue ?? '' };
+        const vt = inferValueType(it?.fieldType);
+        if (k in next) continue;
+        if (vt === 'image' || vt === 'video' || vt === 'audio') {
+          const upUrl = findUpstreamUrl(vt);
+          if (upUrl) {
+            next[k] = { value: upUrl, sourceFromUpstream: true };
+            continue;
+          }
         }
+        next[k] = { value: it?.fieldValue ?? '' };
       }
       update({ appInfo: info, paramValues: next });
+      return { list, paramValues: next };
     } catch (e: any) {
       setError(e?.message || '查询失败');
+      return null;
     } finally {
       setFetchingInfo(false);
     }
   };
+
+  // 自动拉取：第一次 webappId 有值 且 上游有媒体节点 且 还未拉取过任何 appInfo 时，
+  // 静默拉一次，避免用户漏点搜索按钮导致提交空 nodeInfoList 后 RH 用了应用默认参数。
+  const autoFetchedRef = useRef(false);
+  useEffect(() => {
+    if (autoFetchedRef.current) return;
+    if (!webappId) return;
+    if (appInfo) return;
+    if (fetchingInfo) return;
+    const hasUpstreamMedia = !!(findUpstreamUrl('image') || findUpstreamUrl('video') || findUpstreamUrl('audio'));
+    if (!hasUpstreamMedia) return;
+    autoFetchedRef.current = true;
+    void handleFetchInfo();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webappId, upstreamNodes, appInfo]);
 
   const handleRun = async () => {
     setError(null);
@@ -290,9 +323,23 @@ const RunningHubNode = ({ id, data, selected }: NodeProps) => {
       setError('请先填写 webappId');
       return;
     }
+    // 兑底：如果还没拉过 appInfo 且上游接了媒体节点，先同步拉一次，
+    // 避免提交空 nodeInfoList 后 RH 黙默用了应用默认参数。
+    let freshList: any[] | null = null;
+    let freshValues: Record<string, { value: string; sourceFromUpstream?: boolean }> | null = null;
+    if (!appInfo?.nodeInfoList?.length) {
+      const hasUpstreamMedia = !!(findUpstreamUrl('image') || findUpstreamUrl('video') || findUpstreamUrl('audio'));
+      if (hasUpstreamMedia) {
+        const r = await handleFetchInfo();
+        if (r) {
+          freshList = r.list;
+          freshValues = r.paramValues;
+        }
+      }
+    }
     update({ status: 'submitting', error: null, urls: [], taskId: null });
     try {
-      const rawList = buildRawNodeInfoList();
+      const rawList = buildRawNodeInfoList(freshList ?? undefined, freshValues ?? undefined);
       // 提交前：把媒体类 url 转成 RH 内部 fileName
       const nodeInfoList = await resolveNodeInfoList(rawList);
       const r = await submitRh({
