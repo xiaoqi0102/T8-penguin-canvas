@@ -453,7 +453,7 @@ function App() {
 
                 {/* 海外站跳转按钮 */}
                 <a
-                  href="https://ai.t8star.org/"
+                  href="https://ai.t8star.org/register?aff=dP7j"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setZhenOpen(false)}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Eye, EyeOff, KeyRound, Loader2, Lock, Save, X } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Loader2, Lock, Save, X, ExternalLink } from 'lucide-react';
 import { useApiKeysStore, FIXED_ZHENZHEN_BASE, RH_BASE } from '../stores/apiKeys';
 import { useThemeStore } from '../stores/theme';
 import type { ApiSettings } from '../types/canvas';
@@ -161,7 +161,10 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
   };
 
   // 渲染单个 Key 表项
-  const renderKey = (spec: KeySpec, opts: { fallbackHint?: boolean; baseUrlNote?: string }) => {
+  const renderKey = (
+    spec: KeySpec,
+    opts: { fallbackHint?: boolean; baseUrlNote?: string; extras?: React.ReactNode },
+  ) => {
     const f = spec.field;
     const rawVal = (settings as any)[f] as string | undefined;
     const hasSaved = !!rawVal;
@@ -200,9 +203,16 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             {shows[f] ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
-        {opts.baseUrlNote && (
-          <div className={`flex items-center gap-1.5 text-[11px] ${hintCls}`}>
-            <Lock size={11} /> {opts.baseUrlNote}
+        {(opts.baseUrlNote || opts.extras) && (
+          <div className={`flex items-center justify-between gap-2 flex-wrap text-[11px] ${hintCls}`}>
+            {opts.baseUrlNote ? (
+              <span className="flex items-center gap-1.5">
+                <Lock size={11} /> {opts.baseUrlNote}
+              </span>
+            ) : (
+              <span />
+            )}
+            {opts.extras && <div className="flex items-center gap-2">{opts.extras}</div>}
           </div>
         )}
       </div>
@@ -263,7 +273,49 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
         <div className="p-5 space-y-5 overflow-y-auto">
           {/* 三套通用 Key */}
           {renderKey(COMMON_KEYS[0], { baseUrlNote: `Base URL 锁定: ${FIXED_ZHENZHEN_BASE}` })}
-          {renderKey(COMMON_KEYS[1], { baseUrlNote: `Base URL: ${RH_BASE}` })}
+          {renderKey(COMMON_KEYS[1], {
+            baseUrlNote: `Base URL: ${RH_BASE}`,
+            extras: (
+              <>
+                <a
+                  href="https://www.runninghub.cn/user-center/1819214514410942465/webapp?inviteCode=rh-v1121"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={
+                    isPixel
+                      ? 'px-btn px-btn--sm px-btn--peach inline-flex items-center gap-1'
+                      : `inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border transition-all ${
+                          isDark
+                            ? 'bg-orange-500/10 border-orange-500/40 text-orange-300 hover:bg-orange-500/20 hover:border-orange-400/60'
+                            : 'bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100'
+                        }`
+                  }
+                  title="跳转 RunningHub 国内站获取 ApiKey（邀请码 rh-v1121）"
+                >
+                  <span>获取 RH APIKEY（国内）</span>
+                  <ExternalLink size={11} className="opacity-70" />
+                </a>
+                <a
+                  href="https://www.runninghub.ai/user-center/1907375370302308353/webapp?inviteCode=rh-v1121"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={
+                    isPixel
+                      ? 'px-btn px-btn--sm px-btn--yellow inline-flex items-center gap-1'
+                      : `inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border transition-all ${
+                          isDark
+                            ? 'bg-amber-500/10 border-amber-500/40 text-amber-300 hover:bg-amber-500/20 hover:border-amber-400/60'
+                            : 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                        }`
+                  }
+                  title="跳转 RunningHub 海外站获取 ApiKey（邀请码 rh-v1121）"
+                >
+                  <span>获取 RH APIKEY（海外）</span>
+                  <ExternalLink size={11} className="opacity-70" />
+                </a>
+              </>
+            ),
+          })}
           {renderKey(COMMON_KEYS[2], { baseUrlNote: `Base URL 锁定: ${FIXED_ZHENZHEN_BASE} (与贞贞同地址, Key 独立)` })}
 
           {/* 分类独立 Key */}

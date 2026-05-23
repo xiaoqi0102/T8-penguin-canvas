@@ -4074,3 +4074,176 @@ console.log('[RH/resolve] override field', fieldName, 'from', v, '→ upstream',
 
 ---
 
+## 43. 顶部推广按钮组 + 浮层 1.5x + 像素风字体栈修复 + ApiSettings RH 外链 (v1.1.0+ / 2026-05-23)
+
+本章记录顶部工具条 UI 增量改造与全局字体栈一致性修复，对应 features.json `phase25`。
+
+### 43.1 顶部右侧五连发推广按钮
+
+[App.tsx](file:///e:/PenguinPravite/T8-penguin-canvas/src/App.tsx) 顶部右侧从原「在线画布 / 视频教程」扩展为 5 个推广胶囊：
+
+| 序号 | 文字 | 像素风色 | 科技风色 | 行为 |
+|------|------|----------|----------|------|
+| 1 | 最新应用 | `px-btn--peach`(橙桃) | 橙色渐变 | 点击展开浮层(国内站/海外站/RH ApiKey) |
+| 2 | 贞贞工坊 | `px-btn--violet`(紫) | 紫色渐变 | 点击展开浮层(海外站/Discord/恢复注册公告) |
+| 3 | 视频教程 | `px-btn--mint`(薄荷) | 薄荷色 | 点击展开浮层(B 站/YouTube/关注 T8 提示) |
+| 4 | YouTube 订阅 | `px-btn--mint` | 薄荷色 | 直接 target=_blank 跳转 |
+| 5 | 在线画布 | 原色 | 原色 | 点击展开浮层(双主题美化复制微信号/新窗口) |
+
+规范：浮层全部 `target="_blank" rel="noopener noreferrer"`，避免 window.opener 漏洞。
+
+### 43.2 4 个浮层整体 1.5x 缩放（CSS zoom 一招）
+
+用户反馈浮层尺寸偏小。**避免逐项调字号/图标的笨方法**，改为整体加 `style={{ zoom: 1.5 }}`：
+
+```tsx
+<div
+  className={isPixel ? 'absolute right-0 top-full mt-2 z-[60] w-[Xpx] px-panel rounded-2xl p-3 ...' : '...'}
+  style={{ zoom: 1.5 }}
+  onMouseDown={(e) => e.stopPropagation()}
+>
+```
+
+关键：CSS `zoom` 不是标准属性，但 Chromium/WebKit 全量支持，**子元素鼠标坐标会自动换算**，比 `transform: scale()` 简单（后者要手算偏移、点击穿透、滚动条都会出问题）。
+
+### 43.3 像素风浮层圆角统一
+
+`px-panel` 默认方角，与上传图片浮层圆角(`rounded-xl`)视觉不一致。
+
+修复：4 个浮层 `isPixel` 分支补 `rounded-2xl`，对齐 `px-radius-card = 16px`：
+
+```tsx
+className={isPixel
+  ? '... px-panel rounded-2xl p-3 animate-[fadeIn_.18s_ease-out]'
+  : '...'
+}
+```
+
+### 43.4 顶部画布标题去 emoji + px-chip 副标
+
+移除 `<span>🐧</span>`。像素风用纯标题文本 + `px-chip--pink` 小徽章组合：
+
+```tsx
+{isPixel ? (
+  <>
+    <h1 className="px-title text-[14px] font-bold tracking-wide leading-none">
+      贞贞的无限画布
+    </h1>
+    <span className="px-chip px-chip--pink text-[10px]">企鹅共创版</span>
+  </>
+) : (
+  <h1 className="text-sm font-semibold">贞贞的无限画布（企鹅共创版）</h1>
+)}
+```
+
+### 43.5 像素风字体栈逐字符回退导致中文字号不齐【根因 + 修复】
+
+**症状**：「贞贞的无限画布」六个汉字大小不一致，看起来像随机抽风。
+
+**根因**：原 [theme-pixel.css](file:///e:/PenguinPravite/T8-penguin-canvas/src/styles/theme-pixel.css) 的字体栈把日文像素字体 `DotGothic16` 与英文像素字体 `Press Start 2P` 放在最前：
+
+```css
+/* ❌ 原写法 */
+--px-font-pixel: "DotGothic16", "Press Start 2P", "M PLUS Rounded 1c", monospace;
+```
+
+浏览器对中文字符**逐字符回退**：
+
+- 「贞」「布」DotGothic16 不含 → 继续回退
+- 「的」「画」DotGothic16 含日文汉字假名重合字 → 用 DotGothic16 字号
+- 不同字符落到不同字体 → **同一行汉字字号参差不齐**
+
+**修复**（中文字体放最前）：
+
+```css
+/* ✅ 修复后 */
+--px-font-display: "M PLUS Rounded 1c", "Noto Sans SC", "PingFang SC",
+  "Microsoft YaHei", system-ui, "DotGothic16", sans-serif;
+--px-font-pixel: "M PLUS Rounded 1c", "Noto Sans SC", "PingFang SC",
+  "Microsoft YaHei", "DotGothic16", "Press Start 2P", monospace;
+```
+
+**附带修正**：[.img-edit-modal](file:///e:/PenguinPravite/T8-penguin-canvas/src/styles/theme-pixel.css) 引用了**未定义**的 `--px-font-rounded`，浏览器解析失败回退到默认字体。改为 `var(--px-font-display)`。
+
+**通用规则**：CSS 字体栈对**多语言混排**项目，必须把目标语言的标准字体放前面，把外语像素装饰字体（DotGothic16/Press Start 2P/Pixelify Sans 等）放末位作纯英文兜底。
+
+### 43.6 ApiSettings RH 行右侧注入两个外链按钮
+
+[ApiSettings.tsx](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/ApiSettings.tsx) 给 RunningHub 设置项的 `Base URL` 行右侧加两个按钮：「获取 RH APIKEY（国内）」(peach/orange)、「获取 RH APIKEY（海外）」(yellow/amber)。
+
+实现要点：`renderKey` 函数新增形参 `extras?: React.ReactNode`，`baseUrlNote` 行改为 `flex justify-between`：
+
+```tsx
+const renderKey = (
+  spec: KeySpec,
+  opts: { fallbackHint?: boolean; baseUrlNote?: string; extras?: React.ReactNode },
+) => {
+  // ...
+  {(opts.baseUrlNote || opts.extras) && (
+    <div className={`flex items-center justify-between gap-2 flex-wrap text-[11px] ${hintCls}`}>
+      {opts.baseUrlNote ? (
+        <span className="flex items-center gap-1.5">
+          <Lock size={11} /> {opts.baseUrlNote}
+        </span>
+      ) : (<span />)}
+      {opts.extras && <div className="flex items-center gap-2">{opts.extras}</div>}
+    </div>
+  )}
+};
+
+// 调用：
+{renderKey(COMMON_KEYS[1], {
+  baseUrlNote: `Base URL: ${RH_BASE}`,
+  extras: (
+    <>
+      <a href="https://www.runninghub.cn/...?inviteCode=rh-v1121" target="_blank" rel="noopener noreferrer"
+         className={isPixel ? 'px-btn px-btn--sm px-btn--peach ...' : '... orange ...'}>
+        <span>获取 RH APIKEY（国内）</span>
+        <ExternalLink size={11} className="opacity-70" />
+      </a>
+      <a href="https://www.runninghub.ai/...?inviteCode=rh-v1121" target="_blank" rel="noopener noreferrer"
+         className={isPixel ? 'px-btn px-btn--sm px-btn--yellow ...' : '... amber ...'}>
+        <span>获取 RH APIKEY（海外）</span>
+        <ExternalLink size={11} className="opacity-70" />
+      </a>
+    </>
+  ),
+})}
+```
+
+**通用模式**：给已有可复用组件加可选 `extras: ReactNode` 形参，调用方注入任意 JSX 而组件本体保持原状，是无侵入扩展的标准做法。
+
+### 43.7 全局快捷键完整清单（补充五个遗漏）
+
+features.json 末尾 `shortcuts` 段已记录 14 项，本次审计 [Canvas.tsx](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/Canvas.tsx) 与 [OutputNode.tsx](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/nodes/OutputNode.tsx) 后补录 5 项遗漏：
+
+| 快捷键 | 功能 | 代码位置 |
+|--------|------|----------|
+| **Ctrl + G** | 将选中节点快速打组（等价右键菜单 → 组合）| Canvas.tsx 全局 useEffect onKey 分支 `ctrl && key==='g'` → `handleCreateGroup(selIds)` |
+| **Alt + 拖动节点** | 复制式克隆——原节点保留在原位，新节点跟随鼠标 | Canvas.tsx onNodeDragStart `e.altKey` 分支 |
+| **Shift + 从节点 handle 拖出** | 批量重连——一次性把该 handle 已有的入边/出边整体迁移到新目标 | Canvas.tsx onConnectStart `e.shiftKey` 分支 |
+| **Shift + 拖动空白处** | 剪刀模式——沿拖动轨迹划过的所有 edge 会被删除（详见 §21 phase21）| Canvas.tsx onPaneMouseDown `e.shiftKey` 分支 |
+| **Ctrl + Enter (OutputNode 文本编辑中)** | 保存编辑并退出编辑态 | OutputNode.tsx textarea onKeyDown |
+
+以上 5 项已同步追加到 [features.json](file:///e:/PenguinPravite/T8-penguin-canvas/features.json) 的 `shortcuts` 字段。
+
+### 43.8 关键文件
+
+- [src/App.tsx](file:///e:/PenguinPravite/T8-penguin-canvas/src/App.tsx)——顶部 5 个推广按钮 + 4 个浮层 + 标题重构
+- [src/styles/theme-pixel.css](file:///e:/PenguinPravite/T8-penguin-canvas/src/styles/theme-pixel.css)——字体栈中文优先 + .img-edit-modal 修正
+- [src/components/ApiSettings.tsx](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/ApiSettings.tsx)——renderKey extras 形参 + RH 行外链
+- [src/components/Canvas.tsx](file:///e:/PenguinPravite/T8-penguin-canvas/src/components/Canvas.tsx)——快捷键补录调研来源
+- [features.json](file:///e:/PenguinPravite/T8-penguin-canvas/features.json)——shortcuts 段补全 5 项 + phase25 记录本次改动
+
+### 43.9 提交链
+
+| commit | 改动点 |
+|--------|--------|
+| `0d416a3` | 视频教程 / YouTube 按钮统一 px-btn--mint |
+| `1dfe6bd` | 顶部新增「贞贞工坊」(violet) 与「最新应用」(peach) 推广按钮+浮层 |
+| `efb7750` | 4 个浮层整体 zoom 1.5x + 像素风圆角 rounded-2xl |
+| `8132097` | 顶部画布标题重构 + 像素风字体栈中文逐字回退导致字号参差修复 |
+| 本次 | ApiSettings RH 外链 + 贞贞工坊海外站 register?aff=dP7j + 文档同步 |
+
+---
+
