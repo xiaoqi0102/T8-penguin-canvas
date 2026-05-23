@@ -1,5 +1,5 @@
 import { memo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, useReactFlow, type Node, type Edge, type NodeProps } from '@xyflow/react';
 import {
   AlertCircle,
   FileImage,
@@ -12,6 +12,7 @@ import {
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useThemeStore } from '../../stores/theme';
 import { PORT_COLOR } from '../../config/portTypes';
+import { useRunTrigger } from '../../hooks/useRunTrigger';
 
 /**
  * UploadNode - 通用上传素材节点
@@ -84,6 +85,7 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
   const isDark = theme === 'dark';
   const isPixel = style === 'pixel';
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rf = useReactFlow();
 
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -95,6 +97,71 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
   const fileSize: number = d?.fileSize || 0;
   const meta = uploadType ? KIND_META[uploadType] : null;
   const url: string | undefined = meta ? d?.[meta.dataField] : undefined;
+
+  // === 运行总线: 点击 RUN 后根据已上传素材生成下游 OutputNode ===
+  // 设计要点:
+  //   1. 只有 url 已就绪才会创建, 未上传会报错
+  //   2. 防重复: 检查是否已存在 source=id, target.type='output' 且 data.directXxxUrl=当前 url 的下游
+  //      若已存在则仅提示不重复创建
+  //   3. 创建后节点 id 以 'output-auto-up-' 开头, 避开 'output-auto-' 网格重排接管
+  const handleRun = async () => {
+    setError(null);
+    if (!uploadType || !meta || !url) {
+      const msg = '请先上传素材';
+      setError(msg);
+      throw new Error(msg);
+    }
+    // 防重复检测
+    const edges = rf.getEdges();
+    const nodes = rf.getNodes();
+    const dupExisted = edges.some((e) => {
+      if (e.source !== id) return false;
+      const t = nodes.find((n) => n.id === e.target);
+      if (!t || t.type !== 'output') return false;
+      const td = (t.data as any) || {};
+      return td.directImageUrl === url || td.directVideoUrl === url || td.directAudioUrl === url;
+    });
+    if (dupExisted) {
+      // 已有指向同一 url 的下游 OutputNode, 不重复创建
+      return;
+    }
+    const me = rf.getNode(id);
+    const myW = (me as any)?.measured?.width || (me as any)?.width || 320;
+    const baseX = (me?.position?.x ?? 0) + myW + 80;
+    const baseY = me?.position?.y ?? 0;
+    const ts = Date.now();
+    const newId = `output-auto-up-${id}-${ts}-${Math.random().toString(36).slice(2, 6)}`;
+    // 按 uploadType 写入不同的 direct* 字段, 让 OutputNode 能独立展示
+    const dataPatch: Record<string, any> = {};
+    if (uploadType === 'image') {
+      dataPatch.directImageUrl = url;
+      dataPatch.imageUrl = url;
+    } else if (uploadType === 'video') {
+      dataPatch.directVideoUrl = url;
+      dataPatch.videoUrl = url;
+    } else if (uploadType === 'audio') {
+      dataPatch.directAudioUrl = url;
+      dataPatch.audioUrl = url;
+    }
+    const newNode: Node = {
+      id: newId,
+      type: 'output',
+      position: { x: baseX, y: baseY },
+      data: dataPatch,
+      selected: false,
+    } as Node;
+    const newEdge: Edge = {
+      id: `e-auto-up-${newId}`,
+      source: id,
+      target: newId,
+      type: 'deletable',
+    } as Edge;
+    rf.addNodes(newNode);
+    rf.setEdges((eds) => [...eds, newEdge]);
+  };
+
+  // 接入运行总线, 供 NodeActionBar / 批量运行 调起
+  useRunTrigger(id, handleRun);
 
   /** 重置:清空所有字段,回到默认拖拽上传状态 */
   const handleReset = () => {

@@ -157,12 +157,14 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
 };
 
 // 可被“批量运行”调起的节点类型集合
+// upload 亦被纳入: 点击 RUN 后会根据已上传素材创建下游 OutputNode (見 UploadNode.handleRun)
 const EXECUTABLE_NODE_TYPES = new Set<string>([
   'image', 'edit',
   'multi-angle-3d', 'panorama-720', 'penguin-portrait',
   'video', 'seedance', 'audio', 'llm', 'runninghub',
   'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine',
   'frame-extractor',
+  'upload',
 ]);
 
 // 网格吸附步长 / 对齐阈值(世界坐标)

@@ -25,6 +25,7 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   'video', 'seedance', 'audio', 'llm', 'runninghub',
   'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine',
   'frame-extractor',
+  'upload',
 ]);
 
 const BAR_GAP_PX = 8; // 与节点顶部的世界坐标系间距
