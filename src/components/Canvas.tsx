@@ -32,6 +32,7 @@ import { installGlobalWheelBlockObserver } from '../utils/wheelBlock';
 import * as api from '../services/api';
 import CanvasToolbar from './CanvasToolbar';
 import TerminalPanel from './TerminalPanel';
+import NodeActionBar from './NodeActionBar';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import type { CanvasTemplate } from '../config/canvasTemplates';
 import PlaceholderNode from './nodes/PlaceholderNode';
@@ -2268,6 +2269,8 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
           maskColor={isDark ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.6)'}
           nodeColor={() => (isDark ? '#a1a1aa' : '#52525b')}
         />
+        {/* 选中可执行节点时的浮动操作栏 (执行 / 中止 / 关闭) */}
+        <NodeActionBar />
       </ReactFlow>
 
       {/* 拖线到空白处弹出的候选节点菜单 */}
