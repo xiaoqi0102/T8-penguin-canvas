@@ -379,6 +379,70 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
     onDrop: handleDrop,
   });
 
+  // === v1.2.9.2: 循环累积自接管 —— OutputNode 自己检测上游 __loopAccumulate 并将 fresh 追加到自身 direct*Urls
+  //         不依赖 LoopNode 跨节点 setNodes 写回 (避免时序冲突/覆盖), LoopNode 只负责注入/清除 __loopAccumulate 标记。
+  useEffect(() => {
+    const list = Array.isArray(upstreamNodes) ? upstreamNodes : [];
+    const hasAccumUpstream = list.some((n: any) => n?.data?.__loopAccumulate);
+    if (!hasAccumUpstream) return;
+    const freshImgs: string[] = [];
+    const freshVids: string[] = [];
+    const freshAuds: string[] = [];
+    const freshTxts: string[] = [];
+    const pushUniqLocal = (arr: string[], v: any) => {
+      if (typeof v !== 'string') return;
+      const s = v.trim();
+      if (!s) return;
+      if (arr.indexOf(s) === -1) arr.push(s);
+    };
+    for (const n of list) {
+      const ud: any = n?.data || {};
+      if (!ud.__loopAccumulate) continue;
+      const sid = (n as any)?.id || '';
+      const handles = handleMap.get(sid) || new Set<string | null>([null]);
+      const isFP =
+        Object.prototype.hasOwnProperty.call(ud, 'firstFrameUrl') &&
+        Object.prototype.hasOwnProperty.call(ud, 'lastFrameUrl');
+      if (isFP) {
+        const wantFirst = handles.has('first') || (handles.has(null) && !handles.has('last'));
+        const wantLast = handles.has('last') || (handles.has(null) && !handles.has('first'));
+        if (wantFirst) pushUniqLocal(freshImgs, ud.firstFrameUrl);
+        if (wantLast) pushUniqLocal(freshImgs, ud.lastFrameUrl);
+        continue;
+      }
+      pushUniqLocal(freshImgs, ud.imageUrl);
+      if (Array.isArray(ud.imageUrls)) ud.imageUrls.forEach((u: any) => pushUniqLocal(freshImgs, u));
+      if (Array.isArray(ud.urls)) ud.urls.forEach((u: any) => pushUniqLocal(freshImgs, u));
+      if (Array.isArray(ud.generatedImages)) ud.generatedImages.forEach((u: any) => pushUniqLocal(freshImgs, u));
+      pushUniqLocal(freshVids, ud.videoUrl);
+      if (Array.isArray(ud.videoUrls)) ud.videoUrls.forEach((u: any) => pushUniqLocal(freshVids, u));
+      pushUniqLocal(freshAuds, ud.audioUrl);
+      pushUniqLocal(freshAuds, ud.audioUrl_1);
+      if (Array.isArray(ud.audioUrls)) ud.audioUrls.forEach((u: any) => pushUniqLocal(freshAuds, u));
+      if (typeof ud.outputText === 'string' && ud.outputText) pushUniqLocal(freshTxts, ud.outputText);
+      if (typeof ud.reply === 'string' && ud.reply) pushUniqLocal(freshTxts, ud.reply);
+      if (typeof ud.text === 'string' && ud.text) pushUniqLocal(freshTxts, ud.text);
+    }
+    if (freshImgs.length === 0 && freshVids.length === 0 && freshAuds.length === 0 && freshTxts.length === 0) return;
+    const curImgs: string[] = Array.isArray(d.directImageUrls) ? d.directImageUrls : [];
+    const curVids: string[] = Array.isArray(d.directVideoUrls) ? d.directVideoUrls : [];
+    const curAuds: string[] = Array.isArray(d.directAudioUrls) ? d.directAudioUrls : [];
+    const curTxts: string[] = typeof d.directOutputText === 'string' && d.directOutputText
+      ? d.directOutputText.split('\n\n')
+      : [];
+    const mergedImgs = curImgs.slice(); freshImgs.forEach((u) => { if (mergedImgs.indexOf(u) === -1) mergedImgs.push(u); });
+    const mergedVids = curVids.slice(); freshVids.forEach((u) => { if (mergedVids.indexOf(u) === -1) mergedVids.push(u); });
+    const mergedAuds = curAuds.slice(); freshAuds.forEach((u) => { if (mergedAuds.indexOf(u) === -1) mergedAuds.push(u); });
+    const mergedTxts = curTxts.slice(); freshTxts.forEach((t) => { if (mergedTxts.indexOf(t) === -1) mergedTxts.push(t); });
+    const patch: any = {};
+    if (mergedImgs.length !== curImgs.length) patch.directImageUrls = mergedImgs;
+    if (mergedVids.length !== curVids.length) patch.directVideoUrls = mergedVids;
+    if (mergedAuds.length !== curAuds.length) patch.directAudioUrls = mergedAuds;
+    if (mergedTxts.length !== curTxts.length) patch.directOutputText = mergedTxts.join('\n\n');
+    if (Object.keys(patch).length > 0) update(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upstreamSig]);
+
   // === 下游透传: 将 collected + displayText 写到自身 data 供下游节点读取 ===
   // 仅在生成的输出实际变化时调用 update, 避免 setNode 风暴.
   // 不踩 outputText (保留 「用户编辑覆盖」 语义), 文本透传到 prompt/text/reply.

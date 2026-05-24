@@ -72,6 +72,9 @@ function extractFromNode(node: Node | undefined, kind: MaterialKind): string | n
     if (typeof ud.lastFrameUrl === 'string' && ud.lastFrameUrl) return ud.lastFrameUrl;
   } else if (kind === 'video') {
     if (typeof ud.videoUrl === 'string' && ud.videoUrl) return ud.videoUrl;
+    // v1.2.9.2: 循环视频 → FramePair (视频输入 → 图像输出) 兼容 —— 避免误报失败
+    if (typeof ud.firstFrameUrl === 'string' && ud.firstFrameUrl) return ud.firstFrameUrl;
+    if (typeof ud.lastFrameUrl === 'string' && ud.lastFrameUrl) return ud.lastFrameUrl;
   } else if (kind === 'audio') {
     if (typeof ud.audioUrl === 'string' && ud.audioUrl) return ud.audioUrl;
   } else {
@@ -222,21 +225,11 @@ const LoopNode = (p: NodeProps) => {
     const collected: Array<string | null> = [];
     let okCount = 0; let failCount = 0;
 
-    // v1.2.9.1: 跨轮累积按实际字段类型分别累积 (不看 LoopNode 自身 kind)
-    //         原因: 循环视频 → FramePair (视频输入 → 图像输出) → OutputNode
-    //              LoopNode kind=video, 但产物是图像, 必须写到 directImageUrls 而不是 directVideoUrls
-    //              根据上游字段 (firstFrameUrl/imageUrl/videoUrl/audioUrl/outputText) 直接判断类型
-    const accumImagesByOutput = new Map<string, string[]>();
-    const accumVideosByOutput = new Map<string, string[]>();
-    const accumAudiosByOutput = new Map<string, string[]>();
-    const accumTextsByOutput = new Map<string, string[]>();
+    // v1.2.9.2: LoopNode 不再跨节点写 OutputNode direct*Urls —— 改由 OutputNode 自己在 useEffect 内
+    //         检测上游 __loopAccumulate 后追加 fresh 到自身 direct*Urls (避免跨节点 setNodes 时序冲突/覆盖)。
+    //         LoopNode 仅负责: 进入前清空 OutputNode direct*Urls + 注入 EXEC 节点 __loopAccumulate + finally 清除标记。
 
-    const pushUniq = (arr: string[], v: any) => {
-      if (typeof v !== 'string') return;
-      const s = v.trim();
-      if (!s) return;
-      if (arr.indexOf(s) === -1) arr.push(s);
-    };
+    const pushUniq = (_arr: string[], _v: any) => { /* v1.2.9.2: 保留签名防别处引用, 实际累积逻辑在 OutputNode */ };
 
     // v1.2.9.0: 包 try/finally 保证 __loopAccumulate 标记总能被清除 (避免异常/取消后下游节点被永久冻住于累积模式)
     try {
@@ -266,85 +259,10 @@ const LoopNode = (p: NodeProps) => {
       if (result) okCount++; else failCount++;
       update({ outputs: [...collected], progress: { done: i + 1, total: items.length, ok: okCount, fail: failCount } });
 
-      // === v1.2.9.1: 本轮收尾——读每个 OutputNode 上游 fresh, **按字段实际类型分别累积** (避免 kind=video 但产物是图像的错分类) ===
+      // v1.2.9.2: 本轮收尾——累积交由 OutputNode 自己 useEffect 负责 (避免跨节点 setNodes 冲突)
+      // LoopNode 只需推进进度 + 让 React reconcile fresh 变化 → OutputNode useEffect 自动追加到 direct*Urls
       if (outputNodeIds.size > 0) {
         await new Promise<void>((r) => setTimeout(() => r(), 40));
-        for (const outId of Array.from(outputNodeIds)) {
-          const inbound = rf.getEdges().filter((e) => e.target === outId);
-          const freshImages: string[] = [];
-          const freshVideos: string[] = [];
-          const freshAudios: string[] = [];
-          const freshTexts: string[] = [];
-          for (const e of inbound) {
-            const upNode = rf.getNode(e.source);
-            if (!upNode) continue;
-            const ud: any = upNode.data || {};
-            const sh: string | null = (e as any).sourceHandle ?? null;
-            const isFramePair =
-              Object.prototype.hasOwnProperty.call(ud, 'firstFrameUrl') &&
-              Object.prototype.hasOwnProperty.call(ud, 'lastFrameUrl');
-            if (isFramePair) {
-              // FramePair 输出始终是图像 (firstFrameUrl/lastFrameUrl) —— 写到 freshImages
-              if (sh === 'first') pushUniq(freshImages, ud.firstFrameUrl);
-              else if (sh === 'last') pushUniq(freshImages, ud.lastFrameUrl);
-              else { pushUniq(freshImages, ud.firstFrameUrl); pushUniq(freshImages, ud.lastFrameUrl); }
-              continue;
-            }
-            // 通用节点: 按字段名直接分类 (不看 LoopNode kind)
-            // 图像字段
-            pushUniq(freshImages, ud.imageUrl);
-            if (Array.isArray(ud.imageUrls)) ud.imageUrls.forEach((u: any) => pushUniq(freshImages, u));
-            if (Array.isArray(ud.urls)) ud.urls.forEach((u: any) => pushUniq(freshImages, u));
-            if (Array.isArray(ud.generatedImages)) ud.generatedImages.forEach((u: any) => pushUniq(freshImages, u));
-            // 视频字段
-            pushUniq(freshVideos, ud.videoUrl);
-            if (Array.isArray(ud.videoUrls)) ud.videoUrls.forEach((u: any) => pushUniq(freshVideos, u));
-            // 音频字段
-            pushUniq(freshAudios, ud.audioUrl);
-            pushUniq(freshAudios, ud.audioUrl_1);
-            if (Array.isArray(ud.audioUrls)) ud.audioUrls.forEach((u: any) => pushUniq(freshAudios, u));
-            // 文本字段
-            if (typeof ud.outputText === 'string' && ud.outputText) pushUniq(freshTexts, ud.outputText);
-            if (typeof ud.reply === 'string' && ud.reply) pushUniq(freshTexts, ud.reply);
-            if (typeof ud.text === 'string' && ud.text) pushUniq(freshTexts, ud.text);
-          }
-          if (freshImages.length > 0) {
-            const acc = accumImagesByOutput.get(outId) || [];
-            freshImages.forEach((u) => pushUniq(acc, u));
-            accumImagesByOutput.set(outId, acc);
-          }
-          if (freshVideos.length > 0) {
-            const acc = accumVideosByOutput.get(outId) || [];
-            freshVideos.forEach((u) => pushUniq(acc, u));
-            accumVideosByOutput.set(outId, acc);
-          }
-          if (freshAudios.length > 0) {
-            const acc = accumAudiosByOutput.get(outId) || [];
-            freshAudios.forEach((u) => pushUniq(acc, u));
-            accumAudiosByOutput.set(outId, acc);
-          }
-          if (freshTexts.length > 0) {
-            const acc = accumTextsByOutput.get(outId) || [];
-            freshTexts.forEach((t) => pushUniq(acc, t));
-            accumTextsByOutput.set(outId, acc);
-          }
-        }
-        // 写回所有 OutputNode 的 direct*Urls (按实际类型并行累积)
-        rf.setNodes((prev) => prev.map((nd) => {
-          if (!outputNodeIds.has(nd.id)) return nd;
-          const ai = accumImagesByOutput.get(nd.id);
-          const av = accumVideosByOutput.get(nd.id);
-          const aa = accumAudiosByOutput.get(nd.id);
-          const at = accumTextsByOutput.get(nd.id);
-          if ((!ai || !ai.length) && (!av || !av.length) && (!aa || !aa.length) && (!at || !at.length)) return nd;
-          const od: any = nd.data || {};
-          const next: any = { ...od };
-          if (ai && ai.length > 0) next.directImageUrls = ai.slice();
-          if (av && av.length > 0) next.directVideoUrls = av.slice();
-          if (aa && aa.length > 0) next.directAudioUrls = aa.slice();
-          if (at && at.length > 0) next.directOutputText = at.join('\n\n');
-          return { ...nd, data: next };
-        }));
       }
     }
     } finally {
