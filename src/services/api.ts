@@ -94,6 +94,30 @@ export async function updateSettings(patch: Partial<ApiSettings>): Promise<void>
   });
 }
 
+// ========== 文件自动保存到本地路径 (v1.2.10.2) ==========
+// 静默失败(后端不可用/路径不存在/写入床夫败等) —— 仅返回布尔, 不抛
+// 以免阐业务外主生成链路(OutputNode 只负责 "心愿尝试保存")。
+export async function saveAssetToDisk(
+  url: string,
+  filename?: string,
+): Promise<{ ok: boolean; path?: string; exist?: boolean; error?: string }> {
+  try {
+    if (!url) return { ok: false, error: 'empty url' };
+    const res = await fetch(`${BASE}/files/save-to-disk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, filename }),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.success) {
+      return { ok: false, error: json?.error || `HTTP ${res.status}` };
+    }
+    return { ok: true, path: json?.data?.path, exist: !!json?.data?.exist };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
 // ========== RH 工具节点 (v1.2.10+) ==========
 //   与顶层控件区分：仅供 RHToolsNode 使用，与 RH 应用创意包数据完全分开。
 //   后端走 T8 自己的 18766 服务。

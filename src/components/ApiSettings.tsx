@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Lock, Save, Settings2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Lock, Save, Settings2, X, FolderOpen } from 'lucide-react';
 import { useApiKeysStore, FIXED_ZHENZHEN_BASE, RH_BASE } from '../stores/apiKeys';
 import { useThemeStore } from '../stores/theme';
 import type { ApiSettings } from '../types/canvas';
@@ -71,6 +71,8 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
   const [inputs, setInputs] = useState<Record<KeyField, string>>(emptyMap());
   const [shows, setShows] = useState<Record<KeyField, boolean>>(emptyShow());
   const [saved, setSaved] = useState(false);
+  // v1.2.10.2: 文件自动保存路径输入
+  const [fileSavePathInput, setFileSavePathInput] = useState<string>('');
   // 分类独立 Key 区块折叠状态（新手友好：默认折叠，点击展开）
   const [classifiedOpen, setClassifiedOpen] = useState(false);
   // 眼睛预览拉取的明文（仅缓存，不提交）
@@ -88,8 +90,10 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
       revealedRef.current = {};
       setSaved(false);
       setClassifiedOpen(false);
+      // 回填文件自动保存路径(明文字段，不脱敏)
+      setFileSavePathInput((settings as any)?.fileSavePath || '');
     }
-  }, [open]);
+  }, [open, settings]);
 
   if (!open) return null;
 
@@ -125,6 +129,12 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
       const revealed = (revealedRef.current as any)?.[f];
       if (revealed && v === String(revealed)) continue;
       (patch as any)[f] = v;
+    }
+    // v1.2.10.2: 文件自动保存路径变动才上行
+    const newPath = (fileSavePathInput || '').trim();
+    const oldPath = (settings as any)?.fileSavePath || '';
+    if (newPath && newPath !== oldPath) {
+      (patch as any).fileSavePath = newPath;
     }
     if (Object.keys(patch).length === 0) {
       onClose();
@@ -401,6 +411,31 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 </div>
               </div>
             )}
+          </div>
+
+          {/* v1.2.10.2: 文件自动保存路径 */}
+          <div className={`pt-3 border-t ${isPixel ? 'border-[var(--px-ink)]/30' : isDark ? 'border-white/10' : 'border-black/10'}`}>
+            <label className={`text-sm font-medium flex items-center gap-2 flex-wrap ${labelCls}`}>
+              <FolderOpen size={14} className={isPixel ? 'text-[var(--px-ink)]' : isDark ? 'text-cyan-300' : 'text-cyan-600'} />
+              文件自动保存路径
+              <span className={`text-[11px] font-normal ${hintCls}`}>· 所有可执行节点生成的图像/视频/音频均会自动复制一份到此路径</span>
+            </label>
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                type="text"
+                value={fileSavePathInput}
+                onChange={(e) => setFileSavePathInput(e.target.value)}
+                placeholder="例：D:\\zhenzhen · 路径不存在时会自动创建"
+                className={inputCls}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            <div className={`flex items-center gap-2 flex-wrap text-[11px] mt-1.5 ${hintCls}`}>
+              <span className="flex items-center gap-1.5">
+                <Lock size={11} /> 仅保存在本地机, 不上传上游。同名文件不覆盖。
+              </span>
+            </div>
           </div>
 
           {error && (

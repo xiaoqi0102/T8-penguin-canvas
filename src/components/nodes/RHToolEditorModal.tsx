@@ -30,7 +30,7 @@ const RHToolEditorModal: React.FC<RHToolEditorModalProps> = ({ isOpen, onClose, 
   const text = isLight ? '#1c1c1e' : '#e5e5e7';
   const subText = isLight ? '#6b7280' : '#9ca3af';
   const border = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
-  const accent = 'rgb(139, 92, 246)';
+  const accent = isLight ? 'rgb(8, 145, 178)' : 'rgb(34, 211, 238)'; // v1.2.10.2 cyan-600/400, 与 RHToolsNode 一致
 
   // 应用表单状态
   const [editingTool, setEditingTool] = useState<RHTool | null>(null);
@@ -204,7 +204,7 @@ const RHToolEditorModal: React.FC<RHToolEditorModalProps> = ({ isOpen, onClose, 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${border}` }}>
           <div className="flex items-center gap-3">
-            <div className="text-base font-semibold">RH 工具管理</div>
+            <div className="text-base font-semibold">RH 超市管理</div>
             <div className="flex items-center gap-1 text-xs" style={{ background: surface, padding: 2, borderRadius: 6 }}>
               <button
                 onClick={() => setTab('apps')}

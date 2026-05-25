@@ -133,16 +133,23 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
   const appInfo: any = d?.appInfo;
   const paramValues: Record<string, { value: string; sourceFromUpstream?: boolean }> = d?.paramValues || {};
 
-  // 主题色（紫罗兰）
-  const accent = 'rgb(139, 92, 246)';
-  const accentSoft = 'rgba(139, 92, 246, 0.15)';
-  const ringColor = isLight ? 'rgba(139,92,246,0.35)' : 'rgba(139,92,246,0.5)';
-  const bg = isLight ? '#ffffff' : '#1c1c1e';
-  const surface = isLight ? '#f3f4f6' : '#2c2c2e';
-  const surfaceHover = isLight ? '#e5e7eb' : '#3a3a3c';
-  const text = isLight ? '#1c1c1e' : '#e5e5e7';
-  const subText = isLight ? '#6b7280' : '#9ca3af';
-  const border = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+  // 主题色（青调 cyan，与 RunningHubNode 一致）—— v1.2.10.2 修复某些主题下紫色面板过于伤眼问题
+  // v1.2.10.3: 像素风不再用 cyan 混入, 改走 RunningHubNode 同款糖果调色板（px-surface/px-muted/px-ink/px-yellow）
+  const accent = isPixel
+    ? 'var(--px-ink)'
+    : (isLight ? 'rgb(8, 145, 178)' : 'rgb(34, 211, 238)'); // cyan-600 / cyan-400
+  const accentSoft = isPixel
+    ? 'var(--px-yellow)'
+    : (isLight ? 'rgba(8, 145, 178, 0.10)' : 'rgba(34, 211, 238, 0.12)');
+  const ringColor = isPixel
+    ? 'var(--px-ink)'
+    : (isLight ? 'rgba(8,145,178,0.30)' : 'rgba(34,211,238,0.45)');
+  const bg = isPixel ? 'var(--px-surface)' : (isLight ? '#ffffff' : '#1c1c1e');
+  const surface = isPixel ? 'var(--px-muted)' : (isLight ? '#f3f4f6' : '#2c2c2e');
+  const surfaceHover = isPixel ? 'var(--px-yellow)' : (isLight ? '#e5e7eb' : '#3a3a3c');
+  const text = isPixel ? 'var(--px-ink)' : (isLight ? '#1c1c1e' : '#e5e5e7');
+  const subText = isPixel ? 'var(--px-ink-soft)' : (isLight ? '#6b7280' : '#9ca3af');
+  const border = isPixel ? 'var(--px-ink)' : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)');
 
   // 节点尺寸（持久化到 data.size，避免每次渲染重置）
   const initialSize = (d?.size && typeof d.size.w === 'number') ? d.size : { w: 320, h: 440 };
@@ -580,8 +587,8 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
         }}
       >
         {/* Handle 必须在最外层、最先渲染，加 zIndex 保证悬浮在最上层 */}
-        <Handle type="target" position={Position.Left} className="!bg-violet-400 !border-0" style={handleStyle} />
-        <Handle type="source" position={Position.Right} className="!bg-violet-400 !border-0" style={handleStyle} />
+        <Handle type="target" position={Position.Left} className="!bg-cyan-400 !border-0" style={handleStyle} />
+        <Handle type="source" position={Position.Right} className="!bg-cyan-400 !border-0" style={handleStyle} />
 
         <ResizableCorners
           selected={selected}
@@ -685,7 +692,11 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
           {nodeInfoList.length > 0 && (
             <div
               className="rounded p-2 space-y-2"
-              style={{ background: accentSoft, border: `1px solid ${ringColor}` }}
+              style={{
+                // 像素风下不填黄底, 让糖果调 surface 透出来, 与 RunningHubNode 体验一致
+                background: isPixel ? 'var(--px-muted)' : accentSoft,
+                border: `1px solid ${ringColor}`,
+              }}
             >
               <div className="text-[10px] flex items-center justify-between" style={{ color: accent }}>
                 <span>参数 ({nodeInfoList.length})</span>
@@ -813,7 +824,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
               onMouseDown={(e) => e.stopPropagation()}
               className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-xs font-medium nodrag"
               style={{ background: accentSoft, color: accent, border: `1px solid ${ringColor}` }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(139,92,246,0.25)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = isPixel ? 'var(--px-yellow)' : (isLight ? 'rgba(8,145,178,0.20)' : 'rgba(34,211,238,0.25)'))}
               onMouseLeave={(e) => (e.currentTarget.style.background = accentSoft)}
             >
               <Sparkles size={12} /> 运行应用
@@ -880,8 +891,8 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
       }}
     >
       {/* Handle 在最外层最前面，提供高 z-index */}
-      <Handle type="target" position={Position.Left} className="!bg-violet-400 !border-0" style={handleStyle} />
-      <Handle type="source" position={Position.Right} className="!bg-violet-400 !border-0" style={handleStyle} />
+      <Handle type="target" position={Position.Left} className="!bg-cyan-400 !border-0" style={handleStyle} />
+      <Handle type="source" position={Position.Right} className="!bg-cyan-400 !border-0" style={handleStyle} />
 
       <ResizableCorners
         selected={selected}
@@ -902,7 +913,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
             <Sparkles size={13} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold leading-tight truncate">RH 工具</div>
+            <div className="text-sm font-semibold leading-tight truncate">RH 超市</div>
             <div className="text-[10px] truncate" style={{ color: subText }}>RunningHub 应用启动器</div>
           </div>
           <button

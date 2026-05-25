@@ -31,6 +31,8 @@ const DEFAULT: ApiSettings = {
   grokApiKey: '',
   seedanceApiKey: '',
   sunoApiKey: '',
+  // v1.2.10.2: 全局生成素材自动保存路径默认值
+  fileSavePath: 'D:\\zhenzhen',
   preferences: { theme: 'dark', language: 'zh-CN' },
 };
 
