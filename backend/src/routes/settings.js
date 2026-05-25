@@ -95,4 +95,204 @@ router.post('/', (req, res) => {
   res.json({ success: true });
 });
 
+// =====================
+// RH 工具节点 - 分类 API（v1.2.10+，与 RH 应用创意包数据完全分开）
+// =====================
+
+function loadJson(file, fallback) {
+  try {
+    if (!fs.existsSync(file)) return fallback;
+    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+  } catch {
+    return fallback;
+  }
+}
+function saveJson(file, data) {
+  try {
+    const dir = require('path').dirname(file);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+function genId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
+
+// 获取分类列表
+router.get('/rh-tool-categories', (_req, res) => {
+  const list = loadJson(config.RH_TOOL_CATEGORIES_FILE, []);
+  list.sort((a, b) => (a.order || 0) - (b.order || 0));
+  res.json({ success: true, data: list });
+});
+
+// 新增分类
+router.post('/rh-tool-categories', (req, res) => {
+  const { name } = req.body || {};
+  if (!name || !String(name).trim()) {
+    return res.json({ success: false, error: '分类名不能为空' });
+  }
+  const list = loadJson(config.RH_TOOL_CATEGORIES_FILE, []);
+  if (list.find((c) => c.name === String(name).trim())) {
+    return res.json({ success: false, error: '分类名已存在' });
+  }
+  const newCat = {
+    id: genId('rhcat'),
+    name: String(name).trim(),
+    order: list.length,
+    createdAt: Date.now(),
+  };
+  list.push(newCat);
+  saveJson(config.RH_TOOL_CATEGORIES_FILE, list);
+  res.json({ success: true, data: newCat });
+});
+
+// 重命名分类
+router.put('/rh-tool-categories/:id', (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body || {};
+  if (!name || !String(name).trim()) {
+    return res.json({ success: false, error: '分类名不能为空' });
+  }
+  const list = loadJson(config.RH_TOOL_CATEGORIES_FILE, []);
+  const target = list.find((c) => c.id === id);
+  if (!target) return res.json({ success: false, error: '分类不存在' });
+  if (list.find((c) => c.id !== id && c.name === String(name).trim())) {
+    return res.json({ success: false, error: '分类名已存在' });
+  }
+  target.name = String(name).trim();
+  saveJson(config.RH_TOOL_CATEGORIES_FILE, list);
+  res.json({ success: true, data: target });
+});
+
+// 删除分类（其下应用 categoryId 重置为空）
+router.delete('/rh-tool-categories/:id', (req, res) => {
+  const { id } = req.params;
+  let list = loadJson(config.RH_TOOL_CATEGORIES_FILE, []);
+  const len = list.length;
+  list = list.filter((c) => c.id !== id);
+  if (list.length === len) {
+    return res.json({ success: false, error: '分类不存在' });
+  }
+  saveJson(config.RH_TOOL_CATEGORIES_FILE, list);
+  const apps = loadJson(config.RH_TOOL_APPS_FILE, []);
+  let changed = false;
+  apps.forEach((a) => {
+    if (a.categoryId === id) {
+      a.categoryId = '';
+      changed = true;
+    }
+  });
+  if (changed) saveJson(config.RH_TOOL_APPS_FILE, apps);
+  res.json({ success: true });
+});
+
+// 分类排序
+router.post('/rh-tool-categories/reorder', (req, res) => {
+  const { ids } = req.body || {};
+  if (!Array.isArray(ids)) return res.json({ success: false, error: '参数错误' });
+  const list = loadJson(config.RH_TOOL_CATEGORIES_FILE, []);
+  const map = new Map(list.map((c) => [c.id, c]));
+  const reordered = [];
+  ids.forEach((id, idx) => {
+    const c = map.get(id);
+    if (c) {
+      c.order = idx;
+      reordered.push(c);
+      map.delete(id);
+    }
+  });
+  for (const c of map.values()) {
+    c.order = reordered.length;
+    reordered.push(c);
+  }
+  saveJson(config.RH_TOOL_CATEGORIES_FILE, reordered);
+  res.json({ success: true, data: reordered });
+});
+
+// =====================
+// RH 工具节点 - 应用 API
+// =====================
+
+// 获取应用列表
+router.get('/rh-tool-apps', (_req, res) => {
+  const list = loadJson(config.RH_TOOL_APPS_FILE, []);
+  list.sort((a, b) => (a.order || 0) - (b.order || 0));
+  res.json({ success: true, data: list });
+});
+
+// 新增应用
+router.post('/rh-tool-apps', (req, res) => {
+  const { webappId, title, description, categoryId, coverUrl } = req.body || {};
+  if (!webappId || !title) {
+    return res.json({ success: false, error: '缺少必要参数 (webappId / title)' });
+  }
+  const list = loadJson(config.RH_TOOL_APPS_FILE, []);
+  const newApp = {
+    id: genId('rhtool'),
+    webappId: String(webappId).trim(),
+    title: String(title).trim(),
+    description: description ? String(description) : '',
+    categoryId: categoryId || '',
+    coverUrl: coverUrl || '',
+    order: list.length,
+    addedAt: Date.now(),
+  };
+  list.push(newApp);
+  saveJson(config.RH_TOOL_APPS_FILE, list);
+  res.json({ success: true, data: newApp });
+});
+
+// 更新应用
+router.put('/rh-tool-apps/:id', (req, res) => {
+  const { id } = req.params;
+  const list = loadJson(config.RH_TOOL_APPS_FILE, []);
+  const app = list.find((a) => a.id === id);
+  if (!app) return res.json({ success: false, error: '应用不存在' });
+  const { webappId, title, description, categoryId, coverUrl } = req.body || {};
+  if (typeof webappId === 'string' && webappId.trim()) app.webappId = webappId.trim();
+  if (typeof title === 'string' && title.trim()) app.title = title.trim();
+  if (typeof description === 'string') app.description = description;
+  if (typeof categoryId === 'string') app.categoryId = categoryId;
+  if (typeof coverUrl === 'string') app.coverUrl = coverUrl;
+  saveJson(config.RH_TOOL_APPS_FILE, list);
+  res.json({ success: true, data: app });
+});
+
+// 删除应用
+router.delete('/rh-tool-apps/:id', (req, res) => {
+  const { id } = req.params;
+  let list = loadJson(config.RH_TOOL_APPS_FILE, []);
+  const len = list.length;
+  list = list.filter((a) => a.id !== id);
+  if (list.length === len) return res.json({ success: false, error: '应用不存在' });
+  saveJson(config.RH_TOOL_APPS_FILE, list);
+  res.json({ success: true });
+});
+
+// 应用排序
+router.post('/rh-tool-apps/reorder', (req, res) => {
+  const { ids } = req.body || {};
+  if (!Array.isArray(ids)) return res.json({ success: false, error: '参数错误' });
+  const list = loadJson(config.RH_TOOL_APPS_FILE, []);
+  const map = new Map(list.map((a) => [a.id, a]));
+  const reordered = [];
+  ids.forEach((id, idx) => {
+    const a = map.get(id);
+    if (a) {
+      a.order = idx;
+      reordered.push(a);
+      map.delete(id);
+    }
+  });
+  for (const a of map.values()) {
+    a.order = reordered.length;
+    reordered.push(a);
+  }
+  saveJson(config.RH_TOOL_APPS_FILE, reordered);
+  res.json({ success: true, data: reordered });
+});
+
 module.exports = router;

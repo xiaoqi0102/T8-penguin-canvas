@@ -93,3 +93,108 @@ export async function updateSettings(patch: Partial<ApiSettings>): Promise<void>
     body: JSON.stringify(patch),
   });
 }
+
+// ========== RH 工具节点 (v1.2.10+) ==========
+//   与顶层控件区分：仅供 RHToolsNode 使用，与 RH 应用创意包数据完全分开。
+//   后端走 T8 自己的 18766 服务。
+
+export interface RHToolCategory {
+  id: string;
+  name: string;
+  order: number;
+  createdAt: number;
+}
+
+export interface RHTool {
+  id: string;
+  webappId: string;
+  title: string;
+  description: string;
+  categoryId: string;
+  coverUrl: string;
+  order: number;
+  addedAt: number;
+}
+
+export interface AddRHToolPayload {
+  webappId: string;
+  title: string;
+  description?: string;
+  categoryId?: string;
+  coverUrl?: string;
+}
+
+type OkData<T> = { success: true; data: T };
+type ErrData = { success: false; error: string };
+type Result<T> = OkData<T> | ErrData;
+
+async function safeRequest<T>(url: string, init?: RequestInit): Promise<Result<T>> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...init,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return { success: false, error: json.error || `HTTP ${res.status}` };
+    if (json && typeof json === 'object' && 'success' in json) return json as Result<T>;
+    return { success: true, data: json as T };
+  } catch (e: any) {
+    return { success: false, error: e?.message || '网络错误' };
+  }
+}
+
+// ----- 分类 -----
+export function getRHToolCategories() {
+  return safeRequest<RHToolCategory[]>(`${BASE}/settings/rh-tool-categories`);
+}
+export function addRHToolCategory(name: string) {
+  return safeRequest<RHToolCategory>(`${BASE}/settings/rh-tool-categories`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+export function renameRHToolCategory(id: string, name: string) {
+  return safeRequest<RHToolCategory>(`${BASE}/settings/rh-tool-categories/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  });
+}
+export function deleteRHToolCategory(id: string) {
+  return safeRequest<void>(`${BASE}/settings/rh-tool-categories/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+export function reorderRHToolCategories(ids: string[]) {
+  return safeRequest<RHToolCategory[]>(`${BASE}/settings/rh-tool-categories/reorder`, {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+}
+
+// ----- 应用 -----
+export function getRHTools() {
+  return safeRequest<RHTool[]>(`${BASE}/settings/rh-tool-apps`);
+}
+export function addRHTool(payload: AddRHToolPayload) {
+  return safeRequest<RHTool>(`${BASE}/settings/rh-tool-apps`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+export function updateRHTool(id: string, payload: Partial<AddRHToolPayload>) {
+  return safeRequest<RHTool>(`${BASE}/settings/rh-tool-apps/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+export function deleteRHTool(id: string) {
+  return safeRequest<void>(`${BASE}/settings/rh-tool-apps/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+export function reorderRHTools(ids: string[]) {
+  return safeRequest<RHTool[]>(`${BASE}/settings/rh-tool-apps/reorder`, {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  });
+}
