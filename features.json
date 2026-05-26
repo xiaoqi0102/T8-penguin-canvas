@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.4.0",
-  "lastUpdated": "2026-05-26-v1.4.0-canvas-media-paste-drop",
+  "version": "1.4.1",
+  "lastUpdated": "2026-05-26-v1.4.1-media-mention-prompts",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,10 +16,10 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.4.0",
-    "semverVersion": "1.4.0",
-    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；阶段内 patch 从 1.3.0 → 1.3.9，下一阶段进位 1.4.0；当前 v1.4.0 新增画布级 Ctrl+V 粘贴与多文件拖入素材导入。",
-    "installer": "dist_electron/T8-PenguinCanvas-Setup-1.4.0.exe (NSIS, 打包后更新大小)",
+    "version": "1.4.1",
+    "semverVersion": "1.4.1",
+    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；阶段内 patch 从 1.4.0 → 1.4.9，下一阶段进位 1.5.0；当前 v1.4.1 新增生成文本框 @ 素材提及能力。",
+    "installer": "dist_electron/T8-PenguinCanvas-Setup-1.4.1.exe (NSIS, 打包后更新大小)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
       "backend/src/ 任何文件修改后必须重新 npm run encrypt 再打包",
@@ -181,7 +181,8 @@
     "phase51": { "label": "图像对比工具节点升级", "status": "complete", "items": ["复活原隐藏 image-compare 节点，正式显示为工具节点「图像对比」", "节点提供 A/B 两个图像输入口和一个 image 输出口；连入两张图后无需运行即可在节点内即时预览，输入口旁不再额外显示 A/B 小标签", "支持滑杆、并排、透明叠加、闪烁、差异热力图、差异聚焦 6 种对比方式，并提供 contain/cover/fill 对齐策略与变化比例统计", "热力图改为 A 图底图 + 差异暖色高亮；棋盘模式替换为更实用的差异聚焦，未变化区域降噪变暗、变化区域保留 B 图细节", "点击运行调用 POST /api/image/compare 生成静态对比结果图，写入 data.imageUrl；若旧后端未提供 compare 路由，前端自动用 canvas 兜底生成并上传 base64", "图像对比加入 Canvas 与 NodeActionBar 的可执行节点列表，支持选中运行、顶部 RUN 与批量运行"] },
     "phase52": { "label": "输出素材快捷图像对比 (v1.3.8)", "status": "complete", "items": ["OutputNode 图像预览右上角新增快捷对比按钮，用户可直接从输出结果打开轻量对比弹窗。", "ImageCompareModal 固定当前输出图为结果图，自动从上游 referenceImages、localRefImages、mjSrefImages、mjOrefImages、RH paramValues、上游连接图片与当前输出其他图收集输入候选，多图通过缩略图切换。", "找不到输入图时仍打开弹窗，支持手动选择本地图像作为输入图，方便多参考图或外部原图场景。", "抽取 src/utils/imageCompare.ts 与 src/components/ImageCompareStage.tsx，ImageCompareNode 与快捷弹窗复用同一套绘制、差异统计、前端 fallback 导出逻辑。", "快捷弹窗支持滑杆、并排、叠加、闪烁、热力、聚焦 6 种模式，并可按当前模式下载对比结果 PNG。", "ImageCompareModal 走 t8-panel / t8-btn / t8-select / --t8-* 变量并使用 data-canvas-floating-ui，兼容科技风、像素糖果风、OP 风格浮层层级。", "公开版本同步到 1.3.8：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步。"] },
     "phase53": { "label": "同类型批量上传 + 素材合集打散 (v1.3.9)", "status": "complete", "items": ["UploadNode 支持同类型多文件选择与拖拽批量上传，图像 / 视频 / 音频会分别写入 imageUrls / videoUrls / audioUrls，同时保留 imageUrl / videoUrl / audioUrl 兼容旧链路。", "上传节点运行时会把当前合集一次性输出为 OutputNode 合集，方便用户继续预览、连接或保存。", "UploadNode 与 OutputNode 的多素材标题区新增打散合集入口，可将图片 / 视频 / 音频合集拆成多个独立上传或输出节点，替代手动使用「从合集获取」逐个取素材。", "新增 src/utils/mediaCollection.ts 统一素材集合数据结构、文件名 / 大小 / mime 映射与批量节点摆放规则，避免上传和输出节点各自维护重复逻辑。", "新增 src/components/CollectionSplitButton.tsx，入口使用小型主题变量图标按钮，不复用 t8-btn 大按钮样式，避免 OP / 像素糖果风下被撑大或遮挡内容。", "公开版本同步到 1.3.9：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
-    "phase54": { "label": "画布级粘贴/拖入素材生成上传节点 (v1.4.0)", "status": "complete", "items": ["Canvas 支持在画布焦点下 Ctrl+V 粘贴剪贴板图像 / 视频 / 音频，自动上传到 /api/files/upload 并生成 UploadNode。", "支持把一个或多个素材文件直接拖到画布；拖入文件时阻止浏览器默认打开文件，落点按鼠标位置转换为画布坐标。", "同类型多文件自动写入同一个 UploadNode 合集，混合类型文件按 image / video / audio 分成多个 UploadNode，并继续复用 imageUrls / videoUrls / audioUrls 协议与后续打散功能。", "文本输入框、textarea、select 和 contenteditable 内的粘贴不会被画布拦截；原有节点 Ctrl+C / Ctrl+V / Ctrl+Shift+V 内部复制粘贴保持兼容。", "公开版本同步到 1.4.0：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] }
+    "phase54": { "label": "画布级粘贴/拖入素材生成上传节点 (v1.4.0)", "status": "complete", "items": ["Canvas 支持在画布焦点下 Ctrl+V 粘贴剪贴板图像 / 视频 / 音频，自动上传到 /api/files/upload 并生成 UploadNode。", "支持把一个或多个素材文件直接拖到画布；拖入文件时阻止浏览器默认打开文件，落点按鼠标位置转换为画布坐标。", "同类型多文件自动写入同一个 UploadNode 合集，混合类型文件按 image / video / audio 分成多个 UploadNode，并继续复用 imageUrls / videoUrls / audioUrls 协议与后续打散功能。", "文本输入框、textarea、select 和 contenteditable 内的粘贴不会被画布拦截；原有节点 Ctrl+C / Ctrl+V / Ctrl+Shift+V 内部复制粘贴保持兼容。", "公开版本同步到 1.4.0：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase55": { "label": "生成文本框 @ 素材提及 (v1.4.1)", "status": "complete", "items": ["新增 src/components/nodes/MentionPromptInput.tsx 与 mediaMentions.ts：在生成类文本输入中输入 @ 可弹出当前可引用素材列表，支持图像 / 视频 / 音频预览与键盘选择。", "ImageNode / VideoNode / SeedanceNode / AudioNode / LLMNode 接入 @ 素材提及；被提及素材在输入框内显示小方形预览图，下方保留“实际发送”预览，生成提交前按当前素材顺序稳定解析为 @image1 / @video1 / @audio1。", "RunningHubNode 同步接入 @ 素材提及，普通 RunningHub 与 RH钱包应用共享该能力；仅改 TEXT/STRING 类参数字段，媒体上传字段仍使用原有“从上游自动获取”和 uploadRhAsset 链路。", "RHToolsNode 的 RH超市应用运行视图同步接入 @ 素材提及，并保留原有主题变量 style，确保科技风 / 像素糖果风 / OP 风格下输入框视觉一致。", "中文 IME 输入在 contenteditable 中单独处理 compositionStart/compositionEnd，避免中文逐字截断；多次 @ 提及时保持光标位置、弹窗重开和 mention ranges 稳定。", "公开版本同步到 1.4.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] }
   },
   "categories": {
     "input": {

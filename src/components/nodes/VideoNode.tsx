@@ -8,9 +8,11 @@ import { useHasAutoOutput } from './useHasAutoOutput';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { logBus } from '../../stores/logs';
 import { useThemeStore } from '../../stores/theme';
-import { useUpstreamMaterials } from './useUpstreamMaterials';
+import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
+import MentionPromptInput from './MentionPromptInput';
+import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
 
@@ -68,6 +70,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   const videoUrl: string | undefined = d?.videoUrl;
   const progress: string = d?.progress || '';
   const localPrompt: string = d?.prompt || '';
+  const promptMentions: MediaMention[] = Array.isArray(d?.promptMentions) ? d.promptMentions : [];
 
   // === 上游素材聚合 (跨节点统一机制) ===
   const upstream = useUpstreamMaterials(id);
@@ -80,6 +83,23 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
 
   // === 本地拖入参考图 (跨节点 Ctrl 拖拽) ===
   const localRefImages: string[] = Array.isArray(d?.localRefImages) ? d.localRefImages : [];
+  const localRefImageMaterials: Material[] = useMemo(
+    () =>
+      localRefImages.map((url, i) => ({
+        id: `local::video-image:${url}`,
+        kind: 'image' as const,
+        url,
+        sourceNodeId: id,
+        origin: 'local' as const,
+        label: `本地参考${i + 1}`,
+      })),
+    [localRefImages, id],
+  );
+  const maxMentionRefs = isFal && falReg ? falReg.maxRefImages : modelDef.maxRefImages;
+  const mentionMaterials = useMemo(
+    () => [...orderedImages, ...localRefImageMaterials].slice(0, maxMentionRefs),
+    [orderedImages, localRefImageMaterials, maxMentionRefs],
+  );
 
   // 分组动态跟随子模型: seedance 支持 image/video/audio, 其他 (grok/veo) 仅 image
   const previewGroups = useMemo<ReadonlyArray<'text' | 'image' | 'video' | 'audio'>>(
@@ -230,7 +250,8 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   const handleGenerate = async () => {
     setError(null);
     const { prompt: upstreamPrompt, imageUrls } = collectUpstream();
-    const finalPrompt = (upstreamPrompt || localPrompt || '').trim();
+    const resolvedLocalPrompt = resolveMediaMentions(localPrompt, promptMentions, mentionMaterials);
+    const finalPrompt = (upstreamPrompt || resolvedLocalPrompt || '').trim();
     if (!finalPrompt) {
       setError('未连接 text 节点也未填写 prompt');
       logBus.error('生成中止: 缺少 prompt', src);
@@ -640,10 +661,14 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         {/* Prompt */}
         <div>
           <label className="text-[10px] text-white/50 block mb-1">本地 Prompt(可选)</label>
-          <textarea
+          <MentionPromptInput
             value={localPrompt}
-            onChange={(e) => update({ prompt: e.target.value })}
+            mentions={promptMentions}
+            materials={mentionMaterials}
+            onChange={(value, mentions) => update({ prompt: value, promptMentions: mentions })}
             placeholder="备用:无上游连接时使用"
+            isDark={isDark}
+            isPixel={isPixel}
             className="w-full h-12 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
           />
         </div>

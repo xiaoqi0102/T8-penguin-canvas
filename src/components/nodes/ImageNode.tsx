@@ -4,6 +4,8 @@ import { AlertCircle, Image as ImageIcon, Loader2, Plus, Sparkles, X } from 'luc
 import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
+import MentionPromptInput from './MentionPromptInput';
+import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import {
   IMAGE_MODELS,
   FAL_REGISTRY,
@@ -114,6 +116,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const status: 'idle' | 'generating' | 'success' | 'error' = d?.status || 'idle';
   const imageUrl = d?.imageUrl as string | undefined;
   const localPrompt = d?.prompt || '';
+  const promptMentions: MediaMention[] = Array.isArray(d?.promptMentions) ? d.promptMentions : [];
   // 节点内本地上传的参考图(除了上游接入的,这里是手动上传)
   const refImages: string[] = Array.isArray(d?.referenceImages) ? d.referenceImages : [];
 
@@ -138,6 +141,10 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const materialOrder: string[] = Array.isArray(d?.materialOrder) ? d.materialOrder : [];
   const orderedImages = useOrderedMaterials(allImagesUnordered, materialOrder);
   const orderedTexts = useOrderedMaterials(upstream.texts, materialOrder);
+  const mentionMaterials = useMemo(
+    () => orderedImages.slice(0, maxRefs),
+    [orderedImages, maxRefs],
+  );
   const setMaterialOrder = (newOrder: string[]) => update({ materialOrder: newOrder });
   const handleRemoveLocalMaterial = (m: Material) => {
     if (m.origin !== 'local') return;
@@ -233,7 +240,8 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const handleGenerate = async () => {
     setError(null);
     const { prompt: upstreamPrompt, images: upstreamImages } = collectUpstream();
-    const finalPrompt = (upstreamPrompt || localPrompt || '').trim();
+    const resolvedLocalPrompt = resolveMediaMentions(localPrompt, promptMentions, mentionMaterials);
+    const finalPrompt = (upstreamPrompt || resolvedLocalPrompt || '').trim();
     const src = `image:${id.slice(0, 6)}`;
     if (!finalPrompt) {
       setError('未连接 text 节点也未填写 prompt');
@@ -1120,10 +1128,14 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         {/* 本地 prompt(优先取上游) */}
         <div>
           <label className="text-[10px] text-white/50 block mb-1">本地 Prompt(可选,优先取上游 text)</label>
-          <textarea
+          <MentionPromptInput
             value={localPrompt}
-            onChange={(e) => update({ prompt: e.target.value })}
+            mentions={promptMentions}
+            materials={mentionMaterials}
+            onChange={(value, mentions) => update({ prompt: value, promptMentions: mentions })}
             placeholder="备用:无上游连接时使用此提示词"
+            isDark={isDark}
+            isPixel={isPixel}
             className="w-full h-14 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
           />
         </div>

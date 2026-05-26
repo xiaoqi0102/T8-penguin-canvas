@@ -9,9 +9,11 @@ import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { logBus } from '../../stores/logs';
 import { PORT_COLOR } from '../../config/portTypes';
 import { useThemeStore } from '../../stores/theme';
-import { useUpstreamMaterials } from './useUpstreamMaterials';
+import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
+import MentionPromptInput from './MentionPromptInput';
+import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
 
@@ -47,6 +49,7 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
   const title: string = d?.title || '';
   const tags: string = d?.tags || '';
   const localPrompt: string = d?.prompt || '';
+  const promptMentions: MediaMention[] = Array.isArray(d?.promptMentions) ? d.promptMentions : [];
   const seed: number = typeof d?.seed === 'number' ? d.seed : 0;
   const continueAt: number = d?.continueAt ?? 28;
   // 预传 clipId(手动调起 _sunoUploadAudio 后保存)
@@ -76,6 +79,24 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
 
   // === 本地拖入参考音频 (跨节点 Ctrl 拖拽) ===
   const localRefAudio: string = typeof d?.localRefAudio === 'string' ? d.localRefAudio : '';
+  const localRefAudioMaterials: Material[] = useMemo(
+    () =>
+      localRefAudio
+        ? [{
+            id: `local::audio-ref:${localRefAudio}`,
+            kind: 'audio' as const,
+            url: localRefAudio,
+            sourceNodeId: id,
+            origin: 'local' as const,
+            label: '本地参考音频',
+          }]
+        : [],
+    [localRefAudio, id],
+  );
+  const mentionMaterials = useMemo(
+    () => [...orderedAudios, ...localRefAudioMaterials],
+    [orderedAudios, localRefAudioMaterials],
+  );
   
   // 分组动态跟随模式: generate 只要文本, cover/extend 需要参考音频
   const previewGroups = useMemo<ReadonlyArray<'text' | 'image' | 'video' | 'audio'>>(
@@ -180,7 +201,8 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
   const handleGenerate = async () => {
     setError(null);
     const upstream = collectUpstream();
-    const finalPrompt = (upstream.prompt || localPrompt || '').trim();
+    const resolvedLocalPrompt = resolveMediaMentions(localPrompt, promptMentions, mentionMaterials);
+    const finalPrompt = (upstream.prompt || resolvedLocalPrompt || '').trim();
     if (!finalPrompt) {
       setError('请填写歌词 / 提示词');
       return;
@@ -350,10 +372,14 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
         </div>
         <div>
           <label className="text-[10px] text-white/50 block mb-1">歌词 / 提示词</label>
-          <textarea
+          <MentionPromptInput
             value={localPrompt}
-            onChange={(e) => update({ prompt: e.target.value })}
+            mentions={promptMentions}
+            materials={mentionMaterials}
+            onChange={(value, mentions) => update({ prompt: value, promptMentions: mentions })}
             placeholder="[Verse]..."
+            isDark={isDark}
+            isPixel={isPixel}
             className="w-full h-16 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
           />
         </div>

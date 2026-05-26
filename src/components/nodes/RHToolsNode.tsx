@@ -31,9 +31,11 @@ import { submitRh, queryRh, fetchRhAppInfo, uploadRhAsset } from '../../services
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useHasAutoOutput } from './useHasAutoOutput';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
-import { useUpstreamMaterials } from './useUpstreamMaterials';
+import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
+import MentionPromptInput from './MentionPromptInput';
+import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useRHToolsSafe } from '../../providers/RHToolsProvider';
 import { useThemeStore } from '../../stores/theme';
 import { logBus } from '../../stores/logs';
@@ -133,6 +135,8 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
   const urls: string[] = d?.urls || [];
   const appInfo: any = d?.appInfo;
   const paramValues: Record<string, { value: string; sourceFromUpstream?: boolean }> = d?.paramValues || {};
+  const paramMentions: Record<string, MediaMention[]> =
+    d?.paramMentions && typeof d.paramMentions === 'object' ? d.paramMentions : {};
 
   // 主题色（青调 cyan，与 RunningHubNode 一致）—— v1.2.10.2 修复某些主题下紫色面板过于伤眼问题
   // v1.2.10.3: 像素风不再用 cyan 混入, 改走 RunningHubNode 同款糖果调色板（px-surface/px-muted/px-ink/px-yellow）
@@ -194,6 +198,10 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
   const orderedImages = useOrderedMaterials(upstream.images, materialOrder);
   const orderedVideos = useOrderedMaterials(upstream.videos, materialOrder);
   const orderedAudios = useOrderedMaterials(upstream.audios, materialOrder);
+  const mentionMaterials = useMemo<Material[]>(
+    () => [...orderedImages, ...orderedVideos, ...orderedAudios],
+    [orderedImages, orderedVideos, orderedAudios],
+  );
   const setMaterialOrder = (newOrder: string[]) => update({ materialOrder: newOrder });
   const src = `rh-tools:${id}`;
 
@@ -220,6 +228,17 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
     const cur = paramValues[k] || { value: '' };
     const next = { ...paramValues, [k]: { ...cur, ...patch } };
     update({ paramValues: next });
+  };
+
+  const getParamMentions = (k: string): MediaMention[] =>
+    Array.isArray(paramMentions[k]) ? paramMentions[k] : [];
+
+  const setTextParam = (k: string, value: string, mentions: MediaMention[]) => {
+    const cur = paramValues[k] || { value: '' };
+    update({
+      paramValues: { ...paramValues, [k]: { ...cur, value } },
+      paramMentions: { ...paramMentions, [k]: mentions },
+    });
   };
 
   // 媒体字段随上游 url 自动同步
@@ -296,8 +315,12 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
       const vt = inferValueType(it?.fieldType);
       const v = values[k]?.value;
       const finalVal = v != null && v !== '' ? v : extractDefaultValue(it);
+      const submitVal =
+        vt === 'text'
+          ? resolveMediaMentions(String(finalVal), getParamMentions(k), mentionMaterials)
+          : finalVal;
       seen.add(k);
-      out.push({ nodeId: it.nodeId, fieldName: it.fieldName, fieldValue: finalVal, valueType: vt });
+      out.push({ nodeId: it.nodeId, fieldName: it.fieldName, fieldValue: submitVal, valueType: vt });
     }
     const upstreamList = collectUpstreamConfigList();
     for (const it of upstreamList) {
@@ -844,12 +867,15 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
                         style={{ background: surface, color: text, border: `1px solid ${border}` }}
                       />
                     ) : (
-                      <textarea
+                      <MentionPromptInput
                         value={cur.value}
-                        onChange={(e) => setParam(k, { value: e.target.value })}
+                        mentions={getParamMentions(k)}
+                        materials={mentionMaterials}
+                        onChange={(value, mentions) => setTextParam(k, value, mentions)}
                         placeholder={extractDefaultValue(it)}
-                        rows={2}
-                        className="w-full resize-none rounded px-2 py-1 text-[11px] outline-none"
+                        isDark={isDark}
+                        isPixel={isPixel}
+                        className="w-full min-h-14 resize-none rounded px-2 py-1 text-[11px] outline-none"
                         style={{ background: surface, color: text, border: `1px solid ${border}` }}
                       />
                     )}

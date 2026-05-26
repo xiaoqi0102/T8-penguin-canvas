@@ -5,9 +5,11 @@ import { submitRh, queryRh, fetchRhAppInfo, uploadRhAsset } from '../../services
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useHasAutoOutput } from './useHasAutoOutput';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
-import { useUpstreamMaterials } from './useUpstreamMaterials';
+import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
+import MentionPromptInput from './MentionPromptInput';
+import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useThemeStore } from '../../stores/theme';
 import { logBus } from '../../stores/logs';
 
@@ -137,6 +139,8 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   // paramValues: 在节点内为每个 nodeInfoList 条目保存的当前编辑值
   // 结构: { 'nodeId::fieldName': { value: string; sourceFromUpstream?: boolean } }
   const paramValues: Record<string, { value: string; sourceFromUpstream?: boolean }> = d?.paramValues || {};
+  const paramMentions: Record<string, MediaMention[]> =
+    d?.paramMentions && typeof d.paramMentions === 'object' ? d.paramMentions : {};
 
   const stopPoll = () => {
     if (pollTimer.current) {
@@ -170,6 +174,10 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   const orderedImages = useOrderedMaterials(upstream.images, materialOrder);
   const orderedVideos = useOrderedMaterials(upstream.videos, materialOrder);
   const orderedAudios = useOrderedMaterials(upstream.audios, materialOrder);
+  const mentionMaterials = useMemo<Material[]>(
+    () => [...orderedImages, ...orderedVideos, ...orderedAudios],
+    [orderedImages, orderedVideos, orderedAudios],
+  );
   // 日志来源标识：供 TerminalPanel 面板展示 [src] 前缀。
   // 与 VideoNode/SeedanceNode 保持一致，不同节点类型使用不同前缀 rh / rh-wallet。
   const src = `${type === 'rhWallet' ? 'rh-wallet' : 'rh'}:${id}`;
@@ -204,6 +212,17 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
     const cur = paramValues[k] || { value: '' };
     const next = { ...paramValues, [k]: { ...cur, ...patch } };
     update({ paramValues: next });
+  };
+
+  const getParamMentions = (k: string): MediaMention[] =>
+    Array.isArray(paramMentions[k]) ? paramMentions[k] : [];
+
+  const setTextParam = (k: string, value: string, mentions: MediaMention[]) => {
+    const cur = paramValues[k] || { value: '' };
+    update({
+      paramValues: { ...paramValues, [k]: { ...cur, value } },
+      paramMentions: { ...paramMentions, [k]: mentions },
+    });
   };
 
   // 对于媒体类字段，随上游节点 url 变化同步回填：
@@ -302,11 +321,15 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
       // 未填 且 原始 fieldValue 为空且非必填 → 跳过
       // 如果 fieldValue 是数组（选项集），走 extractDefaultValue 取首项，避免被隐式转成 "a,b,c"。
       const finalVal = v != null && v !== '' ? v : extractDefaultValue(it);
+      const submitVal =
+        vt === 'text'
+          ? resolveMediaMentions(String(finalVal), getParamMentions(k), mentionMaterials)
+          : finalVal;
       seen.add(k);
       out.push({
         nodeId: it.nodeId,
         fieldName: it.fieldName,
-        fieldValue: finalVal,
+        fieldValue: submitVal,
         valueType: vt,
       });
     }
@@ -758,12 +781,15 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
                       className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
                     />
                   ) : (
-                    <textarea
+                    <MentionPromptInput
                       value={cur.value}
-                      onChange={(e) => setParam(k, { value: e.target.value })}
+                      mentions={getParamMentions(k)}
+                      materials={mentionMaterials}
+                      onChange={(value, mentions) => setTextParam(k, value, mentions)}
                       placeholder={extractDefaultValue(it)}
-                      rows={2}
-                      className="w-full resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
+                      isDark={isDark}
+                      isPixel={isPixel}
+                      className="w-full min-h-14 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
                     />
                   )}
                 </div>

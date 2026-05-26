@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { AlertCircle, Loader2, Film, Sparkles, Square, X } from 'lucide-react';
 import {
@@ -11,9 +11,11 @@ import { useHasAutoOutput } from './useHasAutoOutput';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { logBus } from '../../stores/logs';
 import { useThemeStore } from '../../stores/theme';
-import { useUpstreamMaterials } from './useUpstreamMaterials';
+import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
+import MentionPromptInput from './MentionPromptInput';
+import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
 
@@ -74,6 +76,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
   const videoUrl: string | undefined = d.videoUrl;
   const progress: string = d.progress || '';
   const localPrompt: string = d.prompt || '';
+  const promptMentions: MediaMention[] = Array.isArray(d?.promptMentions) ? d.promptMentions : [];
 
   // === 上游素材聚合 (跨节点统一机制) ===
   const upstream = useUpstreamMaterials(id);
@@ -88,6 +91,39 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
   const localRefImages: string[] = Array.isArray(d?.localRefImages) ? d.localRefImages : [];
   const localRefVideos: string[] = Array.isArray(d?.localRefVideos) ? d.localRefVideos : [];
   const localRefAudios: string[] = Array.isArray(d?.localRefAudios) ? d.localRefAudios : [];
+  const localRefMaterials: Material[] = useMemo(
+    () => [
+      ...localRefImages.map((url, i) => ({
+        id: `local::seedance-image:${url}`,
+        kind: 'image' as const,
+        url,
+        sourceNodeId: id,
+        origin: 'local' as const,
+        label: `本地图片${i + 1}`,
+      })),
+      ...localRefVideos.map((url, i) => ({
+        id: `local::seedance-video:${url}`,
+        kind: 'video' as const,
+        url,
+        sourceNodeId: id,
+        origin: 'local' as const,
+        label: `本地视频${i + 1}`,
+      })),
+      ...localRefAudios.map((url, i) => ({
+        id: `local::seedance-audio:${url}`,
+        kind: 'audio' as const,
+        url,
+        sourceNodeId: id,
+        origin: 'local' as const,
+        label: `本地音频${i + 1}`,
+      })),
+    ],
+    [localRefImages, localRefVideos, localRefAudios, id],
+  );
+  const mentionMaterials = useMemo(
+    () => [...orderedImages, ...orderedVideos, ...orderedAudios, ...localRefMaterials],
+    [orderedImages, orderedVideos, orderedAudios, localRefMaterials],
+  );
 
   // 收集上游 prompt + 参考图 + 参考视频 + 参考音频 (按用户拖拽顺序), 并合并本地拖入素材
   const collectUpstream = (): {
@@ -177,7 +213,8 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
   const handleGenerate = async () => {
     setError(null);
     const { prompt: upstreamPrompt, imageUrls, videoUrls, audioUrls } = collectUpstream();
-    const finalPrompt = (upstreamPrompt || localPrompt || '').trim();
+    const resolvedLocalPrompt = resolveMediaMentions(localPrompt, promptMentions, mentionMaterials);
+    const finalPrompt = (upstreamPrompt || resolvedLocalPrompt || '').trim();
     if (!finalPrompt) {
       setError('未连接 text 节点也未填写 prompt');
       logBus.error('生成中止: 缺少 prompt', src);
@@ -574,10 +611,14 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
         {/* Prompt */}
         <div>
           <label className="text-[10px] text-white/50 block mb-1">本地 Prompt(可选)</label>
-          <textarea
+          <MentionPromptInput
             value={localPrompt}
-            onChange={(e) => update({ prompt: e.target.value })}
+            mentions={promptMentions}
+            materials={mentionMaterials}
+            onChange={(value, mentions) => update({ prompt: value, promptMentions: mentions })}
             placeholder="备用:无上游连接时使用"
+            isDark={isDark}
+            isPixel={isPixel}
             className="w-full h-12 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
           />
         </div>

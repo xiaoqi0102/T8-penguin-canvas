@@ -30,6 +30,8 @@ import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
 import { useThemeStore } from '../../stores/theme';
+import MentionPromptInput from './MentionPromptInput';
+import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 
 /**
  * LLM / Vision 节点 —— 完全对齐 gpt-image-2-web Chat (index.html L1600 / L8128~L8400)
@@ -103,8 +105,8 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
 
-  const sysRef = useCallback((el: HTMLTextAreaElement | null) => attachWheelBlock(el), []);
-  const userRef = useCallback((el: HTMLTextAreaElement | null) => attachWheelBlock(el), []);
+  const sysRef = useCallback((el: HTMLElement | null) => attachWheelBlock(el), []);
+  const userRef = useCallback((el: HTMLElement | null) => attachWheelBlock(el), []);
   const chatRef = useCallback((el: HTMLDivElement | null) => attachWheelBlock(el), []);
 
   const d = data as any;
@@ -114,6 +116,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
     // 否则下游 useUpstreamMaterials 会同时 pushText(d.prompt) + pushText(d.reply) 出现两条文本）
     // 兼容旧画布: 若仅有 d.prompt 而无 d.userPrompt 也无 d.reply（即历史数据从未生成过），按用户输入读取一次
     const localPrompt: string = d?.userPrompt ?? (d?.reply == null && typeof d?.prompt === 'string' ? d.prompt : '');
+  const userPromptMentions: MediaMention[] = Array.isArray(d?.userPromptMentions) ? d.userPromptMentions : [];
   const systemPrompt: string = d?.system ?? '你是一个提示词专家，将用户的提示词优化';
   const temperature: number = typeof d?.temperature === 'number' ? d.temperature : 0.7;
   const maxTokens: number = typeof d?.maxTokens === 'number' ? d.maxTokens : 4096;
@@ -223,7 +226,8 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
     setError(null);
     setStreamingText('');
     const upstream = collectUpstream();
-    const userText = (upstream.text || localPrompt || '').trim();
+    const resolvedLocalPrompt = resolveMediaMentions(localPrompt, userPromptMentions, orderedImages);
+    const userText = (upstream.text || resolvedLocalPrompt || '').trim();
     // 注: orderedImages 已包含本地 pickedFiles + 上游，不再重复拼接
     const userImages = upstream.images;
     if (!userText && userImages.length === 0) {
@@ -573,11 +577,15 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
         {/* 用户输入 */}
         <div>
           <label className="text-[10px] text-white/50 block mb-1">用户输入(优先取上游)</label>
-          <textarea
-            ref={userRef}
+          <MentionPromptInput
+            editorRef={userRef}
             value={localPrompt}
-            onChange={(e) => update({ userPrompt: e.target.value })}
+            mentions={userPromptMentions}
+            materials={orderedImages}
+            onChange={(value, mentions) => update({ userPrompt: value, userPromptMentions: mentions })}
             placeholder="备用:无上游连接时使用"
+            isDark={isDark}
+            isPixel={isPixel}
             className="w-full h-60 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30 overflow-y-auto"
           />
         </div>
