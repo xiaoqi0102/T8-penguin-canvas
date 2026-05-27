@@ -127,7 +127,7 @@
 - `OutputNode.tsx` — 终端预览（文本双击编辑、原始宽高比、kind 分流）
 
 ### 6.2 核心节点（6）
-- `TextNode.tsx` · `ImageNode.tsx`（GPT2/Banana2/BananaPro/FAL/MJ 多 TAB） · `VideoNode.tsx`（Veo/Grok） · `SeedanceNode.tsx`（SD2.0） · `AudioNode.tsx`（Suno V5.5 三模式） · `LLMNode.tsx`（GPT/Claude/Gemini，多模态）
+- `TextNode.tsx` · `ImageNode.tsx`（GPT2/Banana2/BananaPro/FAL/MJ/七牛/Grsai 多 TAB） · `VideoNode.tsx`（Veo/Grok） · `SeedanceNode.tsx`（SD2.0） · `AudioNode.tsx`（Suno V5.5 三模式） · `LLMNode.tsx`（GPT/Claude/Gemini，多模态）
 
 ### 6.3 RH（3，1 隐藏）
 - `RunningHubNode.tsx` — 工作流 + 钱包应用共用（`useWallet = type === 'runninghub-wallet'`）
@@ -252,6 +252,9 @@ src/
 ├── services/{api,generation,imageOps}.ts
 ├── hooks/{useCanvasHistory,useRunTrigger,useMaterialDragSource,useMaterialDropTarget}.ts
 ├── providers/{RHToolsProvider.tsx,models.ts}
+├── integrations/                  # 独立 provider 集成（与贞贞工坊解耦）
+│   ├── qiniu/{QiniuImageTab,runQiniuImage,sizeMap}.ts(x)    # 七牛云 OpenAI 兼容
+│   └── grsai/{GrsaiImageTab,runGrsaiImage,sizeMap}.ts(x)    # Grsai 自有协议
 ├── theme/{types,defaultTemplates,applyTheme,validateTheme}.ts
 ├── styles/{index,theme-core,theme-pixel,theme-op}.css
 ├── utils/{topologicalSort,nodePlacement,textSplit,materialSet,pinyinMatch,imageCompare,wheelBlock,mediaCollection}.ts
