@@ -12,12 +12,14 @@
 src/integrations/
 ├── qiniu/                          # 七牛云 AI 图像（v1.5.6 首个示例，OpenAI 兼容协议）
 │   ├── QiniuSettingsSection.tsx    # API 设置弹窗中独立的 Key + baseUrl 块
-│   ├── QiniuImageTab.tsx           # ImageNode 内的 quality + size 专属面板
-│   └── runQiniuImage.ts            # 提交 + 轮询的纯函数
+│   ├── QiniuImageTab.tsx           # ImageNode 内的 质量 + 比例 专属面板（与 GPT2 同款 grid 布局）
+│   ├── runQiniuImage.ts            # 提交 + 轮询的纯函数；submit 前用 sizeMap 把比例转像素串
+│   └── sizeMap.ts                  # 按 apiModel 的比例集合 + ratio→像素串 映射（v1.5.6 ratio-only）
 └── grsai/                          # Grsai 中转站（v1.5.6 第二个验证案例，自有协议）
     ├── GrsaiSettingsSection.tsx    # API 设置弹窗中独立的 Key + baseUrl 块
-    ├── GrsaiImageTab.tsx           # ImageNode 内的 aspectRatio + imageSize 面板
-    ├── runGrsaiImage.ts            # 提交 + 轮询的纯函数
+    ├── GrsaiImageTab.tsx           # ImageNode 内的 比例 + 尺寸 面板（与 GPT2 同款 grid 布局）
+    ├── runGrsaiImage.ts            # 提交 + 轮询；vip 模型在 submit 前用 sizeMap 把比例转像素串
+    ├── sizeMap.ts                  # 按 apiModel 的比例集合 + gpt-image-2-vip 专用 ratio→像素串
     └── README.md                   # 上游协议镜像 + 模型清单
 ```
 
@@ -38,8 +40,33 @@ src/integrations/
 | 端点切换 | 国内 `openai.qiniu.com` / 海外 `openai.sufy.com` | 国内 `grsai.dakka.com.cn` / 全球 `grsaiapi.com` |
 | 默认提交模式 | 上游 `?async=true` 直接异步 | 后端代理默认 `replyType=async` |
 | 认证 Header | `Authorization: Bearer sk-xxx` | `Authorization: Bearer sk-xxx` |
+| UI size 表达 | 显示比例（auto+14 个），runner 内 sizeMap 转像素串送上游 | 显示比例（auto+14 个），gpt-image-2-vip 由 sizeMap 转像素串，其它子模型透传比例 |
+| 子模型默认 | gemini-3.1-flash-image-preview | gpt-image-2（v1.5.6 起，原 nano-banana-2） |
 
 **接入新 provider 时务必填一行进表**，让后续接入者能快速对比。
+
+---
+
+## 设计模式 · 比例化 size 显示（v1.5.6 起，所有新 provider 默认遵循）
+
+**问题**：不同 provider / 不同子模型对 size 的表达天差地别——七牛云 `openai/gpt-image-2` 接受像素串（1024x1024 等），Grsai 的 `gpt-image-2-vip` 强制像素串，但 nano-banana 系列只认比例字符串（'1:1' / '16:9'）。混在一个下拉里既丑又容易出错。
+
+**约定**：UI 一律只显示比例（`auto` + 14 个 ratio），按 apiModel 分组限制可选集合；上游需要像素串时，由 runner 在 submit 前完成 ratio → 像素串转换。
+
+**实现位置**：每个 integration 目录内独立的 `sizeMap.ts`，导出：
+- `DEFAULT_<NAME>_RATIO` — 默认 ratio（一般是 `'auto'`）
+- `get<Name>RatiosForApiModel(apiModel)` — 返回该子模型支持的比例数组
+- `ratioTo<Name>Size(ratio)` 或 `resolve<Name>AspectRatio(ratio, apiModel)` — 提交前的 ratio → 像素串映射
+
+**比例分组规范**：
+- 5 个文档「常用 size」直接映射（`1:1` → `1024x1024`，`3:2` → `1536x1024`，`2:3` → `1024x1536`，`16:9` → `2048x1152`，`9:16` → `1152x2048`）
+- 其它比例按 `1 MP 目标 + 16px 对齐 + 长边 ≤3840` 计算
+- `'auto'` 透传；旧画布的像素串值兼容直通（不做强制改写）
+- 文档约束「长边/短边 ≤ 3:1」的子模型仅保留 11 个 ≤3:1 比例（排除 `1:4` / `4:1` / `1:8` / `8:1`）
+
+**ImageNode 配套**：
+- 子模型 `<select>` onChange 与 `switchModel` 都按新 apiModel 的允许集合校验已存比例值，越界则迁移到默认，避免跨子模型残留非法选项
+- `<Name>ImageTab` 渲染时若 `d.<name>Size` 不在当前 apiModel 的列表中，回退到默认（处理旧画布的像素串值）
 
 ---
 
@@ -61,7 +88,7 @@ src/integrations/
 | `src/services/generation.ts` | **文件末尾追加** `submitXyzImage` / `queryXyzImageStatus` | 复用 `ImageSubmitResult` / `ImageQueryResult` |
 | `src/providers/models.ts` | `ProviderType` 联合加 `'xyz'`；`ImageParamKind` 加 `'xyz'`；`IMAGE_MODELS` **数组末尾**追加模型定义 | grsai 块在 qiniu 之后追加 |
 | `src/components/ApiSettings.tsx` | `KeyField` 联合加 `'xyzApiKey'`；`emptyMap` / `emptyShow` 加字段；`CUSTOM_PROVIDER_FIELDS` 加字段；导入 `<XyzSettingsSection>`；JSX 调用 1 行；state + useEffect + handleSave 各 3-5 行（全部 sentinel） | 6 个 sentinel 块 |
-| `src/components/nodes/ImageNode.tsx` | 导入 `XyzImageTab` + `runXyzImage`；`isXyz` 标志；`switchModel` 加 else-if 分支；UI 条件加 `!isXyz`；插入 `<XyzImageTab>`；`handleGenerate` 加 `if (isXyz) return runXyzImage(...)`（全部 sentinel） | 5 个 sentinel 块 |
+| `src/components/nodes/ImageNode.tsx` | 导入 `XyzImageTab` + `runXyzImage` + `getXyzRatiosForApiModel` + `DEFAULT_XYZ_RATIO`；`isXyz` 标志；`switchModel` 加 else-if 分支（按子模型校验比例）；子模型 `<select>` onChange 加 isXyz 迁移分支；UI 条件加 `!isXyz`；插入 `<XyzImageTab>`；`handleGenerate` 加 `if (isXyz) return runXyzImage(...)`（全部 sentinel） | 6 个 sentinel 块 |
 | `features.json` | `modelRegistry.image` 数组末尾追加注册项 | 紧贴 qiniu 注册项 |
 
 ### Step 2 · 复制 `qiniu/` 目录为模板（核心改动 95% 在此目录内）
@@ -72,6 +99,7 @@ cp -r src/integrations/qiniu src/integrations/xyz
 #   QiniuSettingsSection.tsx → XyzSettingsSection.tsx
 #   QiniuImageTab.tsx        → XyzImageTab.tsx
 #   runQiniuImage.ts         → runXyzImage.ts
+#   sizeMap.ts               → 改 RATIOS_BY_API_MODEL / COMMON_RATIO_TO_<NAME>_SIZE
 ```
 
 需要改的位置（grep `Qiniu` / `qiniu` 全部替换）：
@@ -79,15 +107,17 @@ cp -r src/integrations/qiniu src/integrations/xyz
 - import 路径
 - props 接口字段（`qiniuApiKeyInput` → `xyzApiKeyInput` 等）
 - API 服务函数名（`submitQiniuImage` → `submitXyzImage`）
+- sizeMap 导出名（`getQiniuRatiosForApiModel` → `getXyzRatiosForApiModel`、`ratioToQiniuSize` → `ratioToXyzSize`、`DEFAULT_QINIU_RATIO` → `DEFAULT_XYZ_RATIO`）
 - 上游基址常量 `DEFAULT_QINIU_BASE` → `DEFAULT_XYZ_BASE`
-- 文案 / 圆点配色（qiniu = `bg-sky-400`、grsai = `bg-violet-400`，新 provider 选一个未用的色）
 - 外链「获取 APIKey」改为该 provider 的控制台 URL
+- `<Name>ImageTab` 内**不要**添加外层颜色边框 / 外层 div；保持与 GPT2 一致的 `grid grid-cols-2 gap-2` 简洁布局，标签使用中文（质量 / 比例 / 尺寸）
 
 ### Step 3 · 接通 ImageNode handleGenerate
 
 在 `runXyzImage.ts` 中实现：
+- 调 `ratioTo<Name>Size(d.xyzSize)` 或 `resolve<Name>AspectRatio(d.xyzAspectRatio, apiModel)` 把 UI 存的比例转为上游接受的字段值
 - `submit + 轮询`（取决于上游协议是同步、异步、还是 FAL queue 等其他形态）
-- 日志埋点 `logBus.{info|success|debug|error}`
+- 日志埋点 `logBus.{info|success|debug|error}`，info 中同时打印「UI ratio」与「上游字段值」便于调试
 - 写回节点 data：`status / progress / imageUrl / lastPrompt / usedI2I`
 
 ### 「以 grsai 接入为例」的完整路径示范
@@ -98,22 +128,23 @@ cp -r src/integrations/qiniu src/integrations/xyz
 | 后端基础 | `backend/src/config.js` 加 `GRSAI_BASE_URL`；`settings.js` 加 `grsaiApiKey/grsaiBaseUrl` + 脱敏 | 6 行 |
 | 后端代理 | `proxy.js` 末尾追加 `loadGrsai/refToGrsai/callGrsai/pollGrsai/normalizeGrsai` 5 个辅助 + 3 个 router 路由 | ≈220 行集中追加 |
 | 类型 / 常量 / 服务 | `canvas.ts` / `apiKeys.ts` / `generation.ts` 各加几行 | < 50 行 |
-| 模型注册 | `models.ts` ProviderType+ImageParamKind 加 `'grsai'`；IMAGE_MODELS 末尾加 grsai 条目（11 个 model） | ≈40 行 |
-| 集成层 | 新建 `src/integrations/grsai/` 三个文件 + README | ≈400 行 |
-| 父组件插入 | `ApiSettings.tsx` 6 处 sentinel；`ImageNode.tsx` 5 处 sentinel | ≈30 行散插 |
+| 模型注册 | `models.ts` ProviderType+ImageParamKind 加 `'grsai'`；IMAGE_MODELS 末尾加 grsai 条目（11 个 model，默认 `gpt-image-2`） | ≈40 行 |
+| 集成层 | 新建 `src/integrations/grsai/` 四个文件（含 sizeMap.ts）+ README | ≈500 行 |
+| 父组件插入 | `ApiSettings.tsx` 6 处 sentinel；`ImageNode.tsx` 6 处 sentinel（含子模型 onChange 迁移） | ≈35 行散插 |
 | 文档 | `features.json` 加注册项；本 README 加对照表行 | < 10 行 |
 
 ---
 
 ## 设计规范
 
-### 每个 `integrations/<name>/` 必须只产出三类导出
+### 每个 `integrations/<name>/` 必须只产出四类导出
 
 | 文件命名 | 角色 | 父组件中的调用形式 |
 |---|---|---|
 | `<Name>SettingsSection.tsx` | API 设置弹窗中独立的 Key + baseUrl 块（含外链、端点切换按钮） | `<XyzSettingsSection ... />` |
-| `<Name>ImageTab.tsx`（或 `<Name>VideoTab.tsx` 等） | 节点内的专属参数面板 | `{isXyz && <XyzImageTab d={d} update={update} ... />}` |
-| `run<Name>Image.ts`（或 `run<Name>Video.ts` 等） | 提交 + 轮询 + 写回 node data；纯函数，不依赖任何 React | `if (isXyz) await runXyzImage({...})` |
+| `<Name>ImageTab.tsx`（或 `<Name>VideoTab.tsx` 等） | 节点内的专属参数面板，接收 `apiModel` prop 以决定可选比例集合；**不加外层颜色边框 / 外层 div**，沿用 GPT2 同款 `grid grid-cols-2 gap-2` 布局，标签中文化 | `{isXyz && <XyzImageTab d={d} update={update} apiModel={apiModel} />}` |
+| `run<Name>Image.ts`（或 `run<Name>Video.ts` 等） | 提交 + 轮询 + 写回 node data；纯函数，不依赖任何 React；submit 前调 sizeMap 完成 ratio → 上游字段转换 | `if (isXyz) await runXyzImage({...})` |
+| `sizeMap.ts` | UI 比例集合 + 比例 → 上游字段（像素串或保持 ratio）的映射；导出 `getXyzRatiosForApiModel` / `ratioToXyzSize`（或 `resolveXyzAspectRatio`）/ `DEFAULT_XYZ_RATIO` | ImageNode + `<Name>ImageTab` + runner 各自 import |
 
 可选 `README.md` — 推荐写，存放上游协议镜像、模型清单、已知约束，方便将来调试不用再翻 apifox。
 
@@ -152,19 +183,20 @@ cp -r src/integrations/qiniu src/integrations/xyz
 | `src/services/generation.ts` | `submitQiniuImage` / `queryQiniuImageStatus` | `submitGrsaiImage` / `queryGrsaiImageStatus` |
 | `src/providers/models.ts` ProviderType | 加 `'qiniu'` | 加 `'grsai'` |
 | `src/providers/models.ts` ImageParamKind | 加 `'qiniu'` | 加 `'grsai'` |
-| `src/providers/models.ts` IMAGE_MODELS | 追加 id=`'qiniu'` 条目 | 追加 id=`'grsai'` 条目 |
+| `src/providers/models.ts` IMAGE_MODELS | 追加 id=`'qiniu'` 条目，默认 apiModel=`gemini-3.1-flash-image-preview` | 追加 id=`'grsai'` 条目，默认 apiModel=`gpt-image-2`（v1.5.6 起） |
 | `ApiSettings.tsx` KeyField | 加 `'qiniuApiKey'` | 加 `'grsaiApiKey'` |
 | `ApiSettings.tsx` CUSTOM_PROVIDER_FIELDS | 含 `'qiniuApiKey'` | 含 `'grsaiApiKey'` |
 | `ApiSettings.tsx` state | `qiniuBaseUrlInput` | `grsaiBaseUrlInput` |
 | `ApiSettings.tsx` useEffect 回填 | `setQiniuBaseUrlInput(...)` | `setGrsaiBaseUrlInput(...)` |
 | `ApiSettings.tsx` handleSave 对比 | `qiniuBaseUrl` 比较 | `grsaiBaseUrl` 比较 |
 | `ApiSettings.tsx` JSX 渲染 | `<QiniuSettingsSection ... />` | `<GrsaiSettingsSection ... />` |
-| `ImageNode.tsx` import | `QiniuImageTab` + `runQiniuImage` | `GrsaiImageTab` + `runGrsaiImage` |
+| `ImageNode.tsx` import | `QiniuImageTab` + `runQiniuImage` + `getQiniuRatiosForApiModel` + `DEFAULT_QINIU_RATIO` | `GrsaiImageTab` + `runGrsaiImage` + `getGrsaiRatiosForApiModel` + `DEFAULT_GRSAI_RATIO` |
 | `ImageNode.tsx` 标志位 | `isQiniu` | `isGrsai` |
-| `ImageNode.tsx` switchModel | `paramKind === 'qiniu'` 分支 | `paramKind === 'grsai'` 分支 |
+| `ImageNode.tsx` switchModel | `paramKind === 'qiniu'` 分支，按 `getQiniuRatiosForApiModel(newDef.apiModel)` 校验 `qiniuSize` | `paramKind === 'grsai'` 分支，按 `getGrsaiRatiosForApiModel(newDef.apiModel)` 校验 `grsaiAspectRatio` |
+| `ImageNode.tsx` 子模型 onChange | 若 isQiniu 且新 apiModel 不允许当前 `qiniuSize` → 回退 `DEFAULT_QINIU_RATIO` | 若 isGrsai 且新 apiModel 不允许当前 `grsaiAspectRatio` → 回退 `DEFAULT_GRSAI_RATIO` |
 | `ImageNode.tsx` handleGenerate | `if (isQiniu) return runQiniuImage(...)` | `if (isGrsai) return runGrsaiImage(...)` |
 | `ImageNode.tsx` UI 比例条件 | `!isFal && !isMj && !isQiniu` | 同条件再加 `&& !isGrsai` |
-| `ImageNode.tsx` JSX 面板 | `{isQiniu && <QiniuImageTab .../>}` | `{isGrsai && <GrsaiImageTab .../>}` |
+| `ImageNode.tsx` JSX 面板 | `{isQiniu && <QiniuImageTab d={d} update={update} apiModel={apiModel} />}` | `{isGrsai && <GrsaiImageTab d={d} update={update} apiModel={apiModel} />}` |
 | `features.json` | `modelRegistry.image` 末尾加 qiniu 注册项 | 末尾再加 grsai 注册项 |
 
 ---
@@ -201,6 +233,7 @@ npm run dev
 照样在 `src/integrations/<name>/` 下加：
 - `<Name>VideoTab.tsx`（视频参数面板）
 - `run<Name>Video.ts`（提交轮询逻辑）
+- 视频如有「ratio + resolution」双下拉，也可考虑配套 `sizeMap.ts` 抽离
 - 改 `src/components/nodes/VideoNode.tsx` 一处插入点（用相同 sentinel 包裹）
 
 **Q2：上游主项目重命名了 ImageNode handleGenerate 内部变量怎么办？**
@@ -218,8 +251,20 @@ npm run dev
 **Q6：grsai 字段是驼峰命名（aspectRatio / imageSize），与 OpenAI 下划线风格不同，前后端要小心吗？**
 要。runner 和后端代理之间通过 `req.body.aspectRatio` / `req.body.imageSize` 驼峰透传，**不要在中间任何一层做下划线转换**。`/v1/api/generate` 上游只认驼峰，发下划线会被忽略导致比例不生效。
 
-**Q7：gpt-image-2-vip 的「必须传像素串、不接受比例字符串」怎么处理？**
-`GrsaiImageTab.tsx` 内根据当前 `apiModel` 是否匹配 `/^gpt-image-2.*vip$/i` 动态切换候选：vip 模型只列像素串预设（1024x1024、2048x2048、2880x2880、3840x2160 等）；普通 gpt-image-2 同时列比例 + 像素串；nano-banana 系列额外允许 1:4/4:1/1:8/8:1。
+**Q7：gpt-image-2-vip 的「必须传像素串、不接受比例字符串」怎么处理？**（v1.5.6 重构后）
+UI 一律只显示比例（与其他子模型一致），由 `grsai/sizeMap.ts` 的 `resolveGrsaiAspectRatio(ratio, apiModel)` 在 runner submit 前完成转换：当 apiModel 匹配 `/^gpt-image-2.*vip$/i` 时，命中 `COMMON_RATIO_TO_VIP_SIZE`（1:1 → 1024x1024 等 5 个）则用文档值，否则按 `1 MP + 16px 对齐 + ≤3840 长边` 计算像素串；`auto` 退化到默认 1024x1024。其它子模型透传比例字符串。**用户视角完全感知不到内部差异**。
 
 **Q8：grsai 的 `imageSize` 是只 nano-banana 系列识别吗？怎么避免误传？**
 `runGrsaiImage.ts` 内用 `isNanoBananaSeries(model)` 判断，**仅当 model 以 `nano-banana` 开头才把 imageSize 加进 request**；gpt-image-2 系列不带该字段。后端 `callGrsaiImageUpstream` 也会兜底跳过空字段。
+
+**Q9：为什么 size 下拉要做成「按 apiModel 分组」？**（v1.5.6 起的设计）
+不同子模型的合法比例集合本就不同：
+- 七牛 `openai/gpt-image-2` 文档明确「长边/短边 ≤ 3:1」，超出的比例（`1:4` 等）会被上游拒绝
+- 七牛 `gemini-3.1-flash-image-preview` 支持全 14 个比例
+- Grsai `nano-banana-2` 系列支持极端比例，其它子模型不支持
+- Grsai `gpt-image-2-vip` 上游接受范围与 `openai/gpt-image-2` 相同
+
+如果一律暴露全集，用户在 vip / openai 子模型下选了 `1:4` 必然报错。分组限制能在 UI 层就过滤掉非法选项，配合 ImageNode 的「子模型切换时校验并迁移已存值」一起，保证不会跨子模型残留越界比例。
+
+**Q10：旧画布存的是像素串（如 `qiniuSize: '1024x1024'`），新版本只显示比例会不会显示空？**
+不会。`<Name>ImageTab` 渲染时若 `d.xxxSize` 不在当前 apiModel 的允许列表中，会回退到默认（`DEFAULT_<NAME>_RATIO`）显示。runner 中 `ratioToXxxSize` 也会原样透传已是像素串的旧值给上游，不影响生成。但只要用户重新选一次下拉，数据就会迁移为新版比例字符串。
