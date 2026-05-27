@@ -36,44 +36,39 @@ export default function GrsaiImageTab({ d, update, apiModel }: Props) {
   const onSize = (e: ChangeEvent<HTMLSelectElement>) => update({ grsaiImageSize: e.target.value });
 
   return (
-    <div className="space-y-2 rounded border border-violet-400/30 bg-violet-500/5 p-2">
-      <div className="text-[10px] text-violet-300 font-semibold tracking-wide">
-        ✦ Grsai · 自有协议 · /v1/api/generate → /v1/api/result
+    <div className={`grid ${showImageSize ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+      <div>
+        <label className="text-[10px] text-white/50 block mb-1">比例</label>
+        <select
+          value={grsaiAspectRatio}
+          onChange={onRatio}
+          style={{ background: '#18181b', color: '#ffffff' }}
+          className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+        >
+          {ratioOptions.map((r) => (
+            <option key={r} value={r} style={{ background: '#18181b', color: '#ffffff' }}>
+              {r}
+            </option>
+          ))}
+        </select>
       </div>
-      <div className={`grid ${showImageSize ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+      {showImageSize && (
         <div>
-          <label className="text-[10px] text-white/50 block mb-1">AspectRatio</label>
+          <label className="text-[10px] text-white/50 block mb-1">尺寸</label>
           <select
-            value={grsaiAspectRatio}
-            onChange={onRatio}
+            value={grsaiImageSize}
+            onChange={onSize}
             style={{ background: '#18181b', color: '#ffffff' }}
             className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
           >
-            {ratioOptions.map((r) => (
-              <option key={r} value={r} style={{ background: '#18181b', color: '#ffffff' }}>
-                {r}
+            {['1K', '2K', '4K'].map((s) => (
+              <option key={s} value={s} style={{ background: '#18181b', color: '#ffffff' }}>
+                {s}
               </option>
             ))}
           </select>
         </div>
-        {showImageSize && (
-          <div>
-            <label className="text-[10px] text-white/50 block mb-1">ImageSize</label>
-            <select
-              value={grsaiImageSize}
-              onChange={onSize}
-              style={{ background: '#18181b', color: '#ffffff' }}
-              className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
-            >
-              {['1K', '2K', '4K'].map((s) => (
-                <option key={s} value={s} style={{ background: '#18181b', color: '#ffffff' }}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

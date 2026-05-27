@@ -36,41 +36,36 @@ export default function QiniuImageTab({ d, update, apiModel }: Props) {
   const onSize = (e: ChangeEvent<HTMLSelectElement>) => update({ qiniuSize: e.target.value });
 
   return (
-    <div className="space-y-2 rounded border border-sky-400/30 bg-sky-500/5 p-2">
-      <div className="text-[10px] text-sky-300 font-semibold tracking-wide">
-        ☁ 七牛云 · OpenAI 兼容 · 有参考图走 /edits，无参考图走 /generations
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <label className="text-[10px] text-white/50 block mb-1">质量</label>
+        <select
+          value={qiniuQuality}
+          onChange={onQuality}
+          style={{ background: '#18181b', color: '#ffffff' }}
+          className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+        >
+          {QUALITIES.map((q) => (
+            <option key={q.value} value={q.value} style={{ background: '#18181b', color: '#ffffff' }}>
+              {q.label}
+            </option>
+          ))}
+        </select>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-white/50 block mb-1">Quality</label>
-          <select
-            value={qiniuQuality}
-            onChange={onQuality}
-            style={{ background: '#18181b', color: '#ffffff' }}
-            className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
-          >
-            {QUALITIES.map((q) => (
-              <option key={q.value} value={q.value} style={{ background: '#18181b', color: '#ffffff' }}>
-                {q.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-[10px] text-white/50 block mb-1">Size</label>
-          <select
-            value={qiniuSize}
-            onChange={onSize}
-            style={{ background: '#18181b', color: '#ffffff' }}
-            className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
-          >
-            {sizes.map((s) => (
-              <option key={s} value={s} style={{ background: '#18181b', color: '#ffffff' }}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label className="text-[10px] text-white/50 block mb-1">比例</label>
+        <select
+          value={qiniuSize}
+          onChange={onSize}
+          style={{ background: '#18181b', color: '#ffffff' }}
+          className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+        >
+          {sizes.map((s) => (
+            <option key={s} value={s} style={{ background: '#18181b', color: '#ffffff' }}>
+              {s}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );
