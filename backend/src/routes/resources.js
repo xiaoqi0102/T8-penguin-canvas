@@ -11,7 +11,8 @@ const config = require('../config');
 
 const router = express.Router();
 
-const KINDS = new Set(['image', 'video', 'audio']);
+const KINDS = new Set(['image', 'video', 'audio', 'set']);
+const MATERIAL_SET_KINDS = new Set(['text', 'image', 'video', 'audio']);
 const DB_FILE = 'resource_library.json';
 const THUMB_DIR = '_thumbs';
 const REMOTE_FETCH_TIMEOUT_MS = 30_000;
@@ -21,6 +22,7 @@ const DEFAULT_CATEGORY_NAMES = {
   image: ['未分类', '角色', '场景', '风格参考', '成品'],
   video: ['未分类', '镜头', '动作', '成片'],
   audio: ['未分类', '音乐', '人声', '音效'],
+  set: ['未分类', '图像集', '视频集', '音频集', '文本集'],
 };
 
 const MIME_BY_EXT = {
@@ -71,6 +73,11 @@ function normalizeKind(kind) {
   return KINDS.has(k) ? k : '';
 }
 
+function normalizeMaterialSetKind(kind) {
+  const k = String(kind || '').toLowerCase();
+  return MATERIAL_SET_KINDS.has(k) ? k : '';
+}
+
 function normalizeExt(ext) {
   return String(ext || '')
     .trim()
@@ -86,6 +93,30 @@ function kindFromExt(ext) {
   if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'avi'].includes(e)) return 'video';
   if (['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(e)) return 'audio';
   return '';
+}
+
+function normalizeSetItems(rawItems, fallbackKind) {
+  const kind = normalizeMaterialSetKind(fallbackKind);
+  if (!kind || !Array.isArray(rawItems)) return [];
+  return rawItems
+    .map((raw, index) => {
+      const itemKind = normalizeMaterialSetKind(raw?.kind) || kind;
+      if (itemKind !== kind) return null;
+      const value = kind === 'text' ? safeText(raw?.text || raw?.url, '') : safeText(raw?.url || raw?.fileRel, '');
+      const fileRel = kind === 'text' ? '' : safeText(raw?.fileRel, '');
+      if (kind === 'text' && !value) return null;
+      if (kind !== 'text' && !value && !fileRel) return null;
+      return {
+        id: safeText(raw?.id, `set_item_${index + 1}`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 96) || `set_item_${index + 1}`,
+        kind,
+        ...(kind === 'text' ? { text: value } : { fileRel, url: value }),
+        name: safeText(raw?.name, kind === 'text' ? value.slice(0, 24) : path.basename(fileRel || value)),
+        size: Number(raw?.size) || 0,
+        mime: safeText(raw?.mime, kind === 'text' ? 'text/plain' : mimeFromExt(path.extname(fileRel || value))),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 500);
 }
 
 function extFromMime(mime) {
@@ -172,6 +203,9 @@ function normalizeDb(raw) {
     if (!kind || seen.has(id)) continue;
     const fileRel = safeText(item?.fileRel);
     if (!fileRel) continue;
+    const materialSetKind = kind === 'set' ? normalizeMaterialSetKind(item?.materialSetKind) : '';
+    const materialSetItems = kind === 'set' ? normalizeSetItems(item?.materialSetItems, materialSetKind) : [];
+    if (kind === 'set' && (!materialSetKind || materialSetItems.length === 0)) continue;
     seen.add(id);
     const fallbackCat = `${kind}_uncategorized`;
     const categoryId = catIds.has(item?.categoryId) ? item.categoryId : fallbackCat;
@@ -191,6 +225,8 @@ function normalizeDb(raw) {
       sourceUrl: safeText(item?.sourceUrl, ''),
       sourceNodeId: safeText(item?.sourceNodeId, ''),
       sourceCanvasId: safeText(item?.sourceCanvasId, ''),
+      materialSetKind,
+      materialSetItems,
       createdAt: Number(item?.createdAt) || now(),
       updatedAt: Number(item?.updatedAt) || Number(item?.createdAt) || now(),
       lastUsedAt: Number(item?.lastUsedAt) || 0,
@@ -281,7 +317,37 @@ async function assertSafeRemoteUrl(url) {
   }
 }
 
+function decorateSetItem(parentId, raw, index) {
+  const kind = normalizeMaterialSetKind(raw?.kind);
+  if (kind === 'text') {
+    return {
+      id: raw.id || `set_item_${index + 1}`,
+      kind,
+      text: raw.text || '',
+      name: raw.name || `文本 ${index + 1}`,
+      size: raw.size || 0,
+      mime: raw.mime || 'text/plain',
+    };
+  }
+  return {
+    id: raw.id || `set_item_${index + 1}`,
+    kind,
+    url: `/api/resources/set-file/${encodeURIComponent(parentId)}/${index}`,
+    name: raw.name || `素材 ${index + 1}`,
+    size: raw.size || 0,
+    mime: raw.mime || '',
+  };
+}
+
 function decorateItem(item) {
+  if (item.kind === 'set') {
+    return {
+      ...item,
+      fileUrl: `/api/resources/set/${encodeURIComponent(item.id)}`,
+      thumbUrl: item.thumbRel ? `/api/resources/thumb/${encodeURIComponent(item.id)}` : '',
+      materialSetItems: (item.materialSetItems || []).map((x, index) => decorateSetItem(item.id, x, index)),
+    };
+  }
   return {
     ...item,
     fileUrl: `/api/resources/file/${encodeURIComponent(item.id)}`,
@@ -318,6 +384,18 @@ function resolveLocalSource(url, root, db) {
       filePath: assertInside(root, path.join(root, item.fileRel)),
       originalName: item.originalName || path.basename(item.fileRel),
       mime: item.mime,
+    };
+  }
+  const sm = /^\/api\/resources\/set-file\/([^/?#]+)\/(\d+)/.exec(clean);
+  if (sm) {
+    const item = findItem(db, decodeURIComponent(sm[1]));
+    const index = Number(sm[2]);
+    const child = item?.kind === 'set' && Array.isArray(item.materialSetItems) ? item.materialSetItems[index] : null;
+    if (!child?.fileRel) throw new Error('素材集源文件不存在');
+    return {
+      filePath: assertInside(root, path.join(root, child.fileRel)),
+      originalName: child.name || path.basename(child.fileRel),
+      mime: child.mime,
     };
   }
   return null;
@@ -547,6 +625,153 @@ router.post('/items/add', express.json({ limit: '4mb' }), async (req, res) => {
   }
 });
 
+router.post('/sets/add', express.json({ limit: '8mb' }), async (req, res) => {
+  try {
+    const materialSetKind = normalizeMaterialSetKind(req.body?.materialSetKind);
+    const rawItems = Array.isArray(req.body?.materialSetItems) ? req.body.materialSetItems : [];
+    if (!materialSetKind || rawItems.length === 0) {
+      return res.status(400).json({ success: false, error: '缺少素材集类型或素材' });
+    }
+
+    const { root, db } = readDb();
+    const staged = [];
+    const hash = crypto.createHash('sha256');
+    hash.update(`set:${materialSetKind}\n`);
+    let totalSize = 0;
+
+    for (const raw of rawItems.slice(0, 500)) {
+      if (materialSetKind === 'text') {
+        const text = String(raw?.text ?? raw?.url ?? '').trim();
+        if (!text) continue;
+        const buf = Buffer.from(text, 'utf-8');
+        hash.update(buf);
+        totalSize += buf.length;
+        staged.push({
+          kind: 'text',
+          text,
+          name: safeText(raw?.name, text.slice(0, 24)),
+          size: buf.length,
+          mime: 'text/plain',
+        });
+        continue;
+      }
+
+      const url = String(raw?.url || '').trim();
+      if (!url) continue;
+      const src = await readSource(url, root, db);
+      const ext = normalizeExt(path.extname(src.originalName)) || extFromMime(src.mime) || 'bin';
+      const detected = kindFromExt(ext) || kindFromExt(extFromMime(src.mime));
+      if (detected !== materialSetKind) {
+        return res.status(400).json({ success: false, error: `素材类型不匹配：需要 ${materialSetKind}` });
+      }
+      hash.update(src.buffer);
+      totalSize += src.buffer.length;
+      staged.push({
+        kind: materialSetKind,
+        buffer: src.buffer,
+        originalName: src.originalName,
+        name: safeText(raw?.name, path.parse(src.originalName).name),
+        size: src.buffer.length,
+        mime: safeText(src.mime, mimeFromExt(ext)),
+        ext,
+      });
+    }
+
+    if (staged.length === 0) return res.status(400).json({ success: false, error: '素材集为空' });
+
+    const sha256 = hash.digest('hex');
+    const requestedCat = safeText(req.body?.categoryId);
+    const categoryOk = db.categories.some((c) => c.id === requestedCat && c.kind === 'set');
+    const existing = db.items.find((item) => item.kind === 'set' && item.sha256 === sha256);
+    if (existing) {
+      if (categoryOk) existing.categoryId = requestedCat;
+      existing.updatedAt = now();
+      existing.lastUsedAt = now();
+      writeDb(root, db);
+      return res.json({ success: true, duplicate: true, data: decorateItem(existing) });
+    }
+
+    const id = genId('resset');
+    const setDirRel = path.join('sets', id).replace(/\\/g, '/');
+    const setDir = assertInside(root, path.join(root, setDirRel));
+    fs.mkdirSync(setDir, { recursive: true });
+
+    let thumbRel = '';
+    const materialSetItems = [];
+    for (let i = 0; i < staged.length; i += 1) {
+      const item = staged[i];
+      if (item.kind === 'text') {
+        materialSetItems.push({
+          id: `${id}_${i + 1}`,
+          kind: 'text',
+          text: item.text,
+          name: item.name || `文本 ${i + 1}`,
+          size: item.size,
+          mime: 'text/plain',
+        });
+        continue;
+      }
+
+      const safeOriginal = safeFilename(item.originalName, `${materialSetKind}_${i + 1}.${item.ext}`);
+      const finalName = path.extname(safeOriginal) ? safeOriginal : `${safeOriginal}.${item.ext}`;
+      const rel = path.join(setDirRel, `${String(i + 1).padStart(3, '0')}_${finalName}`).replace(/\\/g, '/');
+      const target = assertInside(root, path.join(root, rel));
+      fs.writeFileSync(target, item.buffer);
+      if (!thumbRel && materialSetKind === 'image') {
+        thumbRel = await makeImageThumb(item.buffer, root, id);
+      }
+      materialSetItems.push({
+        id: `${id}_${i + 1}`,
+        kind: materialSetKind,
+        fileRel: rel,
+        name: item.name || path.parse(finalName).name,
+        size: item.size,
+        mime: item.mime,
+      });
+    }
+
+    const safeTitle = safeText(req.body?.title, `${materialSetKind} 素材集`);
+    const fileRel = path.join(setDirRel, 'material-set.json').replace(/\\/g, '/');
+    const setManifest = {
+      schema: 't8-material-set',
+      version: 1,
+      title: safeTitle,
+      materialSetKind,
+      materialSetItems,
+      exportedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(assertInside(root, path.join(root, fileRel)), JSON.stringify(setManifest, null, 2), 'utf-8');
+
+    const item = {
+      id,
+      kind: 'set',
+      categoryId: categoryOk ? requestedCat : 'set_uncategorized',
+      title: safeTitle,
+      originalName: `${safeFilename(safeTitle, 'material-set')}.json`,
+      fileRel,
+      thumbRel,
+      mime: 'application/json',
+      size: totalSize,
+      sha256,
+      tags: Array.isArray(req.body?.tags) ? req.body.tags.map((t) => safeText(t)).filter(Boolean).slice(0, 20) : [],
+      favorite: !!req.body?.favorite,
+      sourceUrl: '',
+      sourceNodeId: safeText(req.body?.sourceNodeId),
+      sourceCanvasId: safeText(req.body?.sourceCanvasId),
+      materialSetKind,
+      materialSetItems,
+      createdAt: now(),
+      updatedAt: now(),
+      lastUsedAt: 0,
+    };
+    db.items.push(item);
+    writeDb(root, db);
+    res.json({ success: true, duplicate: false, data: decorateItem(item) });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e?.message || String(e) });
+  }
+});
+
 router.put('/items/:id', express.json({ limit: '1mb' }), (req, res) => {
   try {
     const { root, db } = readDb();
@@ -578,11 +803,51 @@ router.delete('/items/:id', (req, res) => {
         if (fs.existsSync(fp)) fs.unlinkSync(fp);
       } catch { /* ignore file cleanup */ }
     }
+    if (item.kind === 'set' && Array.isArray(item.materialSetItems)) {
+      for (const child of item.materialSetItems) {
+        if (!child?.fileRel) continue;
+        try {
+          const fp = assertInside(root, path.join(root, child.fileRel));
+          if (fs.existsSync(fp)) fs.unlinkSync(fp);
+        } catch { /* ignore set file cleanup */ }
+      }
+      try {
+        const dir = assertInside(root, path.join(root, 'sets', item.id));
+        if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+      } catch { /* ignore set dir cleanup */ }
+    }
     db.items = db.items.filter((x) => x.id !== item.id);
     writeDb(root, db);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, error: e?.message || String(e) });
+  }
+});
+
+router.get('/set/:id', (req, res) => {
+  try {
+    const { root, db } = readDb();
+    const item = findItem(db, req.params.id);
+    if (!item || item.kind !== 'set') return res.status(404).json({ success: false, error: '素材集不存在' });
+    const fp = assertInside(root, path.join(root, item.fileRel));
+    return serveFile(req, res, fp, 'application/json');
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e?.message || String(e) });
+  }
+});
+
+router.get('/set-file/:id/:index', (req, res) => {
+  try {
+    const { root, db } = readDb();
+    const item = findItem(db, req.params.id);
+    if (!item || item.kind !== 'set') return res.status(404).json({ success: false, error: '素材集不存在' });
+    const index = Number(req.params.index);
+    const child = Array.isArray(item.materialSetItems) ? item.materialSetItems[index] : null;
+    if (!child || !child.fileRel) return res.status(404).json({ success: false, error: '素材不存在' });
+    const fp = assertInside(root, path.join(root, child.fileRel));
+    return serveFile(req, res, fp, child.mime || mimeFromExt(path.extname(fp)));
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e?.message || String(e) });
   }
 });
 

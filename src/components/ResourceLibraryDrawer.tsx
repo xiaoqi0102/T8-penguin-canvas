@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FolderPlus,
+  FileText,
   Image as ImageIcon,
   Library,
   Music,
+  PackageOpen,
   Pencil,
   Plus,
   Search,
@@ -12,6 +14,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { useThemeStore } from '../stores/theme';
 import * as api from '../services/api';
 import type { ResourceCategory, ResourceItem, ResourceKind } from '../services/api';
@@ -20,6 +23,7 @@ const KIND_META: Record<ResourceKind, { label: string; icon: typeof ImageIcon; a
   image: { label: '图像', icon: ImageIcon, accent: '#fbbf24' },
   video: { label: '视频', icon: Video, accent: '#fb7185' },
   audio: { label: '音频', icon: Music, accent: '#a78bfa' },
+  set: { label: '素材集', icon: PackageOpen, accent: '#2dd4bf' },
 };
 
 interface ResourceLibraryDrawerProps {
@@ -32,6 +36,14 @@ function formatSize(size: number) {
   if (!Number.isFinite(size) || size <= 0) return '';
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function materialSetLabel(kind?: string) {
+  if (kind === 'image') return '图像集';
+  if (kind === 'video') return '视频集';
+  if (kind === 'audio') return '音频集';
+  if (kind === 'text') return '文本集';
+  return '素材集';
 }
 
 function resultData<T>(r: api.Result<T> | any): T | null {
@@ -168,6 +180,31 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
   const itemBtn = isPixel
     ? 'px-btn px-btn--sm'
     : `px-2 py-1 rounded-md text-xs border ${isDark ? 'border-white/10 hover:bg-white/10' : 'border-black/10 hover:bg-black/5'}`;
+  const miniActionBase: CSSProperties = {
+    width: 28,
+    height: 28,
+    minWidth: 28,
+    padding: 0,
+    borderRadius: 999,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: '0 0 28px',
+    border: isPixel ? '2px solid var(--px-ink, #1A1410)' : `1px solid ${isDark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.22)'}`,
+    background: isPixel ? 'var(--px-surface, #fff)' : isDark ? 'rgba(255,255,255,.06)' : '#fffdf6',
+    color: isPixel ? 'var(--px-ink, #1A1410)' : isDark ? '#f8fafc' : '#1f2937',
+    boxShadow: isPixel ? '2px 2px 0 var(--px-ink, #1A1410)' : '0 1px 2px rgba(0,0,0,.12)',
+    lineHeight: 1,
+  };
+  const miniInsertStyle: CSSProperties = {
+    ...miniActionBase,
+    background: isPixel ? 'var(--px-candy-mint, #A8E6C9)' : activeMeta.accent,
+    color: isPixel ? 'var(--px-ink, #1A1410)' : '#08111f',
+  };
+  const miniDeleteStyle: CSSProperties = {
+    ...miniActionBase,
+    color: isPixel ? '#dc2626' : '#dc2626',
+  };
 
   return (
     <div className={`fixed top-0 right-0 z-50 h-screen w-[440px] max-w-[calc(100vw-18px)] shadow-2xl flex flex-col ${panelCls}`}>
@@ -273,12 +310,16 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
               <article
                 key={item.id}
                 className={`resource-card overflow-hidden transition-transform ${isPixel ? 'border-2 border-[var(--px-ink)] bg-[var(--px-surface)] shadow-[3px_3px_0_var(--px-ink)]' : isDark ? 'rounded-lg border border-white/10 bg-white/[0.04]' : 'rounded-lg border border-black/10 bg-black/[0.03]'}`}
-                data-drag-source
-                data-drag-kind={item.kind}
-                data-drag-url={item.fileUrl}
-                data-drag-preview={item.thumbUrl || item.fileUrl}
-                data-drag-node-id="resource-library"
-                title="Ctrl+拖拽到节点"
+                {...(item.kind === 'set'
+                  ? {}
+                  : {
+                      'data-drag-source': true,
+                      'data-drag-kind': item.kind,
+                      'data-drag-url': item.fileUrl,
+                      'data-drag-preview': item.thumbUrl || item.fileUrl,
+                      'data-drag-node-id': 'resource-library',
+                    })}
+                title={item.kind === 'set' ? '点击插入整个素材集' : 'Ctrl+拖拽到节点'}
               >
                 <div className="relative h-28 overflow-hidden bg-black/80">
                   {item.kind === 'image' && (
@@ -300,6 +341,35 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                       <Music size={34} className="text-white drop-shadow" />
                     </div>
                   )}
+                  {item.kind === 'set' && (
+                    <div className="resource-media h-full w-full bg-[var(--t8-bg-panel-muted)] p-2 transition-transform duration-200">
+                      <div className="grid h-full grid-cols-2 gap-1 overflow-hidden">
+                        {(item.materialSetItems || []).slice(0, 4).map((child, index) => (
+                          <div
+                            key={child.id || index}
+                            className="flex items-center justify-center overflow-hidden rounded border border-black/10 bg-black/10 text-[10px]"
+                            title={child.name || child.text || child.url || ''}
+                          >
+                            {child.kind === 'image' && child.url ? (
+                              <img src={child.url} className="h-full w-full object-cover" draggable={false} />
+                            ) : child.kind === 'video' ? (
+                              <Video size={18} className="text-rose-300" />
+                            ) : child.kind === 'audio' ? (
+                              <Music size={18} className="text-violet-200" />
+                            ) : (
+                              <div className="flex h-full w-full items-center gap-1 p-1 text-left text-[9px] leading-tight text-[var(--t8-text-muted)]">
+                                <FileText size={12} className="shrink-0" />
+                                <span className="line-clamp-3 break-all">{child.text || child.name || '文本'}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        {materialSetLabel(item.materialSetKind)} · {item.materialSetItems?.length || 0}
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={() => updateItem(item, { favorite: !item.favorite })}
                     className="absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-black/55 text-amber-300 flex items-center justify-center"
@@ -310,7 +380,11 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                 </div>
                 <div className="p-2 space-y-1.5">
                   <div className="text-xs font-medium truncate" title={item.title}>{item.title}</div>
-                  <div className={`text-[10px] truncate ${subtle}`}>{formatSize(item.size) || item.mime || item.kind}</div>
+                  <div className={`text-[10px] truncate ${subtle}`}>
+                    {item.kind === 'set'
+                      ? `${materialSetLabel(item.materialSetKind)} · ${item.materialSetItems?.length || 0} 项`
+                      : formatSize(item.size) || item.mime || item.kind}
+                  </div>
                   {item.kind === 'audio' && <audio src={item.fileUrl} controls className="w-full h-8" />}
                   <select
                     value={item.categoryId}
@@ -319,44 +393,31 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                   >
                     {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                   </select>
-                  <div className={isPixel ? 'flex items-center justify-center gap-2 pt-0.5' : 'flex items-center gap-1'}>
+                  <div className="flex items-center justify-center gap-1.5 pt-0.5">
                     <button
                       onClick={() => insertItem(item)}
-                      className={
-                        isPixel
-                          ? 'px-btn px-btn--icon px-btn--mint h-8 w-8 justify-center'
-                          : `${itemBtn} flex-1 flex items-center justify-center gap-1`
-                      }
-                      style={isPixel ? { padding: 0 } : undefined}
+                      className="nodrag nopan resource-card-action"
+                      style={miniInsertStyle}
                       title="插入画布"
                       aria-label="插入画布"
                     >
-                      <Plus size={isPixel ? 15 : 12} />
-                      {!isPixel && '插入'}
+                      <Plus size={15} />
                     </button>
                     <button
                       onClick={() => renameItem(item)}
-                      className={
-                        isPixel
-                          ? 'px-btn px-btn--icon h-8 w-8 justify-center'
-                          : `${itemBtn} w-8 flex items-center justify-center`
-                      }
-                      style={isPixel ? { padding: 0 } : undefined}
+                      className="nodrag nopan resource-card-action"
+                      style={miniActionBase}
                       title="重命名"
                     >
-                      <Pencil size={isPixel ? 13 : 12} />
+                      <Pencil size={13} />
                     </button>
                     <button
                       onClick={() => deleteItem(item)}
-                      className={
-                        isPixel
-                          ? 'px-btn px-btn--icon h-8 w-8 justify-center text-red-500'
-                          : `${itemBtn} w-8 flex items-center justify-center text-red-400`
-                      }
-                      style={isPixel ? { padding: 0 } : undefined}
+                      className="nodrag nopan resource-card-action"
+                      style={miniDeleteStyle}
                       title="删除"
                     >
-                      <Trash2 size={isPixel ? 13 : 12} />
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 </div>

@@ -6,8 +6,9 @@ import type { NodeMeta } from '../types/canvas';
  * 图标使用 lucide-react 名称(运行时由 Sidebar 动态查找)
  */
 export const NODE_REGISTRY: NodeMeta[] = [
-  // ========== Input 输出素材(2) ==========
+  // ========== Input 素材资源(3) ==========
   { type: 'upload', label: '上传素材', category: 'input', description: '图像 / 视频 / 音频 三合一上传(自适应输出端口)', icon: 'Upload', color: 'emerald' },
+  { type: 'material-set', label: '素材集', category: 'input', description: '把多个同类型文本 / 图像 / 视频 / 音频打包成可排序素材集，可直接传给生成与 RH 节点', icon: 'Images', color: 'teal' },
   { type: 'output', label: '输出素材', category: 'input', description: '起于上游任意节点的 文本/图像/视频/音频 结果预览(原始宽高比 + 文本双击编辑)', icon: 'MonitorPlay', color: 'teal' },
 
   // ========== Core 核心节点(6) ==========
@@ -35,7 +36,7 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'portrait-metadata', label: '肖像元数据', category: 'special', description: '肖像参数管理', icon: 'FileText', color: 'indigo', hidden: true },
   { type: 'storyboard-grid', label: '分镜网格', category: 'special', description: '分镜九宫格布局', icon: 'LayoutGrid', color: 'indigo', hidden: true },
 
-  // ========== Utility 工具节点(9) ==========
+  // ========== Utility 工具节点(13) ==========
   // 其中 5 个暂时隐藏: drawing-board / browser / frame-extractor / remove-bg / upscale
   { type: 'drawing-board', label: '画板', category: 'utility', description: '手绘 / 涂抹', icon: 'Pencil', color: 'orange', hidden: true },
   { type: 'browser', label: '浏览器', category: 'utility', description: '网页内嵌', icon: 'Globe2', color: 'orange', hidden: true },

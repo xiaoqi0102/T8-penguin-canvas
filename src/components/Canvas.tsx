@@ -21,7 +21,7 @@ import {
   type EdgeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Play, Copy, CopyPlus, Trash2, FolderPlus } from 'lucide-react';
+import { Play, Copy, CopyPlus, Trash2, FolderPlus, PackagePlus, Library } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useCanvasStore } from '../stores/canvas';
 import { useThemeStore } from '../stores/theme';
@@ -39,6 +39,15 @@ import {
   type Rect as PlacementRect,
 } from '../utils/nodePlacement';
 import { createUploadDataFromItems, type MediaItem, type MediaKind } from '../utils/mediaCollection';
+import {
+  collectMaterialSetBucketsFromData,
+  isMaterialSetKind,
+  materialSetItemsToData,
+  nonEmptyMaterialSetKinds,
+  normalizeMaterialSetItems,
+  type MaterialSetItem,
+  type MaterialSetKind,
+} from '../utils/materialSet';
 import * as api from '../services/api';
 import CanvasToolbar from './CanvasToolbar';
 import TerminalPanel from './TerminalPanel';
@@ -78,6 +87,7 @@ import FramePairNode from './nodes/FramePairNode';
 import LoopNode from './nodes/LoopNode';
 import PickFromSetNode from './nodes/PickFromSetNode';
 import TextSplitNode from './nodes/TextSplitNode';
+import MaterialSetNode from './nodes/MaterialSetNode';
 import UploadNode from './nodes/UploadNode';
 import OutputNode from './nodes/OutputNode';
 import GroupBoxNode from './nodes/GroupBoxNode';
@@ -125,6 +135,7 @@ const SPECIFIC_NODES: Record<string, any> = {
   loop: LoopNode,
   'pick-from-set': PickFromSetNode,
   'text-split': TextSplitNode,
+  'material-set': MaterialSetNode,
   resize: ResizeNode,
   combine: CombineNode,
   'remove-bg': RemoveBgNode,
@@ -212,6 +223,7 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
     history: [],
   },
   upload: { uploadType: null },
+  'material-set': { materialSetKind: null, materialSetItems: [] },
   // RH 工具节点（v1.2.10.1+）：启动器状态字段 + 运行状态字段（与 RunningHubNode 对齐）
   // 启动器：rhToolsActiveCategoryId / rhToolsActiveAppId / rhToolsSearchQuery
   // 运行态：appInfo / paramValues / instanceType / status / taskId / urls / error / rhCode / materialOrder
@@ -672,6 +684,65 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
       return true;
     },
     [screenToFlowPosition]
+  );
+
+  const getMaterialSetMergeCandidate = useCallback((ids: string[]): { kind: MaterialSetKind; items: MaterialSetItem[] } | null => {
+    const selectedNodes = nodesRef.current
+      .filter((node) => ids.includes(node.id) && node.type !== 'groupBox')
+      .sort((a, b) => {
+        const dy = (a.position?.y ?? 0) - (b.position?.y ?? 0);
+        if (Math.abs(dy) > 24) return dy;
+        return (a.position?.x ?? 0) - (b.position?.x ?? 0);
+      });
+    if (selectedNodes.length === 0) return null;
+
+    const buckets: Record<MaterialSetKind, MaterialSetItem[]> = {
+      text: [],
+      image: [],
+      video: [],
+      audio: [],
+    };
+    for (const node of selectedNodes) {
+      const nodeBuckets = collectMaterialSetBucketsFromData(node.data);
+      for (const kind of ['text', 'image', 'video', 'audio'] as MaterialSetKind[]) {
+        buckets[kind].push(...nodeBuckets[kind]);
+      }
+    }
+    const kinds = nonEmptyMaterialSetKinds(buckets);
+    if (kinds.length !== 1) return null;
+    const kind = kinds[0];
+    if (buckets[kind].length < 2) return null;
+    return { kind, items: buckets[kind] };
+  }, []);
+
+  const handleMergeToMaterialSet = useCallback(
+    (ids: string[], atScreen?: { x: number; y: number }) => {
+      const candidate = getMaterialSetMergeCandidate(ids);
+      if (!candidate) return;
+      const flowEl = document.querySelector('.react-flow') as HTMLElement | null;
+      const rect = flowEl?.getBoundingClientRect();
+      const screenPoint =
+        atScreen ||
+        (rect
+          ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+          : { x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      const base = screenToFlowPosition(screenPoint);
+      const size = defaultSizeOf('material-set');
+      const desiredX = base.x - size.w / 2;
+      const desiredY = base.y - size.h / 2;
+      const finalPos = placeSingleNode(desiredX, desiredY, 'material-set', nodesRef.current, {
+        source: 'placement:merge-material-set',
+      });
+      const newNode: Node = {
+        id: `material-set-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'material-set',
+        position: finalPos,
+        selected: true,
+        data: materialSetItemsToData(candidate.kind, candidate.items),
+      } as Node;
+      setNodes((prev) => [...prev.map((node) => ({ ...node, selected: false })), newNode]);
+    },
+    [getMaterialSetMergeCandidate, screenToFlowPosition],
   );
 
   const handleCanvasPointerMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -2210,7 +2281,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     // v1.2.8.2: 'pick-from-set' 是中转节点 (从合集取一个供下游), 不应被自动挂 OutputNode
     // v1.2.9.9: 'loop' 也加入 — 循环器自身不产出最终结果 (累积已由下游 EXEC→OutputNode 链路接管),
     //          autoOutput 若给 LoopNode 自动建 OutputNode 会让用户看到 “循环器自己生了 N 个素材” 的错误体验。
-    const SKIP_TYPES = new Set(['output', 'groupBox', 'bulkPhantom', 'upload', 'pick-from-set', 'loop']);
+    const SKIP_TYPES = new Set(['output', 'groupBox', 'bulkPhantom', 'upload', 'material-set', 'pick-from-set', 'loop']);
 
     const toAddNodes: Node[] = [];
     const toAddEdges: Edge[] = [];
@@ -3137,6 +3208,14 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         const ids = contextMenu.ids;
         const selNodes = nodes.filter((n) => ids.includes(n.id));
         const exeCount = selNodes.filter((n) => n.type && EXECUTABLE_NODE_TYPES.has(n.type)).length;
+        const mergeCandidate = getMaterialSetMergeCandidate(ids);
+        const materialSetNode = ids.length === 1 ? nodes.find((n) => n.id === ids[0] && n.type === 'material-set') : null;
+        const materialSetKind = isMaterialSetKind((materialSetNode?.data as any)?.materialSetKind)
+          ? ((materialSetNode?.data as any).materialSetKind as MaterialSetKind)
+          : null;
+        const materialSetItems = materialSetKind
+          ? normalizeMaterialSetItems((materialSetNode?.data as any)?.materialSetItems, materialSetKind)
+          : [];
         const menuItemCls = isPixel
           ? 'w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 hover:bg-[var(--px-yellow)] disabled:opacity-40 disabled:hover:bg-transparent'
           : `w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 disabled:opacity-40 ${
@@ -3218,6 +3297,45 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
                 <FolderPlus size={13} />
                 <span>打组 (Ctrl+G)</span>
               </button>
+              <button
+                className={menuItemCls}
+                disabled={!mergeCandidate}
+                title={mergeCandidate ? `合并为${PORT_LABEL[mergeCandidate.kind]}素材集` : '请选择多个同类型素材'}
+                onClick={() => {
+                  closeContextMenu();
+                  handleMergeToMaterialSet(ids, { x: contextMenu.x, y: contextMenu.y });
+                }}
+              >
+                <PackagePlus size={13} />
+                <span>
+                  合并到素材集
+                  {mergeCandidate ? ` (${mergeCandidate.items.length})` : ''}
+                </span>
+              </button>
+              {materialSetNode && (
+                <button
+                  className={menuItemCls}
+                  disabled={!materialSetKind || materialSetItems.length === 0}
+                  title={materialSetKind && materialSetItems.length > 0 ? '把整个素材集保存到资源库' : '请右键一个非空素材集节点'}
+                  onClick={() => {
+                    closeContextMenu();
+                    if (!materialSetKind || materialSetItems.length === 0) return;
+                    window.dispatchEvent(new CustomEvent('penguin:open-material-set-resource-menu', {
+                      detail: {
+                        x: contextMenu.x,
+                        y: contextMenu.y,
+                        sourceNodeId: materialSetNode.id,
+                        title: `${PORT_LABEL[materialSetKind]}素材集`,
+                        materialSetKind,
+                        materialSetItems,
+                      },
+                    }));
+                  }}
+                >
+                  <Library size={13} />
+                  <span>保存素材集到资源库</span>
+                </button>
+              )}
               <button
                 className={menuItemCls}
                 onClick={() => {

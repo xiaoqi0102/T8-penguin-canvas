@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.5.2",
-  "lastUpdated": "2026-05-27-v1.5.2-text-split-polish",
+  "version": "1.5.3",
+  "lastUpdated": "2026-05-27-v1.5.3-material-set-shortcuts",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,9 +16,9 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.5.2",
-    "semverVersion": "1.5.2",
-    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前 v1.5.2 为文本分割节点体验修复：默认分割方式改为按行，修复中文 IME 编辑、段落/序号/镜头/字数切块分割边界和旧 segmentsOverride 缓存问题；新增每种分割方式的使用说明，并把节点改为 760px 双列布局，右侧分段预览固定高度内部滚动、分段收藏贴底。本次只做源码开发，未打包 Electron。",
+    "version": "1.5.3",
+    "semverVersion": "1.5.3",
+    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.5.3：素材集节点补齐明显的“导入素材集 / 导出素材集”按钮，资源库支持未选中节点时按 R 快速打开/关闭，并同步快捷键说明面板。本次只做源码开发，未打包 Electron。",
     "installer": "未重新打包；上次用户包为 dist_electron/T8-PenguinCanvas-Setup-1.4.2.exe (NSIS, 104.58 MB)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
@@ -125,7 +125,7 @@
     "htmlAttrs": ["data-theme-style", "data-theme-mode"]
   },
   "repository": "https://github.com/T8mars/T8-penguin-canvas",
-  "totalNodes": 38,
+  "totalNodes": 39,
   "phases": {
     "phase0": { "label": "基础设施", "status": "complete", "items": ["Vite + React 19 + TS", "Tailwind", "前端 11422 / 后端 18766 代理", "Express 后端骨架"] },
     "phase1": { "label": "画布主体", "status": "complete", "items": ["xyflow 画布", "Sidebar 节点添加", "画布 CRUD", "三套 API Key 设置"] },
@@ -195,14 +195,18 @@
     "phase65": { "label": "视频运镜 / 电影感预设补齐 (v1.4.9)", "status": "complete", "items": ["视频运镜节点的成片场景、运镜动作、运动路径、节奏速度、稳定质感、主体约束六组全部补齐到 50 项，方便创作者用下拉列表快速组合镜头语言。", "路线预览改为 MOTION_PREVIEW_GROUPS 分类映射，50 个运镜动作和 50 个运动路径均有对应 SVG 反馈；动作主线使用实线，路径叠加使用虚线，避免新增预设看起来没有反应。", "路线预览下方新增符号图例，解释动作主线、路径叠加、参考轨道、主体焦点和运动终点，降低用户理解成本。", "电影感节点的成片风格、镜头、光影、调色、质感五组保持 50 项，并清空示例测试补充文本，避免用户打开本地画布时看到测试收藏内容。", "公开版本同步到 1.4.9：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
     "phase66": { "label": "文本分割工具节点 (v1.5.0)", "status": "complete", "items": ["工具节点分类新增「文本分割」节点，类型 text-split，支持接上游 text 或手动粘贴长提示词 / 分镜模板。", "分割方式支持按段落、按行、自定义分隔符、Markdown 标题、序号/镜头号和按字数切块；默认去空行和 trim，并提供压缩空白、去序号、每段前缀/后缀与 {{index}} / {{total}} 占位符。", "节点内提供分段预览、单段编辑、删除、上下移动、复制全部和打散为多个 TextNode；UI 使用 t8-node / t8-card / t8-btn / t8-input / t8-select，自动适配科技风、像素糖果风和 OP 风格。", "新增 src/utils/textSplit.ts 纯函数分割器，后续扩展规则只需维护该工具函数。", "TextSplitNode 会写入 textSegments / segments / prompt / text / outputText；useUpstreamMaterials 与 OutputNode 优先消费 textSegments/texts 数组，避免把 joined prompt 作为额外第 N+1 项。", "LoopNode 的 text 类型注入、聚合和下游收集同步支持 textSegments，方便文本分割后直接驱动循环批量生成。", "公开版本同步到 1.5.0：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
     "phase67": { "label": "文本分割二版增强 (v1.5.1)", "status": "complete", "items": ["TextSplitNode 新增「智能分镜」模式，按 Markdown 标题、镜头/分镜/场景/Scene/Shot、中文序号、数字序号和内外景提示识别分镜标题，失败时自动回退到序号或段落分割。", "新增「正则高级」模式，支持按正则分隔或提取匹配内容，flags 会过滤为 JS RegExp 安全字符，正则错误只在节点内提示，不会中断画布。", "新增分段收藏：可保存当前分割方式、正则、自定义前后缀、上游优先设置和手动调整后的分段，收藏写入节点 data 并随画布保存。", "新增 t8-text-split-presets JSON 导入 / 导出，导出当前配置、当前分段和收藏；导入在前端用 FileReader 恢复，不依赖后端。", "新增「循环器链路」按钮，一键在文本分割节点左侧创建或校准 text 类型前置 LoopNode，并把原本直连文本分割的上游文本线迁移为“上游 -> 循环器 -> 文本分割”，避免循环器跑到文本分割后面。", "普通文本分割保持旧体验：只更新节点内预览和 textSegments，不自动创建 OutputNode；如果前面接了循环器，则仅在循环器从 running 变成 success 后自动打散当前分段为多个 TextNode。", "TextSplitNode 会自动清理上一版误创建的 output-auto-text-split 输出素材节点，避免旧画布继续残留无用输出素材。", "TextSplitNode 的迷你上移 / 下移 / 删除按钮继续使用独立固定尺寸样式，不复用 .t8-btn，避免 OP / 像素糖果风按钮被主题放大变形。", "公开版本同步到 1.5.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
-    "phase68": { "label": "文本分割体验修复与双列布局 (v1.5.2)", "status": "complete", "items": ["默认新建 TextSplitNode 的 splitMode 改为 line，适合用户最常见的一行一个提示词 / 分镜条目。", "修复分段预览 textarea 中文 IME 输入被截断：分段编辑改为稳定 key + composition 本地草稿，中文组词期间不再反复写入节点 data。", "修复按段落、按序号/镜头和按字数切块的边界：按段落可按普通换行或空行拆分；按序号/镜头只在镜头/分镜/场景/序号标题处拆，正文普通换行不拆；字数切块最小值从 80 改为 1。", "新增 MODE_HELP 分割方式说明文案，用户切换按行 / 按段落 / 自定义 / 智能分镜 / 正则 / Markdown / 序号镜头 / 字数切块时会看到简短用途说明。", "segmentsOverride 增加分割算法版本签名，源文本、配置或算法变化时自动失效旧手动覆盖，避免旧画布继续显示过期分段。", "TextSplitNode 改为 760px 双列布局：左侧配置与原始文本，右侧分段预览和收藏；右侧预览固定高度并内部滚动，收藏区贴底，避免段数多时撑高整个节点。", "nodePlacement 默认尺寸同步为 760×520，公开版本同步到 1.5.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] }
+    "phase68": { "label": "文本分割体验修复与双列布局 (v1.5.2)", "status": "complete", "items": ["默认新建 TextSplitNode 的 splitMode 改为 line，适合用户最常见的一行一个提示词 / 分镜条目。", "修复分段预览 textarea 中文 IME 输入被截断：分段编辑改为稳定 key + composition 本地草稿，中文组词期间不再反复写入节点 data。", "修复按段落、按序号/镜头和按字数切块的边界：按段落可按普通换行或空行拆分；按序号/镜头只在镜头/分镜/场景/序号标题处拆，正文普通换行不拆；字数切块最小值从 80 改为 1。", "新增 MODE_HELP 分割方式说明文案，用户切换按行 / 按段落 / 自定义 / 智能分镜 / 正则 / Markdown / 序号镜头 / 字数切块时会看到简短用途说明。", "segmentsOverride 增加分割算法版本签名，源文本、配置或算法变化时自动失效旧手动覆盖，避免旧画布继续显示过期分段。", "TextSplitNode 改为 760px 双列布局：左侧配置与原始文本，右侧分段预览和收藏；右侧预览固定高度并内部滚动，收藏区贴底，避免段数多时撑高整个节点。", "nodePlacement 默认尺寸同步为 760×520，公开版本同步到 1.5.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase69": { "label": "素材集节点与同类素材合并 (v1.5.2)", "status": "complete", "items": ["新增素材资源节点「素材集」(material-set)，支持文本 / 图像 / 视频 / 音频四类同类型素材打包，节点内可预览、拖拽排序、删除、清空和一键打散。", "画布框选多个同类型素材时右键菜单新增「合并到素材集」，按画布阅读顺序合并，不删除原节点和原连线，方便用户无损整理素材。", "素材集使用 materialSetKind + materialSetItems 作为主数据结构，同时同步 legacy 字段 textSegments / imageUrls / videoUrls / audioUrls / imageUrl / videoUrl / audioUrl，保证旧的可执行节点读取路径继续可用。", "useUpstreamMaterials、OutputNode、RelayNode 增加 explicit material-set 读取逻辑，保留素材集内部顺序并避免重复收集；MaterialSetNode 被加入自动输出跳过清单，避免用户整理素材时自动生成多余 OutputNode。", "portTypes 增加 material-set 动态输出：有素材时只输出当前类型，无素材时不输出；节点可接入任意 text/image/video/audio 上游，并可手动收集上游同类素材。", "兼容范围：图像、视频、SD2.0、音频、LLM、RunningHub、RH 钱包应用、RH 超市、循环器、从合集获取、输出素材、中继、尺寸调整、合并、宫格剪裁、首尾帧获取等通过统一上游聚合或 legacy 字段读取的输入节点。", "约束：素材集第一版只允许同类型素材，故意不做混合素材包，避免破坏当前端口语义、RH 参数映射和运行器类型判断。"] },
+    "phase70": { "label": "素材集二版与资源库整套复用 (v1.5.2)", "status": "complete", "items": ["修复素材集内图像缩略图拖拽排序无反应：图片内容禁用 pointer 事件，缩略项使用自定义 pointer 排序并阻止 ReactFlow 抢拖拽；视频、音频排序逻辑保持不变。", "MaterialSetNode 新增反转顺序、按文件名/文本名排序、随机排序，方便用户快速整理批量素材。", "MaterialSetNode 新增 t8-material-set JSON 导入 / 导出，导出包含素材集类型、素材顺序、文件名、mime、大小和文本内容，导入时会校验 schema 与同类型素材。", "素材集节点右键菜单新增「保存素材集到资源库」，复用原资源库分类选择菜单；保存时整套素材按当前顺序复制到资源库目录。", "资源库新增 set / 素材集类型与默认分类，ResourceLibraryDrawer 增加素材集 Tab，支持整套缩略预览、收藏、重命名、分类、删除和一键插入画布为 material-set 节点。", "后端 resources 路由新增 POST /api/resources/sets/add、GET /api/resources/set/:id、GET /api/resources/set-file/:id/:index；媒体素材复制到 resources/sets/<id>/，文本素材写入 manifest，插入后仍可继续传给生成、RH、循环器和工具节点。"] },
+    "phase71": { "label": "素材集导入显性化与资源库快捷键 (v1.5.3)", "status": "complete", "items": ["MaterialSetNode 将原本隐藏在图标里的 JSON 操作改成明确的「导入素材集 / 导出素材集」文字按钮，用户可直接导入 t8-material-set JSON 恢复整套素材。", "导入素材集仍复用 parseMaterialSetBackup 校验 schema 和同类型素材约束；导入会在当前素材集非空时二次确认覆盖，避免误替换。", "App 增加全局 R 快捷键：未选中任何 ReactFlow 节点、且焦点不在 input / textarea / select / contenteditable 时，按 R 打开或关闭资源库。", "CanvasToolbar 快捷键说明同步新增 R 说明，资源库顶部按钮和快捷键保持一致。", "公开版本同步到 1.5.3：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] }
   },
   "categories": {
     "input": {
-      "label": "输出素材",
-      "count": 2,
+      "label": "素材资源",
+      "count": 3,
       "nodes": [
         { "type": "upload", "label": "上传素材节点", "description": "图像 / 视频 / 音频 三合一上传；支持同类型批量上传、输出合集与一键打散，选型后输出端口自适应染色" },
+        { "type": "material-set", "label": "素材集", "description": "把多个同类型文本 / 图像 / 视频 / 音频打包成可排序素材集，支持框选合并、节点内追加、拖拽排序、反转/文件名/随机排序、导入素材集/导出素材集、保存到资源库、打散与直接传给生成 / RH / 工具节点" },
         { "type": "output", "label": "输出素材节点", "description": "终端预览节点：自动收集上游任意节点的 文本/图像/视频/音频，多素材合集可一键打散为独立输出节点；图像视频按原始宽高比显示(object-contain)，文本双击可编辑" }
       ]
     },
@@ -295,7 +299,8 @@
       "runtime": "ReactFlow isValidConnection (Canvas.tsx onIsValidConnection)",
       "core": "isConnectionValid(src, tgt) ⏱ src.outputs ∩ tgt.inputs ≠ ∅",
       "selfLoop": "禁止 source.id === target.id",
-      "uploadDynamic": "upload 节点输出以 data.uploadType 动态决定(image/video/audio),未选型时输出为空,任何连接均被拒绝。"
+      "uploadDynamic": "upload 节点输出以 data.uploadType 动态决定(image/video/audio),未选型时输出为空,任何连接均被拒绝。",
+      "materialSetDynamic": "material-set 节点输出以 materialSetKind + materialSetItems 动态决定(text/image/video/audio),空素材集不输出；输入端可接任意 text/image/video/audio 后手动收集上游同类素材。"
     }
   },
   "removed": {
@@ -431,6 +436,16 @@
         "POST /api/image/compare — 双图对比结果生成(slider/side-by-side/blink/overlay/heatmap/focus)",
         "POST /api/image/remove-bg — 抠图(占位)"
       ],
+      "resources": [
+        "GET /api/resources/categories — 资源库分类，支持 image/video/audio/set 四类",
+        "GET /api/resources/items?kind= — 资源库素材列表，set 类型会回传 materialSetKind 与 materialSetItems",
+        "POST /api/resources/items/add — 单个图像/视频/音频入库",
+        "POST /api/resources/sets/add — 整个素材集入库，按当前顺序复制媒体文件或保存文本 manifest",
+        "GET /api/resources/file/:id — 单个媒体资源文件",
+        "GET /api/resources/thumb/:id — 图片资源或素材集首图缩略图",
+        "GET /api/resources/set/:id — 素材集 JSON manifest",
+        "GET /api/resources/set-file/:id/:index — 素材集内第 index 个媒体文件"
+      ],
       "proxy": [
         "POST /api/proxy/image — 图像生成(贞贞工坊,自动转存)",
         "POST /api/proxy/image/fal/submit — FAL Queue 提交(gpt-image-2-fal / nano-banana-pro-fal,同步返 images[] 或异步返 requestId+responseUrl)",
@@ -473,7 +488,7 @@
   "nonExecutableNodeTypes": {
     "description": "不参与批量运行的节点(纯展示 / 参数记录 / 隐藏配置)",
     "nodes": [
-      "text", "idea", "bp", "relay",
+      "text", "idea", "bp", "relay", "material-set",
       "portrait-metadata", "storyboard-grid", "video-output",
       "drawing-board", "browser", "rh-config"
     ]
@@ -489,7 +504,7 @@
     "Ctrl + 左键拖动(画布/组空白)": "框选多个节点",
     "Ctrl + 左键拖动(图片/视频/音频缩略图)": "跨节点拖拽素材到另一个节点 (phase15)",
     "拖拽文件到画布": "图像/视频/音频文件直接上传并生成 UploadNode；同类型多文件自动形成合集",
-    "右键点击节点/选区": "弹出菜单(组执行/打组/复制/删除)",
+    "右键点击节点/选区": "弹出菜单(组执行/打组/合并到素材集/复制/删除)",
     "打组后右上角 ▶": "执行组内所有节点",
     "打组后双击标题": "重命名节点组",
     "中键 / 右键拖动": "平移画布",

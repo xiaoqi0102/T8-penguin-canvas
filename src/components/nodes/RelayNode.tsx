@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import { ArrowRightLeft } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
+import { collectMaterialSetBucketsFromData, valueOfMaterialSetItem } from '../../utils/materialSet';
 
 /**
  * RelayNode - 数据中转
@@ -48,10 +49,15 @@ const RelayNode = (p: NodeProps) => {
           ud.outputText || '',
           ud.reply || '',
           ud.text || '',
+          ud.materialSetKind || '',
           ud.imageUrl || '',
           ud.videoUrl || '',
           ud.audioUrl || '',
           arrLen('imageUrls'),
+          arrLen('videoUrls'),
+          arrLen('audioUrls'),
+          arrLen('textSegments'),
+          arrLen('materialSetItems'),
           arrLen('urls'),
           arrLen('generatedImages'),
         ].join('|');
@@ -74,7 +80,9 @@ const RelayNode = (p: NodeProps) => {
         imageUrls: d?.imageUrls,
         urls: d?.urls,
         videoUrl: d?.videoUrl,
+        videoUrls: d?.videoUrls,
         audioUrl: d?.audioUrl,
+        audioUrls: d?.audioUrls,
       });
       const empty = JSON.stringify({});
       if (cur !== empty) {
@@ -84,7 +92,9 @@ const RelayNode = (p: NodeProps) => {
           imageUrls: undefined,
           urls: undefined,
           videoUrl: undefined,
+          videoUrls: undefined,
           audioUrl: undefined,
+          audioUrls: undefined,
         });
       }
       return;
@@ -92,17 +102,31 @@ const RelayNode = (p: NodeProps) => {
 
     const texts: string[] = [];
     const images: string[] = [];
-    let videoUrl: string | undefined;
-    let audioUrl: string | undefined;
+    const videos: string[] = [];
+    const audios: string[] = [];
 
     for (const uid of upstreamIds) {
       const n = nodes.find((x) => x.id === uid);
       const ud = (n?.data as any) || {};
+      if (n?.type === 'material-set' && Array.isArray(ud.materialSetItems)) {
+        const buckets = collectMaterialSetBucketsFromData(ud);
+        buckets.text.forEach((item) => pushUnique(texts, valueOfMaterialSetItem(item)));
+        buckets.image.forEach((item) => pushUnique(images, item.url));
+        buckets.video.forEach((item) => pushUnique(videos, item.url));
+        buckets.audio.forEach((item) => pushUnique(audios, item.url));
+        continue;
+      }
       // 文本：优先取 outputText (OutputNode 手动编辑后的) > reply (LLM) > prompt > text
-      pushUnique(texts, ud.outputText);
-      pushUnique(texts, ud.reply);
-      pushUnique(texts, ud.prompt);
-      pushUnique(texts, ud.text);
+      const textArrayFields = ['textSegments', 'segments', 'texts'];
+      const textArrayField = textArrayFields.find((field) => Array.isArray(ud[field]) && ud[field].length > 0);
+      if (textArrayField) {
+        ud[textArrayField].forEach((text: any) => pushUnique(texts, text));
+      } else {
+        pushUnique(texts, ud.outputText);
+        pushUnique(texts, ud.reply);
+        pushUnique(texts, ud.prompt);
+        pushUnique(texts, ud.text);
+      }
       // 图像：单 + 多都收集
       pushUnique(images, ud.imageUrl);
       for (const k of ['imageUrls', 'urls', 'generatedImages'] as const) {
@@ -110,8 +134,11 @@ const RelayNode = (p: NodeProps) => {
         if (Array.isArray(v)) v.forEach((u: any) => pushUnique(images, u));
       }
       // 视频 / 音频：首个命中为准
-      if (!videoUrl && typeof ud.videoUrl === 'string' && ud.videoUrl) videoUrl = ud.videoUrl;
-      if (!audioUrl && typeof ud.audioUrl === 'string' && ud.audioUrl) audioUrl = ud.audioUrl;
+      pushUnique(videos, ud.videoUrl);
+      if (Array.isArray(ud.videoUrls)) ud.videoUrls.forEach((u: any) => pushUnique(videos, u));
+      pushUnique(audios, ud.audioUrl);
+      pushUnique(audios, ud.audioUrl_1);
+      if (Array.isArray(ud.audioUrls)) ud.audioUrls.forEach((u: any) => pushUnique(audios, u));
     }
 
     const merged: any = {
@@ -119,8 +146,10 @@ const RelayNode = (p: NodeProps) => {
       imageUrl: images[0],
       imageUrls: images.length > 1 ? images : undefined,
       urls: images.length > 1 ? images : undefined, // 向后兼容，给老代码读 urls 的地方也能拿到
-      videoUrl,
-      audioUrl,
+      videoUrl: videos[0],
+      videoUrls: videos.length > 1 ? videos : undefined,
+      audioUrl: audios[0],
+      audioUrls: audios.length > 1 ? audios : undefined,
     };
 
     // 仅当变化时才更新，避免循环
@@ -130,7 +159,9 @@ const RelayNode = (p: NodeProps) => {
       imageUrls: d?.imageUrls,
       urls: d?.urls,
       videoUrl: d?.videoUrl,
+      videoUrls: d?.videoUrls,
       audioUrl: d?.audioUrl,
+      audioUrls: d?.audioUrls,
     });
     const next = JSON.stringify({
       prompt: merged.prompt,
@@ -138,7 +169,9 @@ const RelayNode = (p: NodeProps) => {
       imageUrls: merged.imageUrls,
       urls: merged.urls,
       videoUrl: merged.videoUrl,
+      videoUrls: merged.videoUrls,
       audioUrl: merged.audioUrl,
+      audioUrls: merged.audioUrls,
     });
     if (cur !== next) update(merged);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useNodeConnections, useNodesData } from '@xyflow/react';
+import { collectMaterialSetBucketsFromData, valueOfMaterialSetItem } from '../../utils/materialSet';
 
 /**
  * useUpstreamMaterials - 通用「上游素材聚合」hook
@@ -74,7 +75,7 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
 
     const list = Array.isArray(upstreamNodes) ? upstreamNodes : [];
 
-    const pushText = (sourceId: string, v: any, keyOverride?: string) => {
+    const pushText = (sourceId: string, v: any, keyOverride?: string, labelOverride?: string) => {
       if (typeof v !== 'string') return;
       const s = v.trim();
       if (!s) return;
@@ -87,7 +88,7 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
         url: s,
         sourceNodeId: sourceId,
         origin: 'upstream',
-        label: s.length > 24 ? s.slice(0, 22) + '…' : s,
+        label: labelOverride || (s.length > 24 ? s.slice(0, 22) + '…' : s),
       });
     };
 
@@ -96,11 +97,13 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
       kind: MaterialKind,
       v: any,
       arr: Material[],
+      keyOverride?: string,
+      labelOverride?: string,
     ) => {
       if (typeof v !== 'string') return;
       const s = v.trim();
       if (!s) return;
-      const dedupeKey = `${kind}:${s}`;
+      const dedupeKey = keyOverride || `${kind}:${s}`;
       if (seen.has(dedupeKey)) return;
       seen.add(dedupeKey);
       arr.push({
@@ -109,7 +112,7 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
         url: s,
         sourceNodeId: sourceId,
         origin: 'upstream',
-        label: (s.split('/').pop() || s).slice(0, 28),
+        label: labelOverride || (s.split('/').pop() || s).slice(0, 28),
       });
     };
 
@@ -118,6 +121,25 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
       const sid = n.id;
       const ud: any = n.data || {};
       const handles = handleMap.get(sid) || new Set<string | null>([null]);
+
+      // 显式素材集: 保留素材集内部顺序，并用序号 key 避免相同 URL 被全局去重误删。
+      // 同时跳过下面的旧字段读取，避免 imageUrls/textSegments 双写后重复出现。
+      if (n.type === 'material-set' && Array.isArray(ud.materialSetItems)) {
+        const buckets = collectMaterialSetBucketsFromData(ud);
+        buckets.text.forEach((item, index) => {
+          pushText(sid, valueOfMaterialSetItem(item), `material-set:${sid}:text:${index}`, item.name);
+        });
+        buckets.image.forEach((item, index) => {
+          pushUrl(sid, 'image', item.url, images, `material-set:${sid}:image:${index}`, item.name);
+        });
+        buckets.video.forEach((item, index) => {
+          pushUrl(sid, 'video', item.url, videos, `material-set:${sid}:video:${index}`, item.name);
+        });
+        buckets.audio.forEach((item, index) => {
+          pushUrl(sid, 'audio', item.url, audios, `material-set:${sid}:audio:${index}`, item.name);
+        });
+        continue;
+      }
 
       // 文本: textSegments/texts 数组优先, 避免文本分割节点再把 joined prompt 当成第 N+1 项
       const textArrayFields = ['textSegments', 'segments', 'texts'];

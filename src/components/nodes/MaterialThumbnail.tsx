@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -42,6 +42,7 @@ interface Props {
   removable?: boolean;
   onRemove?: () => void;
   size?: number;
+  cursor?: React.CSSProperties['cursor'];
 }
 
 const MaterialThumbnail = ({
@@ -53,9 +54,27 @@ const MaterialThumbnail = ({
   removable = false,
   onRemove,
   size = 56,
+  cursor,
 }: Props) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: material.id, disabled: !draggable });
+  const sortablePointerDown = (listeners as any)?.onPointerDown;
+
+  const stopFlowPointer = (event: PointerEvent<HTMLDivElement>) => {
+    sortablePointerDown?.(event);
+    event.stopPropagation();
+  };
+  const stopFlowMouse = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+  };
+  const preventNativeImageDrag = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+  };
+  const noNativeDragStyle = {
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitUserDrag: 'none',
+  } as unknown as React.CSSProperties;
 
   const wrapStyle: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -63,7 +82,9 @@ const MaterialThumbnail = ({
     opacity: isDragging ? 0.4 : 1,
     width: size,
     height: size,
-    cursor: draggable ? 'grab' : 'default',
+    cursor: cursor || (draggable ? 'grab' : 'default'),
+    touchAction: 'none',
+    ...noNativeDragStyle,
     position: 'relative',
     overflow: 'hidden',
     flex: '0 0 auto',
@@ -86,15 +107,31 @@ const MaterialThumbnail = ({
   };
 
   return (
-    <div ref={setNodeRef} style={wrapStyle} className="nodrag" {...attributes} {...listeners}
-      title={material.label || material.url}>
+    <div
+      ref={setNodeRef}
+      style={wrapStyle}
+      className="nodrag nopan"
+      {...attributes}
+      {...listeners}
+      onPointerDown={stopFlowPointer}
+      onMouseDown={stopFlowMouse}
+      onDragStart={preventNativeImageDrag}
+      title={material.label || material.url}
+    >
       {/* 内容主体 */}
       {material.kind === 'image' ? (
         <img
           src={material.url}
           alt={material.label || ''}
           draggable={false}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+            pointerEvents: 'none',
+            ...noNativeDragStyle,
+          }}
         />
       ) : material.kind === 'video' ? (
         <div style={{ width: '100%', height: '100%', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

@@ -48,6 +48,7 @@ export type NodeType =
   | 'multi-angle-visual'
   // Input/Output 素材 (2) - 上传素材(图像/视频/音频三合一) + 输出素材(文本/图像/视频/音频预览)
   | 'upload'
+  | 'material-set'
   | 'output';
 
 // 节点分类

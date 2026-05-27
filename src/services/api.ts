@@ -259,7 +259,8 @@ export function importRHToolsBackup(payload: RHToolsBackup, mode: 'replace' | 'm
 }
 
 // ========== 资源库 (v1.3.4) ==========
-export type ResourceKind = 'image' | 'video' | 'audio';
+export type ResourceKind = 'image' | 'video' | 'audio' | 'set';
+export type ResourceMaterialSetKind = 'text' | 'image' | 'video' | 'audio';
 
 export interface ResourceCategory {
   id: string;
@@ -286,9 +287,38 @@ export interface ResourceItem {
   sourceUrl?: string;
   sourceNodeId?: string;
   sourceCanvasId?: string;
+  materialSetKind?: ResourceMaterialSetKind;
+  materialSetItems?: Array<{
+    id: string;
+    kind: ResourceMaterialSetKind;
+    url?: string;
+    text?: string;
+    name?: string;
+    size?: number;
+    mime?: string;
+  }>;
   createdAt: number;
   updatedAt: number;
   lastUsedAt?: number;
+}
+
+export interface AddResourceSetPayload {
+  materialSetKind: ResourceMaterialSetKind;
+  materialSetItems: Array<{
+    id?: string;
+    kind: ResourceMaterialSetKind;
+    url?: string;
+    text?: string;
+    name?: string;
+    size?: number;
+    mime?: string;
+  }>;
+  categoryId?: string;
+  title?: string;
+  tags?: string[];
+  sourceNodeId?: string;
+  sourceCanvasId?: string;
+  favorite?: boolean;
 }
 
 export interface AddResourcePayload {
@@ -344,6 +374,13 @@ export function getResourceItems(params: {
 
 export function addResourceItem(payload: AddResourcePayload) {
   return safeRequest<ResourceItem & { duplicate?: boolean }>(`${BASE}/resources/items/add`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function addResourceSet(payload: AddResourceSetPayload) {
+  return safeRequest<ResourceItem & { duplicate?: boolean }>(`${BASE}/resources/sets/add`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

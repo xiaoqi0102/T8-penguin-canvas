@@ -3,16 +3,18 @@ import { FolderPlus, Library, Plus, X } from 'lucide-react';
 import { useThemeStore } from '../stores/theme';
 import { useCanvasStore } from '../stores/canvas';
 import * as api from '../services/api';
-import type { ResourceCategory, ResourceKind } from '../services/api';
+import type { ResourceCategory, ResourceKind, ResourceMaterialSetKind } from '../services/api';
 
 interface MenuState {
   x: number;
   y: number;
   kind: ResourceKind;
-  url: string;
+  url?: string;
   previewUrl?: string;
   sourceNodeId?: string;
   title?: string;
+  materialSetKind?: ResourceMaterialSetKind;
+  materialSetItems?: NonNullable<Parameters<typeof api.addResourceSet>[0]['materialSetItems']>;
 }
 
 function isResourceKind(value: string | null): value is ResourceKind {
@@ -74,8 +76,29 @@ export default function MaterialContextMenu() {
       setMessage('');
       loadCategories(kind);
     };
+    const onMaterialSetMenu = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail || {};
+      const materialSetKind = detail.materialSetKind as ResourceMaterialSetKind | undefined;
+      const materialSetItems = Array.isArray(detail.materialSetItems) ? detail.materialSetItems : [];
+      if (!materialSetKind || materialSetItems.length === 0) return;
+      setMenu({
+        x: Number(detail.x) || window.innerWidth / 2,
+        y: Number(detail.y) || window.innerHeight / 2,
+        kind: 'set',
+        sourceNodeId: String(detail.sourceNodeId || ''),
+        title: String(detail.title || '素材集'),
+        materialSetKind,
+        materialSetItems,
+      });
+      setMessage('');
+      loadCategories('set');
+    };
     document.addEventListener('contextmenu', onContext, true);
-    return () => document.removeEventListener('contextmenu', onContext, true);
+    window.addEventListener('penguin:open-material-set-resource-menu', onMaterialSetMenu as EventListener);
+    return () => {
+      document.removeEventListener('contextmenu', onContext, true);
+      window.removeEventListener('penguin:open-material-set-resource-menu', onMaterialSetMenu as EventListener);
+    };
   }, [loadCategories]);
 
   useEffect(() => {
@@ -98,14 +121,23 @@ export default function MaterialContextMenu() {
 
   const addToCategory = async (categoryId: string) => {
     if (!menu) return;
-    const r = await api.addResourceItem({
-      url: menu.url,
-      kind: menu.kind,
-      categoryId,
-      title: menu.title,
-      sourceNodeId: menu.sourceNodeId,
-      sourceCanvasId: activeCanvasId || '',
-    });
+    const r = menu.kind === 'set'
+      ? await api.addResourceSet({
+          materialSetKind: menu.materialSetKind!,
+          materialSetItems: menu.materialSetItems || [],
+          categoryId,
+          title: menu.title,
+          sourceNodeId: menu.sourceNodeId,
+          sourceCanvasId: activeCanvasId || '',
+        })
+      : await api.addResourceItem({
+          url: menu.url || '',
+          kind: menu.kind,
+          categoryId,
+          title: menu.title,
+          sourceNodeId: menu.sourceNodeId,
+          sourceCanvasId: activeCanvasId || '',
+        });
     if (r.success) {
       const duplicate = (r as any).duplicate;
       setMessage(duplicate ? '已存在，已定位到该分类' : '已加入资源库');
@@ -160,7 +192,7 @@ export default function MaterialContextMenu() {
         }}
       >
         <Library size={13} />
-        <span className="flex-1 truncate">加入资源库</span>
+        <span className="flex-1 truncate">{menu.kind === 'set' ? '保存素材集' : '加入资源库'}</span>
         <button onClick={close} title="关闭">
           <X size={12} />
         </button>
@@ -168,6 +200,11 @@ export default function MaterialContextMenu() {
       {menu.kind === 'image' && menu.previewUrl && (
         <div className="h-24 bg-black overflow-hidden">
           <img src={menu.previewUrl} className="w-full h-full object-cover" draggable={false} />
+        </div>
+      )}
+      {menu.kind === 'set' && (
+        <div className={`px-3 py-2 text-[11px] ${isPixel ? 'bg-[var(--px-muted)]' : isDark ? 'bg-white/5 text-white/65' : 'bg-black/5 text-zinc-600'}`}>
+          {menu.title || '素材集'} · {menu.materialSetItems?.length || 0} 项
         </div>
       )}
       <div className="max-h-56 overflow-y-auto py-1">

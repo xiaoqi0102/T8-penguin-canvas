@@ -30,6 +30,7 @@ import {
   isImageLikeUrl,
   type ImageCompareCandidate,
 } from '../../utils/imageCompare';
+import { collectMaterialSetBucketsFromData, valueOfMaterialSetItem } from '../../utils/materialSet';
 // v1.2.10.5: 节点落点防重叠 —— 双击编辑产出 N 节点 3 列宫格整组避让
 import { placeBatchNodes, defaultSizeOf, type Rect as PlacementRect } from '../../utils/nodePlacement';
 
@@ -134,8 +135,13 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
         const arr5 = Array.isArray(ud.textSegments) ? ud.textSegments.join('\u241F') : '';
         const arr6 = Array.isArray(ud.segments) ? ud.segments.join('\u241F') : '';
         const arr7 = Array.isArray(ud.texts) ? ud.texts.join('\u241F') : '';
+        const arr8 = Array.isArray(ud.materialSetItems)
+          ? JSON.stringify(ud.materialSetItems.map((item: any) => [item?.kind, item?.url, item?.text, item?.name]))
+          : '';
         return [
           n?.id || '',
+          n?.type || '',
+          ud.materialSetKind || '',
           ud.outputText || '',
           ud.reply || '',
           ud.prompt || '',
@@ -154,6 +160,7 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
           arr5,
           arr6,
           arr7,
+          arr8,
         ].join('§');
       })
       .join('|');
@@ -208,6 +215,16 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
       const ud: any = n?.data || {};
       const sid = (n as any)?.id || '';
       const handles = handleMap.get(sid) || new Set<string | null>([null]);
+
+      // 显式素材集: 按内部顺序透传；跳过旧字段读取，避免素材集同步字段造成重复。
+      if ((n as any)?.type === 'material-set' && Array.isArray(ud.materialSetItems)) {
+        const buckets = collectMaterialSetBucketsFromData(ud);
+        buckets.text.forEach((item) => pushTextSegment(out.texts, valueOfMaterialSetItem(item)));
+        buckets.image.forEach((item) => pushUnique(out.images, item.url));
+        buckets.video.forEach((item) => pushUnique(out.videos, item.url));
+        buckets.audio.forEach((item) => pushUnique(out.audios, item.url));
+        continue;
+      }
 
       // === v1.2.9.0: 循环累积模式 —— 上游节点被 LoopNode 标记 __loopAccumulate 时,
       //             跳过该上游的 fresh 字段收集 (让本节点 direct*Urls / directOutputText 的累积值独占显示)。

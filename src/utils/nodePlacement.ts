@@ -40,6 +40,7 @@ export const NODE_DEFAULT_SIZE: Record<string, { w: number; h: number }> = {
   edit: { w: 320, h: 360 },
   output: { w: 320, h: 360 },
   upload: { w: 260, h: 360 },
+  'material-set': { w: 320, h: 300 },
   video: { w: 320, h: 380 },
   seedance: { w: 320, h: 380 },
   audio: { w: 320, h: 380 },

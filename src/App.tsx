@@ -16,9 +16,22 @@ import type { NodeType } from './types/canvas';
 import type { ResourceItem } from './services/api';
 import { applyThemeTemplate } from './theme/applyTheme';
 import { resolveThemeTemplate } from './theme/defaultTemplates';
+import { materialSetItemsToData, type MaterialSetKind, type MaterialSetItem } from './utils/materialSet';
 
 // vite.config 注入的编译期常量（与 package.json 同步），勿硬编码 v1.x.x
 declare const __APP_VERSION__: string;
+
+function isShortcutTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target.isContentEditable ||
+    Boolean(target.closest('[contenteditable="true"]'))
+  );
+}
 
 /**
  * T8-penguin-canvas 应用根组件 (Phase 1)
@@ -221,6 +234,20 @@ function App() {
     loadCustomTemplates();
   }, [loadSettings, loadCustomTemplates]);
 
+  // R: 未选中任何节点时打开 / 关闭资源库。输入框内不拦截，避免打断提示词编辑。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'r') return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return;
+      if (isShortcutTypingTarget(e.target)) return;
+      if (document.querySelector('.react-flow__node.selected')) return;
+      e.preventDefault();
+      setResourceOpen((open) => !open);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const isDark = theme === 'dark';
   const isPixel = style === 'pixel';
   const isOp = currentTemplate.visuals?.style === 'op';
@@ -230,6 +257,15 @@ function App() {
   };
 
   const handleInsertResource = (item: ResourceItem) => {
+    if (item.kind === 'set' && item.materialSetKind && item.materialSetItems?.length) {
+      addNodeRef.current?.('material-set', {
+        data: materialSetItemsToData(
+          item.materialSetKind as MaterialSetKind,
+          item.materialSetItems as MaterialSetItem[],
+        ),
+      });
+      return;
+    }
     const data: Record<string, any> = {
       uploadType: item.kind,
       fileName: item.title || item.originalName || '资源库素材',
