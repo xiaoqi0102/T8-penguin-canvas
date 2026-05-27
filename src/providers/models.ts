@@ -140,6 +140,7 @@ export const IMAGE_MODELS: ImageModelDef[] = [
   //   * 仅 quality + size 两个调参（API 文档原生支持）
   //   * 文生图走 /v1/images/generations，图生图走 /v1/images/edits
   //   * 后端代理 /api/proxy/qiniu/image[/submit|/status/:tid]
+  //   * size 在 UI 只显示比例（auto + 14 个），运行时由 ratioToQiniuSize 转为像素串
   // ========================================================================
   {
     id: 'qiniu',
@@ -153,10 +154,11 @@ export const IMAGE_MODELS: ImageModelDef[] = [
       { value: 'gemini-3.1-flash-image-preview', label: 'gemini-3.1-flash-image-preview' },
       { value: 'openai/gpt-image-2', label: 'openai/gpt-image-2' },
     ],
-    // 七牛云 size 由文档列出的「常用 size」一栏定义，aspectRatios 字段在此模型下不使用
+    // 七牛云 size 在 UI 只显示比例，API 调用时由 integrations/qiniu/sizeMap.ts 转换为像素串
+    // 比例集合 = GPT_RATIOS 同款 14 个 + auto，保证与其他图像模型的视觉一致性
     aspectRatios: [],
     defaultAspectRatio: '',
-    sizes: ['auto', '1024x1024', '1536x1024', '1024x1536', '2048x2048', '2048x1152', '3840x2160', '2160x3840'],
+    sizes: ['auto', '1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '21:9', '1:4', '4:1', '1:8', '8:1'],
     defaultSize: 'auto',
     supportsReference: true,
     maxReferenceImages: 4,
@@ -173,7 +175,7 @@ export const IMAGE_MODELS: ImageModelDef[] = [
   // ========================================================================
   {
     id: 'grsai',
-    apiModel: 'nano-banana-2',
+    apiModel: 'gpt-image-2',
     label: 'Grsai 图像',
     tabLabel: 'Grsai',
     provider: 'grsai',
@@ -182,17 +184,18 @@ export const IMAGE_MODELS: ImageModelDef[] = [
     apiModelOptions: [
       { value: 'nano-banana', label: 'nano-banana' },
       { value: 'nano-banana-fast', label: 'nano-banana-fast' },
-      { value: 'nano-banana-2', label: 'nano-banana-2 (默认)' },
+      { value: 'nano-banana-2', label: 'nano-banana-2' },
       { value: 'nano-banana-2-cl', label: 'nano-banana-2-cl' },
       { value: 'nano-banana-2-4k-cl', label: 'nano-banana-2-4k-cl' },
       { value: 'nano-banana-pro', label: 'nano-banana-pro' },
       { value: 'nano-banana-pro-cl', label: 'nano-banana-pro-cl' },
       { value: 'nano-banana-pro-vip', label: 'nano-banana-pro-vip' },
       { value: 'nano-banana-pro-4k-vip', label: 'nano-banana-pro-4k-vip' },
-      { value: 'gpt-image-2', label: 'gpt-image-2' },
-      { value: 'gpt-image-2-vip', label: 'gpt-image-2-vip (像素串)' },
+      { value: 'gpt-image-2', label: 'gpt-image-2 (默认)' },
+      { value: 'gpt-image-2-vip', label: 'gpt-image-2-vip' },
     ],
-    // 通用 11 比例 + nano-banana-2 系列额外 4 个；vip 像素串预设由 GrsaiImageTab 动态追加
+    // UI 不直接读取本字段，比例集合按 apiModel 由 integrations/grsai/sizeMap.ts 决定；
+    // 该字段仅保留作为 switchModel 的兜底校验（值需覆盖所有子模型支持的最大集合）
     aspectRatios: ['auto', '1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '21:9', '1:4', '4:1', '1:8', '8:1'],
     defaultAspectRatio: 'auto',
     sizes: ['1K', '2K', '4K'],

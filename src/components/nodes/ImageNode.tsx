@@ -36,8 +36,10 @@ import {
 // >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时，本块整体保留即可)
 import QiniuImageTab from '../../integrations/qiniu/QiniuImageTab';
 import { runQiniuImage } from '../../integrations/qiniu/runQiniuImage';
+import { getQiniuRatiosForApiModel, DEFAULT_QINIU_RATIO } from '../../integrations/qiniu/sizeMap';
 import GrsaiImageTab from '../../integrations/grsai/GrsaiImageTab';
 import { runGrsaiImage } from '../../integrations/grsai/runGrsaiImage';
+import { getGrsaiRatiosForApiModel, DEFAULT_GRSAI_RATIO } from '../../integrations/grsai/sizeMap';
 // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useHasAutoOutput } from './useHasAutoOutput';
@@ -174,12 +176,18 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
     } else if (newDef.paramKind === 'qiniu') {
       // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
       if (!d?.qiniuQuality) patch.qiniuQuality = 'auto';
-      const curQiniuSize = d?.qiniuSize || newDef.defaultSize;
-      if (!newDef.sizes.includes(curQiniuSize)) patch.qiniuSize = newDef.defaultSize;
+      // 切换到七牛云时，按新 apiModel（默认 gemini）支持的比例集合迁移 qiniuSize
+      const qiniuAllowed = getQiniuRatiosForApiModel(newDef.apiModel);
+      const curQiniuSize = d?.qiniuSize || DEFAULT_QINIU_RATIO;
+      if (!qiniuAllowed.includes(curQiniuSize)) patch.qiniuSize = DEFAULT_QINIU_RATIO;
       // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
     } else if (newDef.paramKind === 'grsai') {
       // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
-      if (!d?.grsaiAspectRatio) patch.grsaiAspectRatio = newDef.defaultAspectRatio || 'auto';
+      // 按新 apiModel 的允许比例集合迁移 grsaiAspectRatio
+      const grsaiAllowed = getGrsaiRatiosForApiModel(newDef.apiModel);
+      const curGrsaiRatio = d?.grsaiAspectRatio || newDef.defaultAspectRatio || DEFAULT_GRSAI_RATIO;
+      if (!grsaiAllowed.includes(curGrsaiRatio)) patch.grsaiAspectRatio = DEFAULT_GRSAI_RATIO;
+      else if (!d?.grsaiAspectRatio) patch.grsaiAspectRatio = newDef.defaultAspectRatio || DEFAULT_GRSAI_RATIO;
       const curGrsaiSize = d?.grsaiImageSize || newDef.defaultSize;
       if (!newDef.sizes.includes(curGrsaiSize)) patch.grsaiImageSize = newDef.defaultSize;
       // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
@@ -642,7 +650,23 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             <label className="text-[10px] text-white/50 block mb-1">具体模型</label>
             <select
               value={apiModel}
-              onChange={(e) => update({ apiModel: e.target.value })}
+              onChange={(e) => {
+                const newApiModel = e.target.value;
+                const patch: any = { apiModel: newApiModel };
+                // 七牛云不同子模型支持的比例集合不同：跨模型切换时迁移 qiniuSize
+                if (isQiniu) {
+                  const allowed = getQiniuRatiosForApiModel(newApiModel);
+                  const cur = d?.qiniuSize;
+                  if (cur && !allowed.includes(cur)) patch.qiniuSize = DEFAULT_QINIU_RATIO;
+                }
+                // Grsai 同理：nano-banana-2 系列支持极端比例，切到 gpt-image-2 系列要回退
+                if (isGrsai) {
+                  const allowed = getGrsaiRatiosForApiModel(newApiModel);
+                  const cur = d?.grsaiAspectRatio;
+                  if (cur && !allowed.includes(cur)) patch.grsaiAspectRatio = DEFAULT_GRSAI_RATIO;
+                }
+                update(patch);
+              }}
               style={{ background: '#18181b', color: '#ffffff' }}
               className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
             >
@@ -686,7 +710,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* >>> CUSTOM-PROVIDER-INTEGRATIONS-START (七牛云专属参数面板) */}
-        {isQiniu && <QiniuImageTab d={d} update={update} sizes={modelDef.sizes} />}
+        {isQiniu && <QiniuImageTab d={d} update={update} apiModel={apiModel} />}
         {isGrsai && <GrsaiImageTab d={d} update={update} apiModel={apiModel} />}
         {/* <<< CUSTOM-PROVIDER-INTEGRATIONS-END */}
 

@@ -12,6 +12,7 @@
  */
 import { submitGrsaiImage, queryGrsaiImageStatus, type GrsaiImageSubmitRequest } from '../../services/generation';
 import { logBus } from '../../stores/logs';
+import { resolveGrsaiAspectRatio } from './sizeMap';
 
 export interface RunGrsaiImageParams {
   /** 节点 id，仅用于日志 src 命名空间 */
@@ -35,7 +36,9 @@ function isNanoBananaSeries(model: string): boolean {
 
 export async function runGrsaiImage({ id, apiModel, finalPrompt, allRefs, d, update }: RunGrsaiImageParams) {
   const src = `image:${id.slice(0, 6)}`;
-  const aspectRatio = String(d?.grsaiAspectRatio || 'auto');
+  const rawRatio = String(d?.grsaiAspectRatio || 'auto');
+  // UI 存比例字符串；gpt-image-2-vip 上游强制像素串，由 resolveGrsaiAspectRatio 转换
+  const aspectRatio = resolveGrsaiAspectRatio(rawRatio, apiModel);
   const imageSize = (d?.grsaiImageSize || '1K') as '1K' | '2K' | '4K';
 
   const req: GrsaiImageSubmitRequest = {
@@ -48,7 +51,7 @@ export async function runGrsaiImage({ id, apiModel, finalPrompt, allRefs, d, upd
   if (isNanoBananaSeries(apiModel)) req.imageSize = imageSize;
 
   logBus.info(
-    `Grsai提交: model=${apiModel} aspectRatio=${aspectRatio}${req.imageSize ? ' imageSize=' + req.imageSize : ''} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
+    `Grsai提交: model=${apiModel} ratio=${rawRatio} aspectRatio=${aspectRatio}${req.imageSize ? ' imageSize=' + req.imageSize : ''} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
     src,
   );
 

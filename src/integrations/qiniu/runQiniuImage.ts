@@ -5,6 +5,7 @@
  */
 import { submitQiniuImage, queryQiniuImageStatus } from '../../services/generation';
 import { logBus } from '../../stores/logs';
+import { ratioToQiniuSize } from './sizeMap';
 
 export interface RunQiniuImageParams {
   /** 节点 id，仅用于日志 src 命名空间 */
@@ -24,10 +25,12 @@ export interface RunQiniuImageParams {
 export async function runQiniuImage({ id, apiModel, finalPrompt, allRefs, d, update }: RunQiniuImageParams) {
   const src = `image:${id.slice(0, 6)}`;
   const quality = (d?.qiniuQuality || 'auto') as 'auto' | 'low' | 'medium' | 'high';
-  const size = String(d?.qiniuSize || 'auto');
+  const ratio = String(d?.qiniuSize || 'auto');
+  // UI 存储的是比例（'1:1' / '16:9' / …），上游接口要求像素串
+  const size = ratioToQiniuSize(ratio);
 
   logBus.info(
-    `七牛云提交: model=${apiModel} quality=${quality} size=${size} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
+    `七牛云提交: model=${apiModel} quality=${quality} ratio=${ratio} size=${size} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
     src,
   );
 

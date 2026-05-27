@@ -1,14 +1,19 @@
 /**
  * 七牛云图像参数面板（ImageNode 内嵌）
- * 只渲染 quality + size 两个 select，状态读写直接走父节点 data，不持有本地 state。
+ * 只渲染 quality + size 两个 select。size 显示的是比例（1:1 / 16:9 …），
+ * 不同 apiModel 显示的比例集合不同：
+ *   - gemini-3.1-flash-image-preview ：全 14 个比例 + auto
+ *   - openai/gpt-image-2 ：仅 10 个 ≤3:1 比例 + auto（文档约束）
+ * 状态读写直接走父节点 data，不持有本地 state。
  */
 import type { ChangeEvent } from 'react';
+import { getQiniuRatiosForApiModel, DEFAULT_QINIU_RATIO } from './sizeMap';
 
 interface Props {
   d: any;
   update: (patch: any) => void;
-  /** 来自 modelDef.sizes 的 size 候选枚举 */
-  sizes: string[];
+  /** 当前 apiModel —— 决定 size 下拉支持的比例集合 */
+  apiModel: string;
 }
 
 const QUALITIES: Array<{ value: 'auto' | 'low' | 'medium' | 'high'; label: string }> = [
@@ -18,9 +23,14 @@ const QUALITIES: Array<{ value: 'auto' | 'low' | 'medium' | 'high'; label: strin
   { value: 'high', label: 'High' },
 ];
 
-export default function QiniuImageTab({ d, update, sizes }: Props) {
+export default function QiniuImageTab({ d, update, apiModel }: Props) {
   const qiniuQuality = d?.qiniuQuality || 'auto';
-  const qiniuSize = d?.qiniuSize || (sizes[0] ?? 'auto');
+  const sizes = getQiniuRatiosForApiModel(apiModel);
+  // 兼容旧画布（早期像素串）+ 跨子模型迁移（gemini 选 '1:4' 后切到 gpt-image-2）：
+  // 不在当前 apiModel 支持列表中的值，在渲染时回退到默认；实际数据迁移由
+  // ImageNode 的 apiModel onChange 负责，避免 useEffect 副作用。
+  const rawSize = d?.qiniuSize;
+  const qiniuSize = rawSize && sizes.includes(rawSize) ? rawSize : DEFAULT_QINIU_RATIO;
 
   const onQuality = (e: ChangeEvent<HTMLSelectElement>) => update({ qiniuQuality: e.target.value });
   const onSize = (e: ChangeEvent<HTMLSelectElement>) => update({ qiniuSize: e.target.value });
