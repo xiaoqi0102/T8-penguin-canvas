@@ -5,6 +5,12 @@ import * as api from '../services/api';
 // 三套 Key 的固定 base URL
 export const FIXED_ZHENZHEN_BASE = 'https://ai.t8star.org';
 export const RH_BASE = 'https://www.runninghub.cn';
+// v1.5.6: 七牛云默认 base URL（不强制锁定，用户可改）
+export const DEFAULT_QINIU_BASE = 'https://openai.qiniu.com';
+// >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+// v1.5.6: Grsai 中转站默认 base URL（国内端点，用户可切到 https://grsaiapi.com 全球）
+export const DEFAULT_GRSAI_BASE = 'https://grsai.dakka.com.cn';
+// <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
 interface ApiKeysState {
   settings: ApiSettings;
@@ -23,6 +29,14 @@ const DEFAULT: ApiSettings = {
   rhBaseUrl: RH_BASE,
   llmApiKey: '',
   llmBaseUrl: FIXED_ZHENZHEN_BASE,
+  // v1.5.6: 七牛云独立 provider（图像生成）
+  qiniuApiKey: '',
+  qiniuBaseUrl: DEFAULT_QINIU_BASE,
+  // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+  // v1.5.6: Grsai 中转站独立 provider（自有协议，图像生成）
+  grsaiApiKey: '',
+  grsaiBaseUrl: DEFAULT_GRSAI_BASE,
+  // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   // 分类独立 Key（留空时 fallback 到 zhenzhenApiKey）
   gptImageApiKey: '',
   nanoBananaApiKey: '',

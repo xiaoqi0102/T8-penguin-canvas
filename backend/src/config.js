@@ -56,6 +56,19 @@ const config = {
   // 贞贞工坊 / LLM 独立 Key 强制走 https://ai.t8star.org
   ZHENZHEN_BASE_URL: 'https://ai.t8star.org',
   RH_BASE_URL: 'https://www.runninghub.cn',
+  // v1.5.6: 七牛云 AI 大模型推理服务（国内端点）
+  //   - 国内: https://openai.qiniu.com
+  //   - 海外: https://openai.sufy.com
+  //   仅作为图像生成 (gemini-3.1-flash-image-preview / openai/gpt-image-2) 的可选 provider，
+  //   不强制锁定 baseUrl, 用户可在【设置】里切换海外端点。
+  QINIU_BASE_URL: 'https://openai.qiniu.com',
+  // >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时本块整体保留即可)
+  // v1.5.6: Grsai 中转站 — 走自有 /v1/api/generate + /v1/api/result 协议，
+  // 不复用 OpenAI 兼容路径。两个端点用户可在【设置】里切换：
+  //   - 国内: https://grsai.dakka.com.cn
+  //   - 全球: https://grsaiapi.com
+  GRSAI_BASE_URL: 'https://grsai.dakka.com.cn',
+  // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
   // v1.2.10.2: 全局生成素材自动保存到本地的默认路径
   //   用户可在「API 设置 → 文件自动保存路径」覆盖。

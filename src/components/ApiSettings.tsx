@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Lock, Save, Settings2, X, FolderOpen } from 'lucide-react';
-import { useApiKeysStore, FIXED_ZHENZHEN_BASE, RH_BASE } from '../stores/apiKeys';
+import { useApiKeysStore, FIXED_ZHENZHEN_BASE, RH_BASE, DEFAULT_QINIU_BASE, DEFAULT_GRSAI_BASE } from '../stores/apiKeys';
 import { useThemeStore } from '../stores/theme';
 import type { ApiSettings } from '../types/canvas';
 import { getRawSettings } from '../services/api';
+// >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时，本块整体保留即可)
+import QiniuSettingsSection from '../integrations/qiniu/QiniuSettingsSection';
+import GrsaiSettingsSection from '../integrations/grsai/GrsaiSettingsSection';
+// <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
 interface ApiSettingsModalProps {
   open: boolean;
@@ -15,6 +19,8 @@ type KeyField =
   | 'zhenzhenApiKey'
   | 'rhApiKey'
   | 'llmApiKey'
+  | 'qiniuApiKey'
+  | 'grsaiApiKey'
   | 'gptImageApiKey'
   | 'nanoBananaApiKey'
   | 'mjApiKey'
@@ -46,18 +52,25 @@ const CLASSIFIED_KEYS: KeySpec[] = [
   { field: 'sunoApiKey', label: 'suno 系列', desc: 'Suno 音乐专用', bullet: 'bg-rose-400' },
 ];
 
+// >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+// 第三方 provider 自定义 Key（不走标准 KeySpec 渲染流程，UI 由 integrations/<name>/*SettingsSection 自管理）
+// 但仍纳入 ALL_FIELDS，让统一 handleSave/getRawSettings 流程透明覆盖。
+const CUSTOM_PROVIDER_FIELDS: KeyField[] = ['qiniuApiKey', 'grsaiApiKey'];
+// <<< CUSTOM-PROVIDER-INTEGRATIONS-END
+
 const ALL_FIELDS: KeyField[] = [
   ...COMMON_KEYS.map((k) => k.field),
   ...CLASSIFIED_KEYS.map((k) => k.field),
+  ...CUSTOM_PROVIDER_FIELDS,
 ];
 
 const emptyMap = (): Record<KeyField, string> => ({
-  zhenzhenApiKey: '', rhApiKey: '', llmApiKey: '',
+  zhenzhenApiKey: '', rhApiKey: '', llmApiKey: '', qiniuApiKey: '', grsaiApiKey: '',
   gptImageApiKey: '', nanoBananaApiKey: '', mjApiKey: '', veoApiKey: '',
   grokApiKey: '', seedanceApiKey: '', sunoApiKey: '',
 });
 const emptyShow = (): Record<KeyField, boolean> => ({
-  zhenzhenApiKey: false, rhApiKey: false, llmApiKey: false,
+  zhenzhenApiKey: false, rhApiKey: false, llmApiKey: false, qiniuApiKey: false, grsaiApiKey: false,
   gptImageApiKey: false, nanoBananaApiKey: false, mjApiKey: false, veoApiKey: false,
   grokApiKey: false, seedanceApiKey: false, sunoApiKey: false,
 });
@@ -79,6 +92,10 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
   const [resourceLibraryPathInput, setResourceLibraryPathInput] = useState<string>('');
   // v1.3.6: 主题模板路径输入
   const [themeTemplatePathInput, setThemeTemplatePathInput] = useState<string>('');
+  // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+  const [qiniuBaseUrlInput, setQiniuBaseUrlInput] = useState<string>('');
+  const [grsaiBaseUrlInput, setGrsaiBaseUrlInput] = useState<string>('');
+  // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   // 分类独立 Key 区块折叠状态（新手友好：默认折叠，点击展开）
   const [classifiedOpen, setClassifiedOpen] = useState(false);
   // 眼睛预览拉取的明文（仅缓存，不提交）
@@ -101,6 +118,10 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
       setCanvasAutoSavePathInput((settings as any)?.canvasAutoSavePath || '');
       setResourceLibraryPathInput((settings as any)?.resourceLibraryPath || '');
       setThemeTemplatePathInput((settings as any)?.themeTemplatePath || '');
+      // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+      setQiniuBaseUrlInput((settings as any)?.qiniuBaseUrl || DEFAULT_QINIU_BASE);
+      setGrsaiBaseUrlInput((settings as any)?.grsaiBaseUrl || DEFAULT_GRSAI_BASE);
+      // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
     }
   }, [open, settings]);
 
@@ -160,6 +181,18 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     if (newThemeTemplatePath && newThemeTemplatePath !== oldThemeTemplatePath) {
       (patch as any).themeTemplatePath = newThemeTemplatePath;
     }
+    // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+    const newQiniuBase = (qiniuBaseUrlInput || '').trim();
+    const oldQiniuBase = (settings as any)?.qiniuBaseUrl || '';
+    if (newQiniuBase && newQiniuBase !== oldQiniuBase) {
+      (patch as any).qiniuBaseUrl = newQiniuBase;
+    }
+    const newGrsaiBase = (grsaiBaseUrlInput || '').trim();
+    const oldGrsaiBase = (settings as any)?.grsaiBaseUrl || '';
+    if (newGrsaiBase && newGrsaiBase !== oldGrsaiBase) {
+      (patch as any).grsaiBaseUrl = newGrsaiBase;
+    }
+    // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
     if (Object.keys(patch).length === 0) {
       onClose();
       return;
@@ -370,6 +403,41 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
           {renderKey(COMMON_KEYS[0], { baseUrlNote: `Base URL 锁定: ${FIXED_ZHENZHEN_BASE}` })}
           {renderKey(COMMON_KEYS[1], { baseUrlNote: `Base URL: ${RH_BASE}` })}
           {renderKey(COMMON_KEYS[2], { baseUrlNote: `Base URL 锁定: ${FIXED_ZHENZHEN_BASE} (与贞贞同地址, Key 独立)` })}
+
+          {/* >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时本块整体保留即可) */}
+          <QiniuSettingsSection
+            rawSettings={settings}
+            qiniuApiKeyInput={inputs.qiniuApiKey}
+            showApiKey={shows.qiniuApiKey}
+            onApiKeyChange={(v) => setInputAt('qiniuApiKey', v)}
+            onToggleShow={() => handleToggleShow('qiniuApiKey')}
+            qiniuBaseUrlInput={qiniuBaseUrlInput}
+            onBaseUrlChange={setQiniuBaseUrlInput}
+            isPixel={isPixel}
+            isDark={isDark}
+            inputCls={inputCls}
+            labelCls={labelCls}
+            hintCls={hintCls}
+            eyeBtnCls={eyeBtnCls}
+            linkBtnCls={linkBtnCls}
+          />
+          <GrsaiSettingsSection
+            rawSettings={settings}
+            grsaiApiKeyInput={inputs.grsaiApiKey}
+            showApiKey={shows.grsaiApiKey}
+            onApiKeyChange={(v) => setInputAt('grsaiApiKey', v)}
+            onToggleShow={() => handleToggleShow('grsaiApiKey')}
+            grsaiBaseUrlInput={grsaiBaseUrlInput}
+            onBaseUrlChange={setGrsaiBaseUrlInput}
+            isPixel={isPixel}
+            isDark={isDark}
+            inputCls={inputCls}
+            labelCls={labelCls}
+            hintCls={hintCls}
+            eyeBtnCls={eyeBtnCls}
+            linkBtnCls={linkBtnCls}
+          />
+          {/* <<< CUSTOM-PROVIDER-INTEGRATIONS-END */}
 
           {/* 分类独立 Key（默认折叠，点击展开 —— 新手友好） */}
           <div className={`pt-3 border-t ${isPixel ? 'border-[var(--px-ink)]/30' : isDark ? 'border-white/10' : 'border-black/10'}`}>

@@ -2163,4 +2163,466 @@ router.get('/runninghub/app-info', async (req, res) => {
   }
 });
 
+// ============================================================================
+// 七牛云 AI 大模型推理服务 — 图像生成 (v1.5.6)
+//   provider 与贞贞工坊完全解耦：独立 qiniuApiKey + 可配置 qiniuBaseUrl。
+//   仅支持 OpenAI 兼容的图像协议，不复用 ZHENZHEN_BASE_URL / pickApiKey 链路。
+//
+//   上游协议:
+//     POST {base}/v1/images/generations   body: {model, prompt, quality, size}
+//     POST {base}/v1/images/edits         body: {model, prompt, image[], quality}
+//     GET  {base}/v1/images/tasks/{tid}   → {status:'processing|succeed|failed', data:[{url}]}
+//
+//   认证: Authorization: Bearer ${qiniuApiKey}
+//
+//   暴露给前端的代理路由:
+//     POST /api/proxy/qiniu/image/submit     body: {model, prompt, quality?, size?, images?[]}
+//     GET  /api/proxy/qiniu/image/status/:tid
+//     POST /api/proxy/qiniu/image            (同步包装: 提交 + 内部轮询)
+// ============================================================================
+
+function loadQiniuSettings(res) {
+  const settings = loadRawSettings();
+  if (!settings) {
+    res.status(400).json({ success: false, error: '未找到 settings 文件，请先在【设置】中配置 API Key' });
+    return null;
+  }
+  const apiKey = String(settings.qiniuApiKey || '').trim();
+  if (!apiKey) {
+    res.status(400).json({ success: false, error: '未配置七牛云 API Key（请在【设置 → 七牛云】中填写）' });
+    return null;
+  }
+  const baseUrl = String(settings.qiniuBaseUrl || config.QINIU_BASE_URL || '').replace(/\/+$/, '');
+  return { apiKey, baseUrl };
+}
+
+// 将 /files/* 本地路径或 base64 dataURL 规范化为 base64 dataURL（七牛 edits 接口接受 URL 或 base64）
+async function refToQiniuImage(ref) {
+  if (typeof ref !== 'string' || !ref) return null;
+  if (ref.startsWith('data:')) return ref;
+  if (ref.startsWith('http://') || ref.startsWith('https://')) return ref;
+  if (ref.startsWith('/files/')) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${config.PORT}${ref}`);
+      if (!r.ok) return null;
+      const ct = r.headers.get('content-type') || 'image/png';
+      const buf = Buffer.from(await r.arrayBuffer());
+      return `data:${ct};base64,${buf.toString('base64')}`;
+    } catch { return null; }
+  }
+  return null;
+}
+
+async function callQiniuImageUpstream({ apiKey, baseUrl, model, prompt, quality, size, refs }) {
+  const auth = `Bearer ${apiKey}`;
+  const hasRefs = Array.isArray(refs) && refs.length > 0;
+  const url = `${baseUrl}/v1/images/${hasRefs ? 'edits' : 'generations'}`;
+  const body = { model, prompt, quality: quality || 'auto' };
+  if (!hasRefs) body.size = size || 'auto';
+  if (hasRefs) {
+    const images = [];
+    for (const ref of refs) {
+      const conv = await refToQiniuImage(ref);
+      if (conv) images.push(conv);
+    }
+    if (!images.length) throw new Error('参考图全部转换失败');
+    body.image = images;
+  }
+  console.log('[upstream] Qiniu →', hasRefs ? '/edits' : '/generations', 'model:', model, 'quality:', body.quality, 'size:', body.size || '(edit)', 'refs:', refs?.length || 0);
+  return await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: auth },
+    body: JSON.stringify(body),
+  });
+}
+
+// 同步：提交 + 等待
+async function pollQiniuTask(taskId, apiKey, baseUrl, maxRetries = 1800, interval = 2000) {
+  const url = `${baseUrl}/v1/images/tasks/${encodeURIComponent(taskId)}`;
+  for (let i = 0; i < maxRetries; i++) {
+    await new Promise(r => setTimeout(r, interval));
+    try {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+      const text = await r.text();
+      let data; try { data = JSON.parse(text); } catch { continue; }
+      if (!r.ok) continue;
+      const status = String(data?.status || '').toLowerCase();
+      if (['succeed', 'success', 'completed', 'done'].includes(status)) {
+        const arr = Array.isArray(data?.data) ? data.data : [];
+        const it = arr[0];
+        if (it?.b64_json) return saveBase64Image(it.b64_json);
+        if (it?.url) return await saveRemoteImage(it.url);
+      }
+      if (['failed', 'failure', 'error'].includes(status)) {
+        console.error('[qiniu/poll] 任务失败:', data?.status_message || status);
+        return null;
+      }
+    } catch (e) {
+      console.warn('[qiniu/poll] 轮询异常:', e.message);
+    }
+  }
+  return null;
+}
+
+// 将上游响应规范化为 { kind, urls?, taskId? }
+async function normalizeQiniuResponse(data) {
+  // 同步：data:[{url|b64_json}]
+  const items = Array.isArray(data?.data) ? data.data : [];
+  if (items.length && (items[0]?.url || items[0]?.b64_json)) {
+    const urls = [];
+    for (const it of items) {
+      if (it?.b64_json) { const u = saveBase64Image(it.b64_json); if (u) urls.push(u); }
+      else if (it?.url) { const u = await saveRemoteImage(it.url); urls.push(u); }
+    }
+    return { kind: 'sync', urls };
+  }
+  // 异步：task_id 字段
+  const taskId = data?.task_id || data?.id || (typeof data?.data === 'string' ? data.data : null);
+  if (taskId) return { kind: 'async', taskId };
+  return { kind: 'unknown' };
+}
+
+// POST /api/proxy/qiniu/image — 同步包装
+router.post('/qiniu/image', async (req, res) => {
+  const ctx = loadQiniuSettings(res);
+  if (!ctx) return;
+  const { model, prompt, quality, size, images, image } = req.body || {};
+  if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
+  if (!model) return res.status(400).json({ success: false, error: 'model 必填' });
+  const refs = Array.isArray(images) ? images.filter(Boolean) : [];
+  if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
+  try {
+    const r = await callQiniuImageUpstream({ apiKey: ctx.apiKey, baseUrl: ctx.baseUrl, model, prompt, quality, size, refs });
+    const text = await r.text();
+    let data; try { data = JSON.parse(text); } catch {
+      return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 300) });
+    }
+    if (!r.ok) {
+      return res.status(r.status).json({
+        success: false,
+        error: data?.error?.message || data?.message || `上游 HTTP ${r.status}`,
+      });
+    }
+    const norm = await normalizeQiniuResponse(data);
+    if (norm.kind === 'sync') {
+      return res.json({ success: true, data: { urls: norm.urls, raw: data, model, prompt } });
+    }
+    if (norm.kind === 'async') {
+      const url = await pollQiniuTask(norm.taskId, ctx.apiKey, ctx.baseUrl);
+      if (!url) return res.status(500).json({ success: false, error: '七牛云任务轮询超时/失败', taskId: norm.taskId });
+      return res.json({ success: true, data: { urls: [url], raw: data, taskId: norm.taskId, model, prompt } });
+    }
+    return res.status(500).json({ success: false, error: '上游未返回图片也未返 task_id: ' + JSON.stringify(data).slice(0, 300) });
+  } catch (e) {
+    console.error('proxy/qiniu/image 错误:', e);
+    res.status(500).json({ success: false, error: e.message || '请求失败' });
+  }
+});
+
+// POST /api/proxy/qiniu/image/submit — 异步提交
+router.post('/qiniu/image/submit', async (req, res) => {
+  const ctx = loadQiniuSettings(res);
+  if (!ctx) return;
+  const { model, prompt, quality, size, images, image } = req.body || {};
+  if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
+  if (!model) return res.status(400).json({ success: false, error: 'model 必填' });
+  const refs = Array.isArray(images) ? images.filter(Boolean) : [];
+  if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
+  try {
+    const r = await callQiniuImageUpstream({ apiKey: ctx.apiKey, baseUrl: ctx.baseUrl, model, prompt, quality, size, refs });
+    const text = await r.text();
+    let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+    if (!r.ok) {
+      return res.status(r.status).json({ success: false, error: data?.error?.message || data?.message || `上游 HTTP ${r.status}`, raw: data });
+    }
+    const norm = await normalizeQiniuResponse(data);
+    if (norm.kind === 'sync') {
+      return res.json({ success: true, data: { sync: true, status: 'completed', progress: '100%', urls: norm.urls, raw: data } });
+    }
+    if (norm.kind === 'async') {
+      // 记下 taskId 对应的 baseUrl，供 status 路由复用（避免用户切换端点后查不到）
+      rememberTaskKey(`qiniu:${norm.taskId}`, `${ctx.apiKey}|${ctx.baseUrl}`);
+      return res.json({ success: true, data: { sync: false, taskId: norm.taskId, status: 'pending', progress: '0%', raw: data } });
+    }
+    return res.status(500).json({ success: false, error: '未获取到 task_id 且无同步结果: ' + JSON.stringify(data).slice(0, 300) });
+  } catch (e) {
+    console.error('proxy/qiniu/image/submit 错误:', e);
+    res.status(500).json({ success: false, error: e.message || '请求失败' });
+  }
+});
+
+// GET /api/proxy/qiniu/image/status/:tid — 查询任务状态
+router.get('/qiniu/image/status/:tid', async (req, res) => {
+  const remembered = recallTaskKey(`qiniu:${req.params.tid}`);
+  let apiKey = '';
+  let baseUrl = '';
+  if (remembered && remembered.includes('|')) {
+    const idx = remembered.indexOf('|');
+    apiKey = remembered.slice(0, idx);
+    baseUrl = remembered.slice(idx + 1);
+  } else {
+    const ctx = loadQiniuSettings(res);
+    if (!ctx) return;
+    apiKey = ctx.apiKey;
+    baseUrl = ctx.baseUrl;
+  }
+  const tid = req.params.tid;
+  try {
+    const url = `${baseUrl}/v1/images/tasks/${encodeURIComponent(tid)}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    const text = await r.text();
+    let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+    if (!r.ok) {
+      return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}`, raw: data });
+    }
+    // 七牛云响应结构（与贞贞工坊不同）: { task_id, status: 'processing|succeed|failed', status_message, data:[{url}] }
+    const status = String(data?.status || '').toLowerCase();
+    const SUCCESS = ['succeed', 'success', 'completed', 'done'];
+    const FAILURE = ['failed', 'failure', 'error'];
+    if (SUCCESS.includes(status)) {
+      const arr = Array.isArray(data?.data) ? data.data : [];
+      const urls = [];
+      for (const it of arr) {
+        if (it?.b64_json) { const u = saveBase64Image(it.b64_json); if (u) urls.push(u); }
+        else if (it?.url) { const u = await saveRemoteImage(it.url); urls.push(u); }
+      }
+      return res.json({ success: true, data: { status: 'completed', progress: '100%', urls, raw: data } });
+    }
+    if (FAILURE.includes(status)) {
+      return res.json({ success: false, data: { status: 'failed', progress: '0%', error: data?.status_message || '任务失败' } });
+    }
+    res.json({ success: true, data: { status: status || 'pending', progress: data?.progress || '0%', raw: data } });
+  } catch (e) {
+    console.error('proxy/qiniu/image/status 错误:', e);
+    res.status(500).json({ success: false, error: e.message || '查询失败' });
+  }
+});
+
+// >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时本块整体保留即可)
+// ============================================================================
+// Grsai 中转站 — 图像生成 (v1.5.6)
+//   provider 与贞贞工坊 / 七牛云完全解耦：独立 grsaiApiKey + 可配置 grsaiBaseUrl。
+//   走 grsai 自有协议（非 OpenAI 兼容），所有请求统一打 POST {base}/v1/api/generate。
+//
+//   上游协议:
+//     POST {base}/v1/api/generate
+//       body: { model, prompt, images?[], aspectRatio?, imageSize?, replyType }
+//       replyType: 'json' | 'stream' | 'async' （后端代理默认 async）
+//     GET  {base}/v1/api/result?id={tid}
+//       响应顶层: { id, status:'running|succeeded|failed|violation', progress, results:[{url}], error }
+//
+//   认证: Authorization: Bearer ${grsaiApiKey}
+//
+//   暴露给前端的代理路由:
+//     POST /api/proxy/grsai/image/submit     body: {model, prompt, images?[], aspectRatio?, imageSize?}
+//     GET  /api/proxy/grsai/image/status/:tid
+//     POST /api/proxy/grsai/image            (同步包装: 提交 + 内部轮询)
+// ============================================================================
+
+function loadGrsaiSettings(res) {
+  const settings = loadRawSettings();
+  if (!settings) {
+    res.status(400).json({ success: false, error: '未找到 settings 文件，请先在【设置】中配置 API Key' });
+    return null;
+  }
+  const apiKey = String(settings.grsaiApiKey || '').trim();
+  if (!apiKey) {
+    res.status(400).json({ success: false, error: '未配置 Grsai API Key（请在【设置 → Grsai】中填写）' });
+    return null;
+  }
+  const baseUrl = String(settings.grsaiBaseUrl || config.GRSAI_BASE_URL || '').replace(/\/+$/, '');
+  return { apiKey, baseUrl };
+}
+
+async function refToGrsaiImage(ref) {
+  if (typeof ref !== 'string' || !ref) return null;
+  if (ref.startsWith('data:')) return ref;
+  if (ref.startsWith('http://') || ref.startsWith('https://')) return ref;
+  if (ref.startsWith('/files/')) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${config.PORT}${ref}`);
+      if (!r.ok) return null;
+      const ct = r.headers.get('content-type') || 'image/png';
+      const buf = Buffer.from(await r.arrayBuffer());
+      return `data:${ct};base64,${buf.toString('base64')}`;
+    } catch { return null; }
+  }
+  return null;
+}
+
+async function callGrsaiImageUpstream({ apiKey, baseUrl, model, prompt, aspectRatio, imageSize, refs, replyType }) {
+  const auth = `Bearer ${apiKey}`;
+  const url = `${baseUrl}/v1/api/generate`;
+  const body = { model, prompt, replyType: replyType || 'async' };
+  if (typeof aspectRatio === 'string' && aspectRatio) body.aspectRatio = aspectRatio;
+  if (typeof imageSize === 'string' && imageSize) body.imageSize = imageSize;
+  if (Array.isArray(refs) && refs.length > 0) {
+    const images = [];
+    for (const ref of refs) {
+      const conv = await refToGrsaiImage(ref);
+      if (conv) images.push(conv);
+    }
+    if (images.length) body.images = images;
+  }
+  console.log('[upstream] Grsai → /v1/api/generate model:', model, 'aspectRatio:', body.aspectRatio || '-', 'imageSize:', body.imageSize || '-', 'refs:', refs?.length || 0, 'replyType:', body.replyType);
+  return await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: auth },
+    body: JSON.stringify(body),
+  });
+}
+
+async function pollGrsaiTask(taskId, apiKey, baseUrl, maxRetries = 1800, interval = 2000) {
+  const url = `${baseUrl}/v1/api/result?id=${encodeURIComponent(taskId)}`;
+  for (let i = 0; i < maxRetries; i++) {
+    await new Promise(r => setTimeout(r, interval));
+    try {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+      const text = await r.text();
+      let data; try { data = JSON.parse(text); } catch { continue; }
+      if (!r.ok) continue;
+      const status = String(data?.status || '').toLowerCase();
+      if (['succeeded', 'success', 'completed', 'done'].includes(status)) {
+        const arr = Array.isArray(data?.results) ? data.results : [];
+        const it = arr[0];
+        if (it?.url) return await saveRemoteImage(it.url);
+        if (it?.b64_json) return saveBase64Image(it.b64_json);
+      }
+      if (['failed', 'failure', 'error', 'violation'].includes(status)) {
+        console.error('[grsai/poll] 任务失败:', data?.error || status);
+        return null;
+      }
+    } catch (e) {
+      console.warn('[grsai/poll] 轮询异常:', e.message);
+    }
+  }
+  return null;
+}
+
+async function normalizeGrsaiResponse(data) {
+  const status = String(data?.status || '').toLowerCase();
+  const arr = Array.isArray(data?.results) ? data.results : [];
+  if (['succeeded', 'success', 'completed', 'done'].includes(status) && arr.length) {
+    const urls = [];
+    for (const it of arr) {
+      if (it?.url) { const u = await saveRemoteImage(it.url); urls.push(u); }
+      else if (it?.b64_json) { const u = saveBase64Image(it.b64_json); if (u) urls.push(u); }
+    }
+    return { kind: 'sync', urls };
+  }
+  if (['failed', 'failure', 'error', 'violation'].includes(status)) {
+    return { kind: 'failed', error: data?.error || `任务${status}` };
+  }
+  if (data?.id) return { kind: 'async', taskId: data.id };
+  return { kind: 'unknown' };
+}
+
+router.post('/grsai/image', async (req, res) => {
+  const ctx = loadGrsaiSettings(res);
+  if (!ctx) return;
+  const { model, prompt, aspectRatio, imageSize, images, image } = req.body || {};
+  if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
+  if (!model) return res.status(400).json({ success: false, error: 'model 必填' });
+  const refs = Array.isArray(images) ? images.filter(Boolean) : [];
+  if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
+  try {
+    const r = await callGrsaiImageUpstream({ apiKey: ctx.apiKey, baseUrl: ctx.baseUrl, model, prompt, aspectRatio, imageSize, refs, replyType: 'async' });
+    const text = await r.text();
+    let data; try { data = JSON.parse(text); } catch {
+      return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 300) });
+    }
+    if (!r.ok) {
+      return res.status(r.status).json({ success: false, error: data?.error || `上游 HTTP ${r.status}` });
+    }
+    const norm = await normalizeGrsaiResponse(data);
+    if (norm.kind === 'sync') return res.json({ success: true, data: { urls: norm.urls, raw: data, model, prompt } });
+    if (norm.kind === 'failed') return res.status(400).json({ success: false, error: norm.error, raw: data });
+    if (norm.kind === 'async') {
+      const url = await pollGrsaiTask(norm.taskId, ctx.apiKey, ctx.baseUrl);
+      if (!url) return res.status(500).json({ success: false, error: 'Grsai 任务轮询超时/失败', taskId: norm.taskId });
+      return res.json({ success: true, data: { urls: [url], raw: data, taskId: norm.taskId, model, prompt } });
+    }
+    return res.status(500).json({ success: false, error: '上游未返回图片也未返 task_id: ' + JSON.stringify(data).slice(0, 300) });
+  } catch (e) {
+    console.error('proxy/grsai/image 错误:', e);
+    res.status(500).json({ success: false, error: e.message || '请求失败' });
+  }
+});
+
+router.post('/grsai/image/submit', async (req, res) => {
+  const ctx = loadGrsaiSettings(res);
+  if (!ctx) return;
+  const { model, prompt, aspectRatio, imageSize, images, image } = req.body || {};
+  if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
+  if (!model) return res.status(400).json({ success: false, error: 'model 必填' });
+  const refs = Array.isArray(images) ? images.filter(Boolean) : [];
+  if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
+  try {
+    const r = await callGrsaiImageUpstream({ apiKey: ctx.apiKey, baseUrl: ctx.baseUrl, model, prompt, aspectRatio, imageSize, refs, replyType: 'async' });
+    const text = await r.text();
+    let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+    if (!r.ok) {
+      return res.status(r.status).json({ success: false, error: data?.error || `上游 HTTP ${r.status}`, raw: data });
+    }
+    const norm = await normalizeGrsaiResponse(data);
+    if (norm.kind === 'sync') return res.json({ success: true, data: { sync: true, status: 'completed', progress: '100%', urls: norm.urls, raw: data } });
+    if (norm.kind === 'failed') return res.status(400).json({ success: false, error: norm.error, raw: data });
+    if (norm.kind === 'async') {
+      rememberTaskKey(`grsai:${norm.taskId}`, `${ctx.apiKey}|${ctx.baseUrl}`);
+      return res.json({ success: true, data: { sync: false, taskId: norm.taskId, status: 'pending', progress: '0%', raw: data } });
+    }
+    return res.status(500).json({ success: false, error: '未获取到 task_id 且无同步结果: ' + JSON.stringify(data).slice(0, 300) });
+  } catch (e) {
+    console.error('proxy/grsai/image/submit 错误:', e);
+    res.status(500).json({ success: false, error: e.message || '请求失败' });
+  }
+});
+
+router.get('/grsai/image/status/:tid', async (req, res) => {
+  const remembered = recallTaskKey(`grsai:${req.params.tid}`);
+  let apiKey = '';
+  let baseUrl = '';
+  if (remembered && remembered.includes('|')) {
+    const idx = remembered.indexOf('|');
+    apiKey = remembered.slice(0, idx);
+    baseUrl = remembered.slice(idx + 1);
+  } else {
+    const ctx = loadGrsaiSettings(res);
+    if (!ctx) return;
+    apiKey = ctx.apiKey;
+    baseUrl = ctx.baseUrl;
+  }
+  const tid = req.params.tid;
+  try {
+    const url = `${baseUrl}/v1/api/result?id=${encodeURIComponent(tid)}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    const text = await r.text();
+    let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
+    if (!r.ok) {
+      return res.status(r.status).json({ success: false, error: data?.error || `上游 HTTP ${r.status}`, raw: data });
+    }
+    const status = String(data?.status || '').toLowerCase();
+    const progress = typeof data?.progress === 'number' ? `${data.progress}%` : (data?.progress || '0%');
+    const SUCCESS = ['succeeded', 'success', 'completed', 'done'];
+    const FAILURE = ['failed', 'failure', 'error', 'violation'];
+    if (SUCCESS.includes(status)) {
+      const arr = Array.isArray(data?.results) ? data.results : [];
+      const urls = [];
+      for (const it of arr) {
+        if (it?.url) { const u = await saveRemoteImage(it.url); urls.push(u); }
+        else if (it?.b64_json) { const u = saveBase64Image(it.b64_json); if (u) urls.push(u); }
+      }
+      return res.json({ success: true, data: { status: 'completed', progress: '100%', urls, raw: data } });
+    }
+    if (FAILURE.includes(status)) {
+      return res.json({ success: false, data: { status: 'failed', progress, error: data?.error || `任务${status}` } });
+    }
+    res.json({ success: true, data: { status: status || 'pending', progress, raw: data } });
+  } catch (e) {
+    console.error('proxy/grsai/image/status 错误:', e);
+    res.status(500).json({ success: false, error: e.message || '查询失败' });
+  }
+});
+// <<< CUSTOM-PROVIDER-INTEGRATIONS-END
+
 module.exports = router;

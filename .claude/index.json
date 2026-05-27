@@ -1,0 +1,228 @@
+{
+  "schema": "t8-claude-index@1",
+  "generatedAt": "2026-05-27T18:35:23+08:00",
+  "project": {
+    "name": "T8-penguin-canvas",
+    "displayName": "贞贞的无限画布（企鹅共创版）",
+    "version": "1.5.3",
+    "description": "AI 节点画布工作流工具 · Web + Electron 桌面端",
+    "repository": "https://github.com/T8mars/T8-penguin-canvas",
+    "license": "MIT",
+    "techStack": [
+      "React 19",
+      "TypeScript 5.7",
+      "Vite 6",
+      "@xyflow/react 12",
+      "zustand 5",
+      "Tailwind 3",
+      "Node + Express 4",
+      "sharp",
+      "multer",
+      "Electron 33",
+      "electron-builder 25",
+      "bytenode"
+    ]
+  },
+  "ports": {
+    "frontendDev": 11422,
+    "backend": 18766
+  },
+  "modules": [
+    {
+      "name": "src",
+      "path": "src/",
+      "role": "Frontend SPA",
+      "entry": "src/main.tsx",
+      "rootComponent": "src/App.tsx",
+      "canvasMain": "src/components/Canvas.tsx",
+      "fileCount": "100+",
+      "categories": {
+        "components": "src/components/ + src/components/nodes/ (40+ 节点组件)",
+        "stores": "src/stores/ (7 套 zustand: canvas/runBus/logs/theme/apiKeys/dragMaterial/groupBus)",
+        "services": "src/services/ (api/generation/imageOps)",
+        "config": "src/config/ (nodeRegistry/portTypes/canvasTemplates)",
+        "providers": "src/providers/ (RHToolsProvider + models)",
+        "hooks": "src/hooks/ (useCanvasHistory/useRunTrigger/useMaterialDragSource/useMaterialDropTarget)",
+        "theme": "src/theme/ (types/defaultTemplates/applyTheme/validateTheme)",
+        "styles": "src/styles/ (index/theme-core/theme-pixel/theme-op .css)",
+        "utils": "src/utils/ (topologicalSort/nodePlacement/textSplit/materialSet/pinyinMatch 等)",
+        "types": "src/types/canvas.ts"
+      },
+      "docs": "src/CLAUDE.md"
+    },
+    {
+      "name": "backend",
+      "path": "backend/",
+      "role": "Node Express API",
+      "entry": "backend/src/server.js",
+      "config": "backend/src/config.js",
+      "fileCount": 13,
+      "routes": [
+        "/api/status",
+        "/api/canvas/* (CRUD + auto-save)",
+        "/api/settings/* + /rh-tool-categories/* + /rh-tool-apps/*",
+        "/api/files/* (upload / upload-base64 / save-to-disk)",
+        "/api/image/* (resize/upscale/crop/grid-crop/combine/compare/remove-bg)",
+        "/api/proxy/image/* + /image/fal/* + /mj/* (Midjourney)",
+        "/api/proxy/llm",
+        "/api/proxy/video/* + /video/fal/*",
+        "/api/proxy/seedance/*",
+        "/api/proxy/audio/* (Suno) + /audio/upload",
+        "/api/proxy/runninghub/* (submit / query / upload-asset / app-info)",
+        "/api/resources/* (categories / items / sets / file / thumb)",
+        "/api/themes/templates/* (import/export/edit/delete)",
+        "/api/recharge/* + /pay/* (算力充值 VPS)"
+      ],
+      "dataFiles": [
+        "data/canvas_list.json",
+        "data/canvas_<id>.json (per canvas)",
+        "data/settings.json",
+        "data/rh_tool_categories.json",
+        "data/rh_tool_apps.json",
+        "data/recharge.json",
+        "data/.recharge_device_id",
+        "data/recharge.private.json (.gitignore)"
+      ],
+      "docs": "backend/CLAUDE.md"
+    },
+    {
+      "name": "electron",
+      "path": "electron/",
+      "role": "Desktop wrapper + encryption",
+      "entry": "electron/main.cjs",
+      "fileCount": 5,
+      "files": [
+        "main.cjs (主进程入口 + 后端拉起 + IPC)",
+        "loader.cjs (.t8c 解密 + bytenode .jsc loader 复刻 + MODULE_NOT_FOUND 兜底)",
+        "encrypt.cjs (bytenode + T8ENC1)",
+        "preload.cjs (IPC 桥接白名单)",
+        "_post_build.cjs (11 .t8c / 前端 / 主题音乐 / 充值密钥安全闸校验)"
+      ],
+      "envVars": [
+        "T8PC_PACKAGED",
+        "T8PC_USER_DATA",
+        "T8PC_FRONTEND_DIST",
+        "T8PC_RES"
+      ],
+      "docs": "electron/CLAUDE.md"
+    }
+  ],
+  "nodes": {
+    "totalRegistered": 39,
+    "visibleCount": 21,
+    "hiddenCount": 13,
+    "categories": ["input", "core", "rh", "special", "utility", "auxiliary", "toolbox"],
+    "executableTypes": [
+      "image", "edit", "multi-angle-3d", "panorama-720", "penguin-portrait",
+      "video", "seedance", "audio", "llm",
+      "runninghub", "runninghub-wallet", "rh-tools",
+      "resize", "upscale", "grid-crop", "remove-bg", "combine", "frame-extractor", "frame-pair"
+    ],
+    "registry": "src/config/nodeRegistry.ts",
+    "portTypes": "src/config/portTypes.ts",
+    "lockFile": "features.json"
+  },
+  "themes": {
+    "system": "t8-theme-template v2",
+    "styles": ["tech", "pixel", "op"],
+    "modes": ["dark", "light"],
+    "defaultStyle": "pixel",
+    "defaultMode": "light",
+    "tokenFiles": [
+      "src/theme/types.ts",
+      "src/theme/defaultTemplates.ts",
+      "src/theme/applyTheme.ts",
+      "src/theme/validateTheme.ts"
+    ],
+    "designGuide": "docs/theme-design-guide.md"
+  },
+  "scripts": {
+    "dev": "concurrently backend + vite (port 18766 + 11422)",
+    "build": "tsc -b && vite build → dist/",
+    "lint": "eslint . --ext ts,tsx --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "electron:dev": "cross-env T8PC_PACKAGED=0 electron electron/main.cjs",
+    "encrypt": "cross-env ELECTRON_RUN_AS_NODE=1 electron electron/encrypt.cjs → build/backend-enc/*.t8c (11 files)",
+    "prepack:enc": "build + encrypt",
+    "dist:dir": "prepack:enc + electron-builder --win --x64 --dir + _post_build",
+    "dist": "prepack:enc + electron-builder --win --x64 + _post_build → dist_electron/T8-PenguinCanvas-Setup-<ver>.exe"
+  },
+  "coverage": {
+    "totalFilesEstimated": 130,
+    "filesScanned": 30,
+    "scanRatioPct": 23,
+    "scannedKeyEntries": [
+      "package.json (root + backend)",
+      "vite.config.ts",
+      "tsconfig.json",
+      "README.md",
+      "features.json (partial 173/515 lines)",
+      "src/main.tsx",
+      "src/App.tsx",
+      "src/components/Canvas.tsx (file list only)",
+      "src/config/nodeRegistry.ts",
+      "src/config/portTypes.ts",
+      "src/types/canvas.ts",
+      "src/services/api.ts (partial)",
+      "src/providers/models.ts (partial)",
+      "src/stores/runBus.ts (partial)",
+      "src/stores/canvas.ts (partial)",
+      "src/theme/types.ts (partial)",
+      "backend/src/server.js",
+      "backend/src/config.js",
+      "backend/src/routes/proxy.js (header + route map)",
+      "backend/src/routes/canvas.js (partial)",
+      "backend/src/routes/settings.js (partial)",
+      "backend/src/routes/imageOps.js (partial)",
+      "backend/src/routes/recharge.js (partial)",
+      "electron/main.cjs (partial)"
+    ],
+    "fullyEnumeratedDirs": [
+      "src/**/*.{ts,tsx}",
+      "backend/**/*.js",
+      "electron/**/*.{cjs,js}"
+    ],
+    "moduleCoverage": {
+      "src": { "structureKnown": true, "deepScanned": "partial", "gaps": ["Canvas.tsx 内部细节", "节点组件单个内部逻辑", "stores 中除 runBus/canvas 外的实现"] },
+      "backend": { "structureKnown": true, "deepScanned": "partial", "gaps": ["proxy.js ~2200 行细节", "resources.js / themes.js 内部逻辑"] },
+      "electron": { "structureKnown": true, "deepScanned": "partial", "gaps": ["loader.cjs 加密细节", "_post_build.cjs 充值密钥扫描实现"] }
+    }
+  },
+  "ignored": {
+    "rules": [
+      ".gitignore: node_modules, .git, dist, build, dist_electron, data, input, output, thumbnails, *.log, _*.{ps1,txt,log}, *.tsbuildinfo, .env*, /skill.md, /SS_tools/"
+    ],
+    "skipped": [
+      "node_modules/**",
+      ".git/**",
+      "data/**",
+      "input/**",
+      "output/**",
+      "thumbnails/**",
+      "build/**",
+      "dist*/**",
+      "src/assets/**.{mp3,png,jpg}",
+      "package-lock.json (binary-like, very large)"
+    ]
+  },
+  "truncated": false,
+  "nextSteps": [
+    "如需深度补扫，建议优先: src/components/Canvas.tsx (~2000 行核心交互), backend/src/routes/proxy.js (~2200 行 30+ 代理路由), electron/loader.cjs (T8ENC1 加密细节)",
+    "如需节点级文档，可对 src/components/nodes/ 下 40+ 个节点逐一生成 sub-CLAUDE.md",
+    "如需测试，建议从 src/utils/{topologicalSort,nodePlacement,textSplit}.ts 这类纯函数开始补单测",
+    "features.json 有 515 行，本次仅扫描了前 173 行 phase0-43；如需历史 phase 完整索引，请补扫 174-515 行"
+  ],
+  "documents": {
+    "root": "CLAUDE.md",
+    "modules": [
+      "src/CLAUDE.md",
+      "backend/CLAUDE.md",
+      "electron/CLAUDE.md"
+    ],
+    "externalRefs": [
+      "README.md",
+      "features.json",
+      "docs/theme-design-guide.md"
+    ]
+  }
+}

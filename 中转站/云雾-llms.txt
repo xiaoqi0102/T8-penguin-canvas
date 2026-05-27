@@ -1,0 +1,504 @@
+# 云雾api
+
+## Docs
+- 根目录 [引言](https://g6uh59gmju.apifox.cn/doc-8859041.md): 
+- 根目录 [在线调试说明](https://g6uh59gmju.apifox.cn/doc-8859042.md): 
+- 根目录 [发出请求](https://g6uh59gmju.apifox.cn/doc-8859043.md): 
+- 根目录 > 中转站基本介绍 [API 快速开始指南](https://g6uh59gmju.apifox.cn/doc-8859044.md): 
+- 根目录 > 中转站基本介绍 [联系客服](https://g6uh59gmju.apifox.cn/doc-8859045.md): 
+- 根目录 > 中转站基本介绍 [分组详细表格](https://g6uh59gmju.apifox.cn/doc-8859046.md): 
+- 根目录 > 中转站基本介绍 [分组的特殊性及价格差异](https://g6uh59gmju.apifox.cn/doc-8859047.md): 
+- 根目录 > 中转站基本介绍 [如何新建指定分组的令牌](https://g6uh59gmju.apifox.cn/doc-8859048.md): 
+- 根目录 > 中转站基本介绍 [代理接口调用地址](https://g6uh59gmju.apifox.cn/doc-8859049.md): 
+- 根目录 > 中转站基本介绍 [API Key 额度查询服务](https://g6uh59gmju.apifox.cn/doc-8859050.md): 
+- 根目录 > 中转站基本介绍 [免费AI聊天项目导航](https://g6uh59gmju.apifox.cn/doc-8859051.md): 
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [聊天完成对象](https://g6uh59gmju.apifox.cn/doc-8859052.md): 
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [聊天完成块对象](https://g6uh59gmju.apifox.cn/doc-8859053.md): 
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT自动补全（Completions） [完成对象](https://g6uh59gmju.apifox.cn/doc-8859054.md): 
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT嵌入（Embeddings） [嵌入对象](https://g6uh59gmju.apifox.cn/doc-8859055.md): 
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [聊天完成对象](https://g6uh59gmju.apifox.cn/doc-8859056.md): 
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [聊天完成块对象](https://g6uh59gmju.apifox.cn/doc-8859057.md): 
+- 根目录 > 聊天(Responses) [Responses API与Chat API对比](https://g6uh59gmju.apifox.cn/doc-8859058.md): 
+- 根目录 > 绘画模型 [README](https://g6uh59gmju.apifox.cn/doc-8859059.md): 
+- 根目录 > 绘画模型 [图像对象](https://g6uh59gmju.apifox.cn/doc-8859060.md): 
+- 根目录 > 绘画模型 > FLUX 系列 > Replicate 官方格式 [Flux 分辨率](https://g6uh59gmju.apifox.cn/doc-8859061.md): 
+- 根目录 > 绘画模型 > FLUX 系列 > Replicate 官方格式 [接入教程 ](https://g6uh59gmju.apifox.cn/doc-8859062.md): 
+- 根目录 > 绘画模型 > Fal.ai平台 [状态码](https://g6uh59gmju.apifox.cn/doc-8859063.md): 
+- 根目录 > 绘画模型 > 腾讯AIGC生图 [状态码](https://g6uh59gmju.apifox.cn/doc-8859064.md): 
+- 根目录 > 视频模型 > veo 视频生成 > 视频统一格式 [状态码](https://g6uh59gmju.apifox.cn/doc-8859065.md): 
+- 根目录 > 视频模型 > luma 视频生成 > 官方API格式 [状态码](https://g6uh59gmju.apifox.cn/doc-8859066.md): 
+- 根目录 > 视频模型 > Kling 快手可灵 [Callback协议](https://g6uh59gmju.apifox.cn/doc-8859067.md): 
+- 根目录 > 视频模型 > Runway 视频生成 [状态码](https://g6uh59gmju.apifox.cn/doc-8859068.md): 
+- 根目录 > 视频模型 > 即梦 视频生成 [状态码](https://g6uh59gmju.apifox.cn/doc-8859069.md): 
+- 根目录 > 视频模型 > 即梦 视频生成 > 视频统一格式 [状态码](https://g6uh59gmju.apifox.cn/doc-8859070.md): 
+- 根目录 > 视频模型 > 即梦 视频生成 > 官方格式 [添加中](https://g6uh59gmju.apifox.cn/doc-8859071.md): 
+- 根目录 > 视频模型 > 海螺 视频生成 [状态码](https://g6uh59gmju.apifox.cn/doc-8859072.md): 
+- 根目录 > 视频模型 > grok 视频生成 > 视频统一格式 [状态码](https://g6uh59gmju.apifox.cn/doc-8859073.md): 
+- 根目录 > 视频模型 > TC-Vidu视频生成 > 视频统一格式 [状态码](https://g6uh59gmju.apifox.cn/doc-8859074.md): 
+- 根目录 > 视频模型 > 腾讯AIGC视频生成 [状态码](https://g6uh59gmju.apifox.cn/doc-8859075.md): 
+- 根目录 > GPTs 相关 [简介](https://g6uh59gmju.apifox.cn/doc-8859076.md): 
+- 根目录 > 文生音乐 Suno [说明](https://g6uh59gmju.apifox.cn/doc-8859077.md): 
+- 根目录 > 文生音乐 Suno [参数](https://g6uh59gmju.apifox.cn/doc-8859078.md): 
+- 根目录 > Python配置方式 [python 使用 语音转文本](https://g6uh59gmju.apifox.cn/doc-8859079.md): 
+- 根目录 > Python配置方式 [python 使用文本转语音](https://g6uh59gmju.apifox.cn/doc-8859080.md): 
+- 根目录 > Python配置方式 [python 使用Embeddings 向量化](https://g6uh59gmju.apifox.cn/doc-8859081.md): 
+- 根目录 > Python配置方式 [python 调用DALL·E](https://g6uh59gmju.apifox.cn/doc-8859082.md): 
+- 根目录 > Python配置方式 [python简单调用 openai function-calling demo](https://g6uh59gmju.apifox.cn/doc-8859083.md): 
+- 根目录 > Python配置方式 [python 简单langchain 调用openai demo](https://g6uh59gmju.apifox.cn/doc-8859084.md): 
+- 根目录 > Python配置方式 [python llama_index 配置](https://g6uh59gmju.apifox.cn/doc-8859085.md): 
+- 根目录 > Python配置方式 [Python基础对话](https://g6uh59gmju.apifox.cn/doc-8859086.md): 
+- 根目录 > Python配置方式 [Python使用gpt-4o识别图片-本地图片](https://g6uh59gmju.apifox.cn/doc-8859087.md): 
+- 根目录 > Python配置方式 [Python使用gpt-4o识别图片](https://g6uh59gmju.apifox.cn/doc-8859088.md): 
+- 根目录 > Python配置方式 [Python使用Claude识别图片](https://g6uh59gmju.apifox.cn/doc-8859089.md): 
+- 根目录 > Python配置方式 [python 库流式输出](https://g6uh59gmju.apifox.cn/doc-8859090.md): 
+- 根目录 > Python配置方式 [gpt realtime模型调用](https://g6uh59gmju.apifox.cn/doc-8859091.md): 
+- 根目录 > Python配置方式 [python request 请求 流式输出demo](https://g6uh59gmju.apifox.cn/doc-8859092.md): 
+- 根目录 > Python配置方式 [python 使用gpt-image-1 创建编辑图片](https://g6uh59gmju.apifox.cn/doc-8859093.md): 
+- 根目录 > Python配置方式 [python openai官方库（使用AutoGPT，langchain等）](https://g6uh59gmju.apifox.cn/doc-8859094.md): 
+- 根目录 > Python配置方式 [python 连续对话](https://g6uh59gmju.apifox.cn/doc-8859095.md): 
+- 根目录 > 可灵 Kling 平台 [Callback协议](https://g6uh59gmju.apifox.cn/doc-8859096.md): 
+- 根目录 > Replicate 聚合平台 [接入教程  ](https://g6uh59gmju.apifox.cn/doc-8859097.md): 
+- 根目录 > Replicate 聚合平台 [Flux 分辨率 ](https://g6uh59gmju.apifox.cn/doc-8859098.md): 
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [状态码](https://g6uh59gmju.apifox.cn/doc-8859099.md): 
+- 根目录 > Fal-ai 聚合平台 [接入教程](https://g6uh59gmju.apifox.cn/doc-8859100.md): 
+- 根目录 > php配置方式 [php使用图片编辑demo](https://g6uh59gmju.apifox.cn/doc-8859101.md): 
+- 根目录 > nodejs 配置方式  [nodejs 基础对话](https://g6uh59gmju.apifox.cn/doc-8859102.md): 
+- 根目录 > 各种插件/软件使用教程 [Codex 配置教程](https://g6uh59gmju.apifox.cn/doc-8859103.md): 
+- 根目录 > 各种插件/软件使用教程 [OpenClaw  Clawdbot 自定义中转站配置教程](https://g6uh59gmju.apifox.cn/doc-8859104.md): 
+- 根目录 > 各种插件/软件使用教程 [N8N 工作流使用中转API 教程](https://g6uh59gmju.apifox.cn/doc-8859105.md): 
+- 根目录 > 各种插件/软件使用教程 [opencode 配置教程](https://g6uh59gmju.apifox.cn/doc-8859106.md): 
+- 根目录 > 各种插件/软件使用教程 [Gemini CLI 中转站配置使用教程](https://g6uh59gmju.apifox.cn/doc-8859107.md): 
+- 根目录 > 各种插件/软件使用教程 [Claude Code 安装使用教程](https://g6uh59gmju.apifox.cn/doc-8859108.md): 
+- 根目录 > 各种插件/软件使用教程 [CherryStudio调用cluade MCP](https://g6uh59gmju.apifox.cn/doc-8859109.md): 
+- 根目录 > 各种插件/软件使用教程 [Cherry Studio配置教程](https://g6uh59gmju.apifox.cn/doc-8859110.md): 
+- 根目录 > 各种插件/软件使用教程 [Cherry Studio配置 banana pro 4K和分辨率教程](https://g6uh59gmju.apifox.cn/doc-8859111.md): 
+- 根目录 > 各种插件/软件使用教程 [CherryStudio配置o4推理级别](https://g6uh59gmju.apifox.cn/doc-8859112.md): 
+- 根目录 > 各种插件/软件使用教程 [扣子工作流简单配置从输入到获取url](https://g6uh59gmju.apifox.cn/doc-8859113.md): 
+- 根目录 > 各种插件/软件使用教程 [dify添加模型](https://g6uh59gmju.apifox.cn/doc-8859114.md): 
+- 根目录 > 各种插件/软件使用教程 [cline 配置教程](https://g6uh59gmju.apifox.cn/doc-8859115.md): 
+- 根目录 > 各种插件/软件使用教程 [aider 配置教程](https://g6uh59gmju.apifox.cn/doc-8859116.md): 
+- 根目录 > 各种插件/软件使用教程 [Cursor 配置教程](https://g6uh59gmju.apifox.cn/doc-8859117.md): 
+- 根目录 > 各种插件/软件使用教程 [lobechat 设置教程](https://g6uh59gmju.apifox.cn/doc-8859118.md): 
+- 根目录 > 各种插件/软件使用教程 [ChatBox(推荐使用)](https://g6uh59gmju.apifox.cn/doc-8859119.md): 
+- 根目录 > 各种插件/软件使用教程 [开源gpt_academic](https://g6uh59gmju.apifox.cn/doc-8859120.md): 
+- 根目录 > 各种插件/软件使用教程 [nextchat 设置教程](https://g6uh59gmju.apifox.cn/doc-8859121.md): 
+- 根目录 > 各种插件/软件使用教程 [zotero gpt 配置方法](https://g6uh59gmju.apifox.cn/doc-8859122.md): 
+- 根目录 > 各种插件/软件使用教程 [CLAUDE DEV 配置教程](https://g6uh59gmju.apifox.cn/doc-8859123.md): 
+- 根目录 > 各种插件/软件使用教程 [沉浸式翻译 设置gpt翻译](https://g6uh59gmju.apifox.cn/doc-8859124.md): 
+- 根目录 > 各种插件/软件使用教程 [浏览器插件ChatGPT Sidebar](https://g6uh59gmju.apifox.cn/doc-8859125.md): 
+- 根目录 > 各种插件/软件使用教程 [chatgpt-on-wechat 配置教程](https://g6uh59gmju.apifox.cn/doc-8859126.md): 
+- 根目录 > 各种插件/软件使用教程 [chatgpt GPT Academic 学术优化配置gpt教程](https://g6uh59gmju.apifox.cn/doc-8859127.md): 
+- 根目录 > 各种插件/软件使用教程 [RikkaHub 配置教程](https://g6uh59gmju.apifox.cn/doc-8859128.md): 
+- 根目录 > 各种插件/软件使用教程 [coze 工作流使用中转API 教程 ](https://g6uh59gmju.apifox.cn/doc-8859129.md): 
+- 根目录 > 各种插件/软件使用教程 [n8n 工作流获取本地图片生成视频例子](https://g6uh59gmju.apifox.cn/doc-8859130.md): 
+- 根目录 > 各种插件/软件使用教程 [OpenClaw 最新版本 自定义中转站配置教程](https://g6uh59gmju.apifox.cn/doc-8859131.md): 
+- 根目录 > 各种插件/软件使用教程 [OpenClaw配合CC switch自定义中转站配置教程](https://g6uh59gmju.apifox.cn/doc-8859132.md): 
+- 根目录 > 帮助中心 [AI返回字段: 思考相关](https://g6uh59gmju.apifox.cn/doc-8859133.md): 
+- 根目录 > 帮助中心 [HTTP状态码及其含义](https://g6uh59gmju.apifox.cn/doc-8859134.md): 
+- 根目录 > 帮助中心 [自建图床API](https://g6uh59gmju.apifox.cn/doc-8859135.md): 
+
+## API Docs
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [GPT-4o-audio](https://g6uh59gmju.apifox.cn/api-464597497.md): 官方文档：https://platform.openai.com/docs/api-reference/chat/create
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [音频转文字 whisper-1](https://g6uh59gmju.apifox.cn/api-464597498.md): 官方文档：https://platform.openai.com/docs/guides/speech-to-text
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [音频转文字 gpt-4o-transcribe](https://g6uh59gmju.apifox.cn/api-464597499.md): 官方文档：https://platform.openai.com/docs/guides/speech-to-text
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [创建语音 gpt-4o-mini-tts](https://g6uh59gmju.apifox.cn/api-464597500.md): 官方文档：https://platform.openai.com/docs/guides/text-to-speech
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT音频（Audio） [创建翻译 (不支持)](https://g6uh59gmju.apifox.cn/api-464597501.md): 
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天补全 （流式）](https://g6uh59gmju.apifox.cn/api-464597502.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天补全 （非流） ](https://g6uh59gmju.apifox.cn/api-464597503.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天识图 （流式）](https://g6uh59gmju.apifox.cn/api-464597504.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天识图 （流式） best64](https://g6uh59gmju.apifox.cn/api-464597505.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天识图 （非流） ](https://g6uh59gmju.apifox.cn/api-464597506.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天创作图 （非流）](https://g6uh59gmju.apifox.cn/api-464597507.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [官方Function calling调用](https://g6uh59gmju.apifox.cn/api-464597508.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [官方N测试](https://g6uh59gmju.apifox.cn/api-464597509.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [列出模型](https://g6uh59gmju.apifox.cn/api-464597510.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天函数调用](https://g6uh59gmju.apifox.cn/api-464597511.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建结构化输出](https://g6uh59gmju.apifox.cn/api-464597512.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [控制推理模型努力程度](https://g6uh59gmju.apifox.cn/api-464597513.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天补全 qwen-mt-turbo](https://g6uh59gmju.apifox.cn/api-464597514.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [创建聊天补全  deepseek v3.1思考程度 (流式）](https://g6uh59gmju.apifox.cn/api-464597515.md): 
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT聊天（Chat） [deepseek-ocr 识别](https://g6uh59gmju.apifox.cn/api-464597516.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT自动补全（Completions） [创建完成](https://g6uh59gmju.apifox.cn/api-464597517.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > ChatGPT嵌入（Embeddings） [创建嵌入](https://g6uh59gmju.apifox.cn/api-464597518.md): 获取给定输入的矢量表示，机器学习模型和算法可以轻松使用该表示。
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > Web 搜索 [web搜索](https://g6uh59gmju.apifox.cn/api-464597519.md): 参考文档：https://platform.openai.com/docs/api-reference/chat/create
+- 根目录 > 聊天(Chat) > ChatGpt 接口 > Web 搜索 [deepseek-联网搜索](https://g6uh59gmju.apifox.cn/api-464597520.md): 
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [创建格式化输出 ](https://g6uh59gmju.apifox.cn/api-464597531.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 > 原生格式 [联网搜索](https://g6uh59gmju.apifox.cn/api-464597532.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [创建聊天补全 （流式）](https://g6uh59gmju.apifox.cn/api-464597521.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [创建思考聊天 ](https://g6uh59gmju.apifox.cn/api-464597522.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [创建聊天补全 （流式） [原生格式]](https://g6uh59gmju.apifox.cn/api-464597523.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [创建函数调用 （流式） [原生格式] ](https://g6uh59gmju.apifox.cn/api-464597524.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [创建思考聊天  [原生格式]  ](https://g6uh59gmju.apifox.cn/api-464597525.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [PDF支持  [原生格式]   ](https://g6uh59gmju.apifox.cn/api-464597526.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [PDF支持  [原生格式]    base64格式](https://g6uh59gmju.apifox.cn/api-464597527.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [创建聊天补全 （非流） ](https://g6uh59gmju.apifox.cn/api-464597528.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [创建聊天识图 （流式）](https://g6uh59gmju.apifox.cn/api-464597529.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > Anthropic Claude 接口 [创建聊天识图 （非流）](https://g6uh59gmju.apifox.cn/api-464597530.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本生成](https://g6uh59gmju.apifox.cn/api-464597533.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本生成-流 ](https://g6uh59gmju.apifox.cn/api-464597534.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本生成+思考-流 ](https://g6uh59gmju.apifox.cn/api-464597535.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片生成](https://g6uh59gmju.apifox.cn/api-464597536.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片生成 gemini-2.5-flash-image](https://g6uh59gmju.apifox.cn/api-464597537.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片生成 gemini-2.5-flash-image 控制宽高比](https://g6uh59gmju.apifox.cn/api-464597538.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片生成 gemini-3-pro-image-preview 控制宽高比 +清晰度](https://g6uh59gmju.apifox.cn/api-464597539.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片编辑 ](https://g6uh59gmju.apifox.cn/api-464597540.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [图片理解](https://g6uh59gmju.apifox.cn/api-464597541.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-understanding?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [格式化输出](https://g6uh59gmju.apifox.cn/api-464597542.md): 官方文档：https://ai.google.dev/gemini-api/docs/structured-output?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [函数调用](https://g6uh59gmju.apifox.cn/api-464597543.md): 官方文档：https://ai.google.dev/gemini-api/docs/function-calling?hl=zh-cn&example=meeting
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文档理解](https://g6uh59gmju.apifox.cn/api-464597544.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [URL context [原生格式]  ](https://g6uh59gmju.apifox.cn/api-464597545.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [代码执行](https://g6uh59gmju.apifox.cn/api-464597546.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [google search](https://g6uh59gmju.apifox.cn/api-464597547.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [视频理解](https://g6uh59gmju.apifox.cn/api-464597548.md): 官方文档：https://ai.google.dev/gemini-api/docs/video-understanding?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [URL context](https://g6uh59gmju.apifox.cn/api-464597549.md): 官方文档：https://ai.google.dev/gemini-api/docs/url-context?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [音频理解](https://g6uh59gmju.apifox.cn/api-464597550.md): 官方文档：https://ai.google.dev/gemini-api/docs/url-context?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [Embeddings](https://g6uh59gmju.apifox.cn/api-464597551.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [TTS 文本转语音](https://g6uh59gmju.apifox.cn/api-464597552.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn#gemini-image-editing
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本生成 gemini-3-pro-preview:generateContent](https://g6uh59gmju.apifox.cn/api-464597553.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [ Imagen 生成图片](https://g6uh59gmju.apifox.cn/api-464597554.md): 官方文档：https://ai.google.dev/gemini-api/docs/document-processing?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [Imagen 4 开发中](https://g6uh59gmju.apifox.cn/api-464597555.md): 官方文档：https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [视频理解-url [原生格式]  开发中](https://g6uh59gmju.apifox.cn/api-464597556.md): 官方文档：https://ai.google.dev/gemini-api/docs/video-understanding?hl=zh-cn
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [gemini-tts文本转语音](https://g6uh59gmju.apifox.cn/api-464597557.md): 官方文档：https://ai.google.dev/gemini-api/docs/text-generation?hl=zh-cn#multi-turn-conversations
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > 原生格式 [文本嵌入](https://g6uh59gmju.apifox.cn/api-464597558.md): https://ai.google.dev/gemini-api/docs/embeddings?hl=zh-cn#rest_3   官方文档
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [gemini图片创作接口 [chat兼容格式]](https://g6uh59gmju.apifox.cn/api-464597559.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [聊天接口 [chat兼容格式]](https://g6uh59gmju.apifox.cn/api-464597560.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [聊天接口-思考1 [chat兼容格式] ](https://g6uh59gmju.apifox.cn/api-464597561.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [聊天接口-思考2 [chat兼容格式] ](https://g6uh59gmju.apifox.cn/api-464597562.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [识图接口 [chat兼容格式]](https://g6uh59gmju.apifox.cn/api-464597563.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [聊天+读取文件接口 [chat兼容格式] ](https://g6uh59gmju.apifox.cn/api-464597564.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 聊天(Chat) > 谷歌Gemini 接口 > chat兼容格式 [文本嵌入 [chat兼容格式]](https://g6uh59gmju.apifox.cn/api-464597565.md): 
+- 根目录 > 聊天(Responses) [创建模型响应](https://g6uh59gmju.apifox.cn/api-464597566.md): https://platform.openai.com/docs/api-reference/responses/create
+- 根目录 > 聊天(Responses) [创建函数调用](https://g6uh59gmju.apifox.cn/api-464597567.md): https://platform.openai.com/docs/api-reference/responses/create
+- 根目录 > 聊天(Responses) [创建模型响应(流式返回)](https://g6uh59gmju.apifox.cn/api-464597568.md): https://platform.openai.com/docs/api-reference/responses/create
+- 根目录 > 聊天(Responses) [创建模型响应 (控制思考长度)](https://g6uh59gmju.apifox.cn/api-464597569.md): https://platform.openai.com/docs/api-reference/responses/create
+- 根目录 > 聊天(Responses) [创建网络搜索](https://g6uh59gmju.apifox.cn/api-464597570.md): https://platform.openai.com/docs/api-reference/responses/create
+- 根目录 > 聊天(Responses) [创建模型响应 gpt-5启用思考](https://g6uh59gmju.apifox.cn/api-464597571.md): https://platform.openai.com/docs/api-reference/responses/create
+- 根目录 > 聊天(Responses) [创建函数调用 Copy](https://g6uh59gmju.apifox.cn/api-464597572.md): https://platform.openai.com/docs/api-reference/responses/create
+- 根目录 > 绘画模型 > Midjourney [上传图片](https://g6uh59gmju.apifox.cn/api-464597573.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/33329380893325-Managing-Image-Uploads
+- 根目录 > 绘画模型 > Midjourney [提交Imagine任务](https://g6uh59gmju.apifox.cn/api-464597574.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/32023408776205-Prompt-Basics
+- 根目录 > 绘画模型 > Midjourney [根据任务ID 查询任务状态](https://g6uh59gmju.apifox.cn/api-464597575.md): 
+- 根目录 > 绘画模型 > Midjourney [根据ID列表查询任务](https://g6uh59gmju.apifox.cn/api-464597576.md): 
+- 根目录 > 绘画模型 > Midjourney [获取任务图片的seed](https://g6uh59gmju.apifox.cn/api-464597577.md): 
+- 根目录 > 绘画模型 > Midjourney [执行Action动作](https://g6uh59gmju.apifox.cn/api-464597578.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/32804058614669-Upscalers
+- 根目录 > 绘画模型 > Midjourney [提交Blend任务](https://g6uh59gmju.apifox.cn/api-464597579.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/32635189884557-Blend-Images-on-Discord
+- 根目录 > 绘画模型 > Midjourney [提交Describe任务](https://g6uh59gmju.apifox.cn/api-464597580.md): 官方文档：https://docs.midjourney.com/hc/en-us/articles/32497889043981-Describe
+- 根目录 > 绘画模型 > Midjourney [提交Modal](https://g6uh59gmju.apifox.cn/api-464597581.md): 
+- 根目录 > 绘画模型 > Ideogram [Generate 3.0（文生图）Generate ](https://g6uh59gmju.apifox.cn/api-464597582.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 根目录 > 绘画模型 > Ideogram [Generate 3.0（图片编辑）Edit](https://g6uh59gmju.apifox.cn/api-464597583.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 根目录 > 绘画模型 > Ideogram [Generate 3.0（图片重制）Remix ](https://g6uh59gmju.apifox.cn/api-464597584.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 根目录 > 绘画模型 > Ideogram [Generate 3.0（图片重构）Reframe ](https://g6uh59gmju.apifox.cn/api-464597585.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 根目录 > 绘画模型 > Ideogram [Generate 3.0（替换背景） Replace Background](https://g6uh59gmju.apifox.cn/api-464597586.md): 使用 Ideogram 3.0 模型，根据给定的提示和可选参数同步生成图像
+- 根目录 > 绘画模型 > Ideogram [ideogram（文生图）](https://g6uh59gmju.apifox.cn/api-464597587.md): Generates images synchronously based on a given prompt and optional parameters.
+- 根目录 > 绘画模型 > Ideogram [Remix（混合图）](https://g6uh59gmju.apifox.cn/api-464597588.md): 官方文档：https://developer.ideogram.ai/api-reference/api-reference/remix
+- 根目录 > 绘画模型 > Ideogram [Upscale（放大高清）](https://g6uh59gmju.apifox.cn/api-464597589.md): 官方文档：https://developer.ideogram.ai/api-reference/api-reference/upscale
+- 根目录 > 绘画模型 > Ideogram [Describe（描述）](https://g6uh59gmju.apifox.cn/api-464597590.md): 官方文档：https://developer.ideogram.ai/api-reference/api-reference/describe
+- 根目录 > 绘画模型 > GPT Image-1 [创建  gpt-image-1](https://g6uh59gmju.apifox.cn/api-464597591.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 [编辑  image](https://g6uh59gmju.apifox.cn/api-464597592.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 [蒙版  gpt-image-1](https://g6uh59gmju.apifox.cn/api-464597593.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 [创建  gpt-image-1.5](https://g6uh59gmju.apifox.cn/api-464597594.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 [编辑  gpt-image-1.5](https://g6uh59gmju.apifox.cn/api-464597595.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 [蒙版  gpt-image-1.5](https://g6uh59gmju.apifox.cn/api-464597596.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 [编辑  gpt-image-2](https://g6uh59gmju.apifox.cn/api-464597597.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 [创建  gpt-image-2](https://g6uh59gmju.apifox.cn/api-464597598.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 [创建  gpt-image-2-all](https://g6uh59gmju.apifox.cn/api-464597599.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 Copy [创建  gpt-image-1](https://g6uh59gmju.apifox.cn/api-464597600.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 Copy [编辑  image](https://g6uh59gmju.apifox.cn/api-464597601.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 Copy [蒙版  gpt-image-1](https://g6uh59gmju.apifox.cn/api-464597602.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 Copy [创建  gpt-image-2](https://g6uh59gmju.apifox.cn/api-464597603.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 Copy [创建  gpt-image-2-all](https://g6uh59gmju.apifox.cn/api-464597604.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > GPT Image-1 Copy [编辑  gpt-image-2](https://g6uh59gmju.apifox.cn/api-464597605.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > Grok Image 系列  [创建 Image](https://g6uh59gmju.apifox.cn/api-464597606.md): 
+- 根目录 > 绘画模型 > Grok Image 系列  [编辑 image](https://g6uh59gmju.apifox.cn/api-464597607.md): 
+- 根目录 > 绘画模型 > 即梦绘画 [创建绘画](https://g6uh59gmju.apifox.cn/api-464597608.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > 即梦绘画 [编辑图片](https://g6uh59gmju.apifox.cn/api-464597609.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > DALL·E 3 [创建 DALL·E 3](https://g6uh59gmju.apifox.cn/api-464597610.md): [图片](https://platform.openai.com/docs/api-reference/images)
+- 根目录 > 绘画模型 > FLUX 系列 > gpt 兼容格式 [创建/编辑  image](https://g6uh59gmju.apifox.cn/api-464597611.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > FLUX 系列 > gpt 兼容格式 [Flux编辑（OpenAI dall-e-3格式）](https://g6uh59gmju.apifox.cn/api-464597612.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 绘画模型 > FLUX 系列 > Replicate 官方格式 [创建任务 black-forest-labs/flux-kontext-dev](https://g6uh59gmju.apifox.cn/api-464597613.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-dev
+- 根目录 > 绘画模型 > FLUX 系列 > Replicate 官方格式 [查询任务](https://g6uh59gmju.apifox.cn/api-464597614.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-max
+- 根目录 > 绘画模型 > 豆包系列 [创建图片](https://g6uh59gmju.apifox.cn/api-464597615.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seededit-3-0-i2i-250628](https://g6uh59gmju.apifox.cn/api-464597616.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-0-250828-文生图](https://g6uh59gmju.apifox.cn/api-464597617.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-0-250828-图生图](https://g6uh59gmju.apifox.cn/api-464597618.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-0-250828-多图生图 ](https://g6uh59gmju.apifox.cn/api-464597619.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-5-251128 文生图（纯文本输入单图输出）](https://g6uh59gmju.apifox.cn/api-464597620.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-5-251128  图文生图（单图输入单图输出）](https://g6uh59gmju.apifox.cn/api-464597621.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-5-251128  多图融合（多图输入单图输出）](https://g6uh59gmju.apifox.cn/api-464597622.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-5-251128  组图输出（多图输出）](https://g6uh59gmju.apifox.cn/api-464597623.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-5-251128  单张图生组图](https://g6uh59gmju.apifox.cn/api-464597624.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 豆包系列 [doubao-seedream-4-5-251128  多参考图生组图](https://g6uh59gmju.apifox.cn/api-464597625.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > Fal.ai平台 [获取请求结果 ](https://g6uh59gmju.apifox.cn/api-464597626.md): 
+- 根目录 > 绘画模型 > Fal.ai平台 [/fal-ai/nano-banana 文生图](https://g6uh59gmju.apifox.cn/api-464597627.md): 官方文档: https://fal.ai/models/fal-ai/nano-banana
+- 根目录 > 绘画模型 > Fal.ai平台 [/fal-ai/nano-banana/edit 图片编辑](https://g6uh59gmju.apifox.cn/api-464597628.md): 官方文档: https://fal.ai/models/fal-ai/nano-banana/edit
+- 根目录 > 绘画模型 > 腾讯AIGC生图 [创建任务](https://g6uh59gmju.apifox.cn/api-464597629.md): 官方文档:https://cloud.tencent.com/document/product/266/126240
+- 根目录 > 绘画模型 > 腾讯AIGC生图 [获取请求结果 ](https://g6uh59gmju.apifox.cn/api-464597630.md): 
+- 根目录 > 绘画模型 > 千问 Qwen-Image 系列 [qwen-image-max](https://g6uh59gmju.apifox.cn/api-464597631.md): 
+- 根目录 > 绘画模型 > 千问 Qwen-Image 系列 [z-image-turbo](https://g6uh59gmju.apifox.cn/api-464597632.md): 
+- 根目录 > 绘画模型 > 千问 Qwen-Image 系列 [qwen-image-edit-2509](https://g6uh59gmju.apifox.cn/api-464597633.md): 给定提示和/或输入图像，模型将生成新图像。
+- 根目录 > 绘画模型 > 千问 Qwen-Image 系列 [qwen-image-max-2025-12-30新地址](https://g6uh59gmju.apifox.cn/api-464597634.md): https://bailian.console.aliyun.com/cn-beijing/?tab=api#/api/?type=model&url=2975126
+- 根目录 > 绘画模型 > 千问 Qwen-Image 系列 [qwen-image-2.0-2026-03-03](https://g6uh59gmju.apifox.cn/api-464597635.md): 
+- 根目录 > 绘画模型 > 万向wan系列 [wan2.7-image-pro](https://g6uh59gmju.apifox.cn/api-464597636.md): 
+- 根目录 > 视频模型 > veo 视频生成 > 视频统一格式 [创建视频](https://g6uh59gmju.apifox.cn/api-464597637.md): 
+- 根目录 > 视频模型 > veo 视频生成 > 视频统一格式 [创建视频，带图片](https://g6uh59gmju.apifox.cn/api-464597638.md): 
+- 根目录 > 视频模型 > veo 视频生成 > 视频统一格式 [查询任务](https://g6uh59gmju.apifox.cn/api-464597639.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > veo 视频生成 > 视频统一格式 [创建视频（参考图）](https://g6uh59gmju.apifox.cn/api-464597640.md): 
+- 根目录 > 视频模型 > veo 视频生成 > OpenAI 视频格式  [openai 创建视频，带图片](https://g6uh59gmju.apifox.cn/api-464597641.md): 
+- 根目录 > 视频模型 > veo 视频生成 > OpenAI 视频格式  [openai 查询任务](https://g6uh59gmju.apifox.cn/api-464597642.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > veo 视频生成 > OpenAI 视频格式  [openai 下载视频](https://g6uh59gmju.apifox.cn/api-464597643.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > veo 视频生成 > 3.1原生格式 [视频生成 veo-3.1-generate-preview](https://g6uh59gmju.apifox.cn/api-464597644.md): 
+- 根目录 > 视频模型 > veo 视频生成 > 3.1原生格式 [查询任务](https://g6uh59gmju.apifox.cn/api-464597645.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > veo 视频生成 > 3.1原生格式 [视频生成 veo-3.1-fast-generate-preview](https://g6uh59gmju.apifox.cn/api-464597646.md): 
+- 根目录 > 视频模型 > luma 视频生成 > 官方API格式 [提交生成视频任务](https://g6uh59gmju.apifox.cn/api-464597647.md): 官方文档：https://docs.lumalabs.ai/docs/video-generation
+- 根目录 > 视频模型 > luma 视频生成 > 官方API格式 [扩展视频](https://g6uh59gmju.apifox.cn/api-464597648.md): 官方文档：https://docs.lumalabs.ai/docs/video-generation
+- 根目录 > 视频模型 > luma 视频生成 > 查询任务 [查询单个任务](https://g6uh59gmju.apifox.cn/api-464597649.md): "state": "completed" 枚举值： "pending", "processing", "completed", "failed"
+- 根目录 > 视频模型 > luma 视频生成 > 查询任务 [批量获取任务](https://g6uh59gmju.apifox.cn/api-464597650.md): "state": "completed" 枚举值： "pending", "processing", "completed", "failed"
+- 根目录 > 视频模型 > Kling 快手可灵 [图像生成](https://g6uh59gmju.apifox.cn/api-464597651.md): 其他参数 请看 官方文档 https://app.klingai.com/cn/dev/document-api/apiReference/updateNotice
+- 根目录 > 视频模型 > Kling 快手可灵 [文生视频](https://g6uh59gmju.apifox.cn/api-464597652.md): 其他参数 请看 官方文档 https://app.klingai.com/cn/dev/document-api/apiReference/updateNotice
+- 根目录 > 视频模型 > Kling 快手可灵 [图生视频](https://g6uh59gmju.apifox.cn/api-464597653.md): 其他参数 请看 官方文档 https://app.klingai.com/cn/dev/document-api/apiReference/updateNotice
+- 根目录 > 视频模型 > Kling 快手可灵 [虚拟试穿](https://g6uh59gmju.apifox.cn/api-464597654.md): 官方文档：https://app.klingai.com/cn/dev/document-api/apiReference/model/functionalityTry
+- 根目录 > 视频模型 > Kling 快手可灵 [对口型](https://g6uh59gmju.apifox.cn/api-464597655.md): 1、生成视频
+- 根目录 > 视频模型 > Kling 快手可灵 [视频延长](https://g6uh59gmju.apifox.cn/api-464597656.md): 1、生成视频
+- 根目录 > 视频模型 > Kling 快手可灵 [视频特效](https://g6uh59gmju.apifox.cn/api-464597657.md): 您可以根据 effect_scene 实现不同的特效效果，现支持：
+- 根目录 > 视频模型 > Kling 快手可灵 [多图参考生视频](https://g6uh59gmju.apifox.cn/api-464597658.md): 其他参数 请看 官方文档 https://app.klingai.com/cn/dev/document-api/apiReference/updateNotice
+- 根目录 > 视频模型 > Kling 快手可灵 [查询任务(免费)](https://g6uh59gmju.apifox.cn/api-464597659.md): 
+- 根目录 > 视频模型 > Runway 视频生成 [提交视频生成任务](https://g6uh59gmju.apifox.cn/api-464597660.md): 官方文档：https://docs.dev.runwayml.com/api/#tag/Start-generating/paths/~1v1~1image_to_video/post
+- 根目录 > 视频模型 > Runway 视频生成 [查询视频任务(免费)](https://g6uh59gmju.apifox.cn/api-464597661.md): 
+- 根目录 > 视频模型 > 即梦 视频生成 > 视频统一格式 [创建视频](https://g6uh59gmju.apifox.cn/api-464597664.md): 
+- 根目录 > 视频模型 > 即梦 视频生成 > 视频统一格式 [查询任务](https://g6uh59gmju.apifox.cn/api-464597665.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > 即梦 视频生成 [提交视频生成任务](https://g6uh59gmju.apifox.cn/api-464597662.md): 
+- 根目录 > 视频模型 > 即梦 视频生成 [查询视频任务(免费)](https://g6uh59gmju.apifox.cn/api-464597663.md): TaskStatus:
+- 根目录 > 视频模型 > 海螺 视频生成 [提交视频生成任务 ](https://g6uh59gmju.apifox.cn/api-464597666.md): 官方文档：https://www.minimax.io/platform/document/Model%3Fkey=684261f14c5738213294faa7?key=66d1439376e52fcee2853049&document=video_generation
+- 根目录 > 视频模型 > 海螺 视频生成 [视频任务状态查询](https://g6uh59gmju.apifox.cn/api-464597667.md): 
+- 根目录 > 视频模型 > 海螺 视频生成 [图生视频](https://g6uh59gmju.apifox.cn/api-464597668.md): 官方文档：https://www.minimax.io/platform/document/Model%3Fkey=684261f14c5738213294faa7?key=66d1439376e52fcee2853049&document=video_generation
+- 根目录 > 视频模型 > 海螺 视频生成 [首尾帧视频](https://g6uh59gmju.apifox.cn/api-464597669.md): 官方文档：https://www.minimax.io/platform/document/Model%3Fkey=684261f14c5738213294faa7?key=66d1439376e52fcee2853049&document=video_generation
+- 根目录 > 视频模型 > 豆包 视频生成 [创建任务](https://g6uh59gmju.apifox.cn/api-464597670.md): 官方文档：https://www.volcengine.com/docs/82379/1520757
+- 根目录 > 视频模型 > 豆包 视频生成 [查询单个任务](https://g6uh59gmju.apifox.cn/api-464597671.md): 
+- 根目录 > 视频模型 > 豆包 视频生成 [查询视频生成任务列表-默认](https://g6uh59gmju.apifox.cn/api-464597672.md): 
+- 根目录 > 视频模型 > 豆包 视频生成 [查询视频生成任务列表-搜索多个任务 ID](https://g6uh59gmju.apifox.cn/api-464597673.md): 
+- 根目录 > 视频模型 > 豆包 视频生成 [seedance-1-5-pro-首尾帧 ](https://g6uh59gmju.apifox.cn/api-464597674.md): 
+- 根目录 > 视频模型 > 豆包 视频生成 [seedance-1-5-pro](https://g6uh59gmju.apifox.cn/api-464597675.md): 
+- 根目录 > 视频模型 > 豆包 视频生成 [创建视频生成任务 API（doubao-2.0)](https://g6uh59gmju.apifox.cn/api-464597676.md): https://www.volcengine.com/docs/82379/1520757?lang=zh
+- 根目录 > 视频模型 > 豆包 视频生成 [doubao-2.0 查询视频生成任务 API](https://g6uh59gmju.apifox.cn/api-464597677.md): https://www.volcengine.com/docs/82379/1521309?lang=zh
+- 根目录 > 视频模型 > 豆包 视频生成 [doubao-2.0 查询视频生成任务列表](https://g6uh59gmju.apifox.cn/api-464597678.md): https://www.volcengine.com/docs/82379/1521675?lang=zh
+- 根目录 > 视频模型 > sora 视频生成 > 统一视频格式 [查询任务 ](https://g6uh59gmju.apifox.cn/api-464597680.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > sora 视频生成 > 统一视频格式 [创建视频，带图片  sora-2](https://g6uh59gmju.apifox.cn/api-464597681.md): 
+- 根目录 > 视频模型 > sora 视频生成 > 统一视频格式 [创建视频 sora-2](https://g6uh59gmju.apifox.cn/api-464597682.md): 
+- 根目录 > 视频模型 > sora 视频生成 > 统一视频格式 [创建视频 sora-2-pro](https://g6uh59gmju.apifox.cn/api-464597683.md): 
+- 根目录 > 视频模型 > sora 视频生成 > 统一视频格式 [创建视频 （带 Character）](https://g6uh59gmju.apifox.cn/api-464597684.md): 
+- 根目录 > 视频模型 > sora 视频生成 > 统一视频格式 [创建视频，带图片  sora-2 Copy](https://g6uh59gmju.apifox.cn/api-464597685.md): 
+- 根目录 > 视频模型 > sora 视频生成 > chat格式 [创建视频](https://g6uh59gmju.apifox.cn/api-464597686.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > sora 视频生成 > chat格式 [创建视频, 带图片](https://g6uh59gmju.apifox.cn/api-464597687.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > sora 视频生成 > chat格式 [连续修改生成视频](https://g6uh59gmju.apifox.cn/api-464597688.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 创建视频，带图片](https://g6uh59gmju.apifox.cn/api-464597689.md): 
+- 根目录 > 视频模型 > sora 视频生成 > OpenAI官方视频格式 [创建一个来自上传视频的角色](https://g6uh59gmju.apifox.cn/api-464597690.md): 
+- 根目录 > 视频模型 > sora 视频生成 > OpenAI官方视频格式 [使用故事板创建视频](https://g6uh59gmju.apifox.cn/api-464597691.md): 
+- 根目录 > 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 创建视频，带图片 私有模式](https://g6uh59gmju.apifox.cn/api-464597692.md): 
+- 根目录 > 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 创建视频（带Character）](https://g6uh59gmju.apifox.cn/api-464597693.md): 
+- 根目录 > 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 编辑视频](https://g6uh59gmju.apifox.cn/api-464597694.md): 
+- 根目录 > 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 下载视频](https://g6uh59gmju.apifox.cn/api-464597695.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > sora 视频生成 > OpenAI官方视频格式 [openai 查询任务](https://g6uh59gmju.apifox.cn/api-464597696.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > sora 视频生成 [创建角色](https://g6uh59gmju.apifox.cn/api-464597679.md): 
+- 根目录 > 视频模型 > grok 视频生成 > 视频统一格式 [创建视频 ](https://g6uh59gmju.apifox.cn/api-464597697.md): 
+- 根目录 > 视频模型 > grok 视频生成 > 视频统一格式 [查询任务 ](https://g6uh59gmju.apifox.cn/api-464597698.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > grok 视频生成 > 视频统一格式 [创建视频](https://g6uh59gmju.apifox.cn/api-464597699.md): 
+- 根目录 > 视频模型 > grok 视频生成 > 视频统一格式 [查询任务](https://g6uh59gmju.apifox.cn/api-464597700.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > grok 视频生成 > 视频统一格式 [扩展视频](https://g6uh59gmju.apifox.cn/api-464597701.md): 
+- 根目录 > 视频模型 > grok 视频生成 > OpenAI视频格式 [openai 创建视频，图生，视频生视频](https://g6uh59gmju.apifox.cn/api-464597702.md): 
+- 根目录 > 视频模型 > grok 视频生成 > OpenAI视频格式 [openai 创建视频，图生](https://g6uh59gmju.apifox.cn/api-464597703.md): 
+- 根目录 > 视频模型 > grok 视频生成 > OpenAI视频格式 [查询任务](https://g6uh59gmju.apifox.cn/api-464597704.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > 通义万象 视频生成 [生成视频](https://g6uh59gmju.apifox.cn/api-464597705.md): 部分模型参数参考官方文档：https://bailian.console.aliyun.com/cn-beijing?spm=5176.12818093_47.overview_recent.1.3be92cc9kBxa3c&tab=api#/api/?type=model&url=3029820
+- 根目录 > 视频模型 > 通义万象 视频生成 [视频查询](https://g6uh59gmju.apifox.cn/api-464597706.md): 
+- 根目录 > 视频模型 > 通义万象 视频生成 [happyhorse-1.0-i2v](https://g6uh59gmju.apifox.cn/api-464597707.md): 
+- 根目录 > 视频模型 > 通义万象 视频生成 [happyhorse-1.0-t2v](https://g6uh59gmju.apifox.cn/api-464597708.md): 
+- 根目录 > 视频模型 > 通义万象 视频生成 [happyhorse-1.0-r2v](https://g6uh59gmju.apifox.cn/api-464597709.md): 
+- 根目录 > 视频模型 > 通义万象 视频生成 [happyhorse-1.0-video-edit](https://g6uh59gmju.apifox.cn/api-464597710.md): 
+- 根目录 > 视频模型 > TC-Vidu视频生成 > 视频统一格式 [创建视频](https://g6uh59gmju.apifox.cn/api-464597711.md): 
+- 根目录 > 视频模型 > TC-Vidu视频生成 > 视频统一格式 [查询任务](https://g6uh59gmju.apifox.cn/api-464597712.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 视频模型 > 腾讯AIGC视频生成 [创建任务](https://g6uh59gmju.apifox.cn/api-464597713.md): 官方文档:https://cloud.tencent.com/document/product/266/126240
+- 根目录 > 视频模型 > 腾讯AIGC视频生成 [获取请求结果 ](https://g6uh59gmju.apifox.cn/api-464597714.md): 
+- 根目录 > 视频模型 > 腾讯AIGC视频生成 [特效模板创建任务](https://g6uh59gmju.apifox.cn/api-464597715.md): 官方文档:https://cloud.tencent.com/document/product/266/126240
+- 根目录 > 视频模型 > omni 视频生成 [创建视频参考图](https://g6uh59gmju.apifox.cn/api-464597716.md): 
+- 根目录 > 视频模型 > omni 视频生成 [查询结果](https://g6uh59gmju.apifox.cn/api-464597717.md): 
+- 根目录 > 视频模型 > omni 视频生成 [文生视频](https://g6uh59gmju.apifox.cn/api-464597718.md): 
+- 根目录 > 语音模型 > 通意万象 语音合成 [语音合成](https://g6uh59gmju.apifox.cn/api-464597719.md): 
+- 根目录 > 语音模型 > 通意万象 语音合成 [语音合成 Copy](https://g6uh59gmju.apifox.cn/api-464597720.md): 
+- 根目录 > GPTs 相关 [GPTs对话](https://g6uh59gmju.apifox.cn/api-464597721.md): 模型名称格式为：gpt-4-gizmo-*，系统会自动进行识别
+- 根目录 > 系统API [获取令牌列表](https://g6uh59gmju.apifox.cn/api-464597722.md): 
+- 根目录 > 系统API [新增令牌](https://g6uh59gmju.apifox.cn/api-464597723.md): 
+- 根目录 > 系统API [获取令牌支持模型](https://g6uh59gmju.apifox.cn/api-464597724.md): 
+- 根目录 > 系统API [获取账号信息](https://g6uh59gmju.apifox.cn/api-464597725.md): 
+- 根目录 > 系统API [修改令牌](https://g6uh59gmju.apifox.cn/api-464597726.md): 
+- 根目录 > 系统API [搜索令牌](https://g6uh59gmju.apifox.cn/api-464597727.md): 
+- 根目录 > 系统API [获取令牌使用情况](https://g6uh59gmju.apifox.cn/api-464597728.md): 
+- 根目录 > 系统API [删除令牌](https://g6uh59gmju.apifox.cn/api-464597729.md): 
+- 根目录 > 系统API [批量修改令牌](https://g6uh59gmju.apifox.cn/api-464597730.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [生成歌曲(灵感模式)](https://g6uh59gmju.apifox.cn/api-464597732.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [生成歌曲(自定义模式)](https://g6uh59gmju.apifox.cn/api-464597733.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [生成歌曲(续写模式)](https://g6uh59gmju.apifox.cn/api-464597734.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [生成歌曲(歌手风格)](https://g6uh59gmju.apifox.cn/api-464597735.md): # 接入步骤
+- 根目录 > 文生音乐 Suno > 任务提交 [生成歌曲(上传歌曲二次创作)](https://g6uh59gmju.apifox.cn/api-464597736.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [生成歌曲(拼接歌曲)](https://g6uh59gmju.apifox.cn/api-464597737.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [生成歌词](https://g6uh59gmju.apifox.cn/api-464597738.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [歌曲拼接](https://g6uh59gmju.apifox.cn/api-464597740.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [报告上传完毕](https://g6uh59gmju.apifox.cn/api-464597741.md): ┌─────────────────────────────────────────────────────────────────┐
+- 根目录 > 文生音乐 Suno > 任务提交 [查询上传处理状态](https://g6uh59gmju.apifox.cn/api-464597742.md): ┌─────────────────────────────────────────────────────────────────┐
+- 根目录 > 文生音乐 Suno > 任务提交 [初始化音频文件](https://g6uh59gmju.apifox.cn/api-464597743.md): ┌─────────────────────────────────────────────────────────────────┐
+- 根目录 > 文生音乐 Suno > 任务提交 [请求上传授权](https://g6uh59gmju.apifox.cn/api-464597744.md): ┌─────────────────────────────────────────────────────────────────┐
+- 根目录 > 文生音乐 Suno > 任务提交 [s3上传示例](https://g6uh59gmju.apifox.cn/api-464597745.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [场景一: 灵感模式](https://g6uh59gmju.apifox.cn/api-464597746.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [场景二: 自定义.歌词歌名](https://g6uh59gmju.apifox.cn/api-464597747.md): 
+- 根目录 > 文生音乐 Suno > 任务提交 [场景三: 纯音乐.自定义](https://g6uh59gmju.apifox.cn/api-464597748.md): 
+- 根目录 > 文生音乐 Suno > 查询接口 [批量获取任务](https://g6uh59gmju.apifox.cn/api-464597749.md): 
+- 根目录 > 文生音乐 Suno > 查询接口 [查询单个任务](https://g6uh59gmju.apifox.cn/api-464597750.md): 
+- 根目录 > 文生音乐 Suno > 查询接口 [获取wav](https://g6uh59gmju.apifox.cn/api-464597751.md): 
+- 根目录 > 文生音乐 Suno > 查询接口 [Timing:歌词、音频时间线](https://g6uh59gmju.apifox.cn/api-464597752.md): 
+- 根目录 > 文生音乐 Suno > 查询接口 [场景详情获取](https://g6uh59gmju.apifox.cn/api-464597753.md): 
+- 根目录 > Rerank 重排序模型 [重排序](https://g6uh59gmju.apifox.cn/api-464597754.md): 给定一个提示，该模型将返回一个或多个预测的完成，并且还可以返回每个位置的替代标记的概率。
+- 根目录 > 可灵 Kling 平台 > 文生视频 [文生视频](https://g6uh59gmju.apifox.cn/api-464597755.md): 
+- 根目录 > 可灵 Kling 平台 > 文生视频 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597756.md): 
+- 根目录 > 可灵 Kling 平台 > 图生视频 [图生视频](https://g6uh59gmju.apifox.cn/api-464597757.md): 
+- 根目录 > 可灵 Kling 平台 > 图生视频 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597758.md): 
+- 根目录 > 可灵 Kling 平台 > Omni-Video [Omni-Video](https://g6uh59gmju.apifox.cn/api-464597759.md): 
+- 根目录 > 可灵 Kling 平台 > Omni-Video [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597760.md): 
+- 根目录 > 可灵 Kling 平台 > 多图参考生视频 [多图参考生视频](https://g6uh59gmju.apifox.cn/api-464597761.md): 
+- 根目录 > 可灵 Kling 平台 > 多图参考生视频 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597762.md): 
+- 根目录 > 可灵 Kling 平台 > 多模态视频编辑 [初始化待编辑视频](https://g6uh59gmju.apifox.cn/api-464597763.md): 
+- 根目录 > 可灵 Kling 平台 > 多模态视频编辑 [增加视频选区](https://g6uh59gmju.apifox.cn/api-464597764.md): 
+- 根目录 > 可灵 Kling 平台 > 多模态视频编辑 [删减视频选区](https://g6uh59gmju.apifox.cn/api-464597765.md): 
+- 根目录 > 可灵 Kling 平台 > 多模态视频编辑 [预览已选区视频](https://g6uh59gmju.apifox.cn/api-464597766.md): 
+- 根目录 > 可灵 Kling 平台 > 多模态视频编辑 [多模态视频](https://g6uh59gmju.apifox.cn/api-464597767.md): 
+- 根目录 > 可灵 Kling 平台 > 多模态视频编辑 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597768.md): 
+- 根目录 > 可灵 Kling 平台 > 视频延长 [视频延长](https://g6uh59gmju.apifox.cn/api-464597769.md): 
+- 根目录 > 可灵 Kling 平台 > 视频延长 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597770.md): 
+- 根目录 > 可灵 Kling 平台 > 视频特效 [视频特效](https://g6uh59gmju.apifox.cn/api-464597771.md): 
+- 根目录 > 可灵 Kling 平台 > 视频特效 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597772.md): 
+- 根目录 > 可灵 Kling 平台 > 图像生成 [图像生成](https://g6uh59gmju.apifox.cn/api-464597773.md): 
+- 根目录 > 可灵 Kling 平台 > 图像生成 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597774.md): 
+- 根目录 > 可灵 Kling 平台 > 多图参考生图 [多图参考生图](https://g6uh59gmju.apifox.cn/api-464597775.md): 
+- 根目录 > 可灵 Kling 平台 > 多图参考生图 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597776.md): 
+- 根目录 > 可灵 Kling 平台 > Omni-Image [Omni-Image](https://g6uh59gmju.apifox.cn/api-464597777.md): 
+- 根目录 > 可灵 Kling 平台 > Omni-Image [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597778.md): 
+- 根目录 > 可灵 Kling 平台 > 扩图 [扩图](https://g6uh59gmju.apifox.cn/api-464597779.md): 
+- 根目录 > 可灵 Kling 平台 > 扩图 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597780.md): 
+- 根目录 > 可灵 Kling 平台 > 图像识别 [图像识别](https://g6uh59gmju.apifox.cn/api-464597781.md): 
+- 根目录 > 可灵 Kling 平台 > 数字人 [数字人](https://g6uh59gmju.apifox.cn/api-464597782.md): 
+- 根目录 > 可灵 Kling 平台 > 数字人 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597783.md): 
+- 根目录 > 可灵 Kling 平台 > 文生音效 [文生音效](https://g6uh59gmju.apifox.cn/api-464597784.md): 
+- 根目录 > 可灵 Kling 平台 > 文生音效 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597785.md): 
+- 根目录 > 可灵 Kling 平台 > 视频生音效 [视频生音效](https://g6uh59gmju.apifox.cn/api-464597786.md): 
+- 根目录 > 可灵 Kling 平台 > 视频生音效 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597787.md): 
+- 根目录 > 可灵 Kling 平台 > 语音合成 [语音合成](https://g6uh59gmju.apifox.cn/api-464597788.md): 
+- 根目录 > 可灵 Kling 平台 > 对口型 [人脸识别](https://g6uh59gmju.apifox.cn/api-464597789.md): 
+- 根目录 > 可灵 Kling 平台 > 对口型 [对口型](https://g6uh59gmju.apifox.cn/api-464597790.md): 
+- 根目录 > 可灵 Kling 平台 > 对口型 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597791.md): 
+- 根目录 > 可灵 Kling 平台 > 自定义音色 [自定义音色](https://g6uh59gmju.apifox.cn/api-464597792.md): 
+- 根目录 > 可灵 Kling 平台 > 自定义音色 [查询自定义音色（单个）](https://g6uh59gmju.apifox.cn/api-464597793.md): 
+- 根目录 > 可灵 Kling 平台 > 自定义音色 [查询官方音色](https://g6uh59gmju.apifox.cn/api-464597794.md): 
+- 根目录 > 可灵 Kling 平台 > 自定义音色 [删除自定义音色](https://g6uh59gmju.apifox.cn/api-464597795.md): 
+- 根目录 > 可灵 Kling 平台 > 动作控制 [动作控制](https://g6uh59gmju.apifox.cn/api-464597796.md): 
+- 根目录 > 可灵 Kling 平台 > 动作控制 [查询任务（单个）](https://g6uh59gmju.apifox.cn/api-464597797.md): 
+- 根目录 > 可灵 Kling 平台 > 主体 [主体(旧)](https://g6uh59gmju.apifox.cn/api-464597798.md): 
+- 根目录 > 可灵 Kling 平台 > 主体 [主体（新版本）](https://g6uh59gmju.apifox.cn/api-464597799.md): 
+- 根目录 > 可灵 Kling 平台 > 主体 [查询自定义主体（单个新版本）](https://g6uh59gmju.apifox.cn/api-464597800.md): 
+- 根目录 > 可灵 Kling 平台 > 主体 [查询官方主体（列表新版本）](https://g6uh59gmju.apifox.cn/api-464597801.md): 
+- 根目录 > 可灵 Kling 平台 > 主体 [删除自定义主体（新版本）](https://g6uh59gmju.apifox.cn/api-464597802.md): 
+- 根目录 > 阿里 pix 平台 [生成文生视频](https://g6uh59gmju.apifox.cn/api-464597803.md): 通过prompt 进行文生视频的生成
+- 根目录 > 阿里 pix 平台 [获取视频状态](https://g6uh59gmju.apifox.cn/api-464597804.md): 
+- 根目录 > 阿里 pix 平台 [生成图生视频](https://g6uh59gmju.apifox.cn/api-464597805.md): 通过图片进行图生视频的生成. 生成前必须传图片, 用img_id来进行请求.
+- 根目录 > 阿里 pix 平台 [生成视频模版](https://g6uh59gmju.apifox.cn/api-464597806.md): 基于图生视频如何生成视频模版
+- 根目录 > 阿里 pix 平台 [首尾帧生成视频](https://g6uh59gmju.apifox.cn/api-464597807.md): 
+- 根目录 > 阿里 pix 平台 [生成对口型(Lipsync)视频](https://g6uh59gmju.apifox.cn/api-464597808.md): 
+- 根目录 > 阿里 pix 平台 [获取TTS 音色](https://g6uh59gmju.apifox.cn/api-464597809.md): 
+- 根目录 > 阿里 pix 平台 [生成延长(Extend)视频](https://g6uh59gmju.apifox.cn/api-464597810.md): 
+- 根目录 > 阿里 pix 平台 [音效生成(sound_effect)接口](https://g6uh59gmju.apifox.cn/api-464597811.md): 
+- 根目录 > 阿里 pix 平台 [多主体(多参考)生成视频](https://g6uh59gmju.apifox.cn/api-464597812.md): 
+- 根目录 > 阿里 pix 平台 [重绘视频生成视频](https://g6uh59gmju.apifox.cn/api-464597813.md): 
+- 根目录 > 阿里 pix 平台 [主体替换(Swap) Mask 生成](https://g6uh59gmju.apifox.cn/api-464597814.md): 
+- 根目录 > 阿里 pix 平台 [主体替换(Swap) 视频生成](https://g6uh59gmju.apifox.cn/api-464597815.md): 
+- 根目录 > 阿里 pix 平台 [多帧(Multi-transition) 视频生成](https://g6uh59gmju.apifox.cn/api-464597816.md): 
+- 根目录 > 阿里 pix 平台 [动作模仿(Mimic) 视频生成](https://g6uh59gmju.apifox.cn/api-464597817.md): 
+- 根目录 > 阿里 pix 平台 [视频编辑(Modify) 生成视频](https://g6uh59gmju.apifox.cn/api-464597818.md): 
+- 根目录 > 阿里 pix 平台 [上传图片](https://g6uh59gmju.apifox.cn/api-464597819.md): 图生视频/首尾帧都需要先上传图片, 通过img_id 完成生成.
+- 根目录 > 阿里 pix 平台 [上传资源(视频/音频)](https://g6uh59gmju.apifox.cn/api-464597820.md): 
+- 根目录 > Replicate 聚合平台 [查询任务](https://g6uh59gmju.apifox.cn/api-464597821.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-max
+- 根目录 > Replicate 聚合平台 [创建任务-通过模型version（predictions）](https://g6uh59gmju.apifox.cn/api-464597822.md): version models 支持以下
+- 根目录 > Replicate 聚合平台 [创建任务 stability-ai/stable-diffusion](https://g6uh59gmju.apifox.cn/api-464597823.md): 官方文档: https://replicate.com/stability-ai/stable-diffusion
+- 根目录 > Replicate 聚合平台 [创建任务 stability-ai/sdxl](https://g6uh59gmju.apifox.cn/api-464597824.md): 官方文档: https://replicate.com/stability-ai/sdxl
+- 根目录 > Replicate 聚合平台 [创建任务 stability-ai/stable-diffusion-inpainting](https://g6uh59gmju.apifox.cn/api-464597825.md): 官方文档: https://replicate.com/stability-ai/stable-diffusion-inpainting
+- 根目录 > Replicate 聚合平台 [创建任务 stability-ai/stable-diffusion-img2img](https://g6uh59gmju.apifox.cn/api-464597826.md): 官方文档: https://replicate.com/stability-ai/stable-diffusion-img2img
+- 根目录 > Replicate 聚合平台 [创建任务 lucataco/flux-schnell-lora](https://g6uh59gmju.apifox.cn/api-464597827.md): 官方文档: https://replicate.com/lucataco/flux-schnell-lora
+- 根目录 > Replicate 聚合平台 [创建任务 lucataco/flux-dev-lora](https://g6uh59gmju.apifox.cn/api-464597828.md): 官方文档: https://replicate.com/lucataco/flux-dev-lora
+- 根目录 > Replicate 聚合平台 [创建任务 andreasjansson/stable-diffusion-animation](https://g6uh59gmju.apifox.cn/api-464597829.md): 官方文档:https://replicate.com/andreasjansson/stable-diffusion-animation
+- 根目录 > Replicate 聚合平台 [创建任务 sujaykhandekar/object-removal](https://g6uh59gmju.apifox.cn/api-464597830.md): 官方文档:https://replicate.com/sujaykhandekar/object-removal
+- 根目录 > Replicate 聚合平台 [创建任务 cjwbw/rembg](https://g6uh59gmju.apifox.cn/api-464597831.md): 官方文档:https://replicate.com/cjwbw/rembg
+- 根目录 > Replicate 聚合平台 [创建任务 lucataco/animate-diff](https://g6uh59gmju.apifox.cn/api-464597832.md): 官方文档:https://replicate.com/lucataco/animate-diff
+- 根目录 > Replicate 聚合平台 [创建任务 ideogram-ai/ideogram-v2-turbo](https://g6uh59gmju.apifox.cn/api-464597833.md): 官方文档:https://replicate.com/ideogram-ai/ideogram-v2-turbo
+- 根目录 > Replicate 聚合平台 [创建任务 black-forest-labs/flux-kontext-dev](https://g6uh59gmju.apifox.cn/api-464597834.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-dev
+- 根目录 > Replicate 聚合平台 [创建任务 minimax/video-01-live](https://g6uh59gmju.apifox.cn/api-464597835.md): 官方文档:https://replicate.com/minimax/video-01-live
+- 根目录 > Replicate 聚合平台 [创建任务 minimax/video-01](https://g6uh59gmju.apifox.cn/api-464597836.md): 官方文档:https://replicate.com/minimax/video-01
+- 根目录 > Replicate 聚合平台 [创建任务 recraft-ai/recraft-v3](https://g6uh59gmju.apifox.cn/api-464597837.md): 官方文档:https://replicate.com/recraft-ai/recraft-v3
+- 根目录 > Replicate 聚合平台 [创建任务 recraft-ai/recraft-v3-svg](https://g6uh59gmju.apifox.cn/api-464597838.md): 官方文档:https://replicate.com/recraft-ai/recraft-v3-svg
+- 根目录 > Replicate 聚合平台 [创建任务 black-forest-labs/flux-1.1-pro-ultra](https://g6uh59gmju.apifox.cn/api-464597839.md): 官方文档: https://replicate.com/black-forest-labs/flux-1.1-pro-ultra
+- 根目录 > Replicate 聚合平台 [创建任务 black-forest-labs/flux-kontext-pro](https://g6uh59gmju.apifox.cn/api-464597840.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-pro
+- 根目录 > Replicate 聚合平台 [创建任务 black-forest-labs/flux-kontext-max](https://g6uh59gmju.apifox.cn/api-464597841.md): 官方文档: https://replicate.com/black-forest-labs/flux-kontext-max
+- 根目录 > Replicate 聚合平台 [创建任务 flux-kontext-apps/multi-image-kontext-max](https://g6uh59gmju.apifox.cn/api-464597842.md): 官方文档:https://replicate.com/flux-kontext-apps/multi-image-kontext-max
+- 根目录 > Replicate 聚合平台 [创建任务 flux-kontext-apps/multi-image-kontext-pro](https://g6uh59gmju.apifox.cn/api-464597843.md): 官方文档:https://replicate.com/flux-kontext-apps/multi-image-kontext-pro
+- 根目录 > Replicate 聚合平台 [创建任务 lucataco/remove-bg](https://g6uh59gmju.apifox.cn/api-464597844.md): 官方文档:https://replicate.com/lucataco/remove-bg
+- 根目录 > Replicate 聚合平台 [创建任务 riffusion/riffusion](https://g6uh59gmju.apifox.cn/api-464597845.md): 官方文档:https://replicate.com/riffusion/riffusion
+- 根目录 > Replicate 聚合平台 [创建任务 black-forest-labs/flux-fill-dev](https://g6uh59gmju.apifox.cn/api-464597846.md): 官方文档:https://replicate.com/black-forest-labs/flux-fill-dev
+- 根目录 > Replicate 聚合平台 [创建任务 black-forest-labs/flux-fill-pro](https://g6uh59gmju.apifox.cn/api-464597847.md): 官方文档:https://replicate.com/black-forest-labs/flux-fill-pro
+- 根目录 > Replicate 聚合平台 [创建任务 google/imagen-4-fast](https://g6uh59gmju.apifox.cn/api-464597848.md): 官方文档:https://replicate.com/google/imagen-4-fast
+- 根目录 > Replicate 聚合平台 [创建任务 google/imagen-4-ultra](https://g6uh59gmju.apifox.cn/api-464597849.md): 官方文档:https://replicate.com/google/imagen-4-ultra
+- 根目录 > Replicate 聚合平台 [创建任务 google/imagen-4](https://g6uh59gmju.apifox.cn/api-464597850.md): 官方文档:https://replicate.com/google/imagen-4
+- 根目录 > Replicate 聚合平台 [创建任务 prunaai/vace-14b](https://g6uh59gmju.apifox.cn/api-464597851.md): 官方文档:https://replicate.com/prunaai/vace-14b
+- 根目录 > Replicate 聚合平台 [创建任务 bytedance/seedream-4](https://g6uh59gmju.apifox.cn/api-464597852.md): 
+- 根目录 > MINIMAX官方 [创建异步语音合成任务 V2](https://g6uh59gmju.apifox.cn/api-464597853.md): https://platform.minimaxi.com/docs/api-reference/speech-t2a-async-create
+- 根目录 > MINIMAX官方 [同步语音合成 V2](https://g6uh59gmju.apifox.cn/api-464597854.md): https://platform.minimaxi.com/docs/api-reference/speech-t2a-http
+- 根目录 > MINIMAX官方 [文生图生视频生成任务](https://g6uh59gmju.apifox.cn/api-464597855.md): 
+- 根目录 > MINIMAX官方 [上传复刻音频](https://g6uh59gmju.apifox.cn/api-464597856.md): 
+- 根目录 > MINIMAX官方 [上传示例音频](https://g6uh59gmju.apifox.cn/api-464597857.md): 需要上传的文件。填写文件的路径地址
+- 根目录 > MINIMAX官方 [首尾帧生成视频](https://g6uh59gmju.apifox.cn/api-464597858.md): 
+- 根目录 > MINIMAX官方 [音色快速复刻](https://g6uh59gmju.apifox.cn/api-464597859.md): https://platform.minimaxi.com/docs/api-reference/voice-cloning-clone
+- 根目录 > MINIMAX官方 [查询视频生成任务状态](https://g6uh59gmju.apifox.cn/api-464597860.md): 
+- 根目录 > MINIMAX官方 [检索(用于视频下载,异步音频下载)](https://g6uh59gmju.apifox.cn/api-464597861.md): 
+- 根目录 > MINIMAX官方 [文本合成](https://g6uh59gmju.apifox.cn/api-464597862.md): https://platform.minimaxi.com/docs/api-reference/text-post
+- 根目录 > MINIMAX官方 [查询语音生成任务状态](https://g6uh59gmju.apifox.cn/api-464597863.md): https://platform.minimaxi.com/docs/api-reference/speech-t2a-async-query
+- 根目录 > MINIMAX官方 [音色设计](https://g6uh59gmju.apifox.cn/api-464597864.md): 
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [创建文生视频任务](https://g6uh59gmju.apifox.cn/api-464597865.md): 官方文档:https://platform.vidu.cn/docs/text-to-video
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [创建图生视频任务](https://g6uh59gmju.apifox.cn/api-464597866.md): 官方文档:https://platform.vidu.cn/docs/image-to-video
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [创建图片生成任务](https://g6uh59gmju.apifox.cn/api-464597867.md): 官方文档:https://platform.vidu.cn/docs/reference-to-image
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [创建文生音频任务](https://g6uh59gmju.apifox.cn/api-464597868.md): 官方文档:https://platform.vidu.cn/docs/text-to-audio
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [语音合成](https://g6uh59gmju.apifox.cn/api-464597869.md): 官方文档:https://platform.vidu.cn/docs/text-to-speech
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [创建参考生视频任务（主体调用）](https://g6uh59gmju.apifox.cn/api-464597870.md): 官方文档:https://platform.vidu.cn/docs/reference-to-video
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [创建参考生视频任务（非主体调用）](https://g6uh59gmju.apifox.cn/api-464597871.md): 官方文档:https://platform.vidu.cn/docs/reference-to-video
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [创建首尾帧生视频任务](https://g6uh59gmju.apifox.cn/api-464597872.md): 官方文档:https://platform.vidu.cn/docs/start-end-to-video
+- 根目录 > 官方VIDU视频生成、图片生成、音频生成 [获取请求结果 ](https://g6uh59gmju.apifox.cn/api-464597873.md): 
+- 根目录 > Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3](https://g6uh59gmju.apifox.cn/api-464597897.md): 官方文档地址：https://fal.ai/models/fal-ai/veo3
+- 根目录 > Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3/fast/image-to-video](https://g6uh59gmju.apifox.cn/api-464597898.md): 官方文档地址：https://fal.ai/models/fal-ai/veo3/fast/image-to-video
+- 根目录 > Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3/fast](https://g6uh59gmju.apifox.cn/api-464597899.md): 官方文档地址：https://fal.ai/models/fal-ai/veo3/fast
+- 根目录 > Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3/requests/{request_id}](https://g6uh59gmju.apifox.cn/api-464597900.md): 
+- 根目录 > Fal-ai 聚合平台 > falai-veo3 视频生成 [/fal-ai/veo3/image-to-video](https://g6uh59gmju.apifox.cn/api-464597901.md): 官方文档：https://fal.ai/models/fal-ai/veo3/image-to-video
+- 根目录 > Fal-ai 聚合平台 [获取请求结果](https://g6uh59gmju.apifox.cn/api-464597874.md): 
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-1/dev](https://g6uh59gmju.apifox.cn/api-464597875.md): 官方文档: https://fal.ai/models/fal-ai/flux-1/dev
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-1/dev/image-to-image](https://g6uh59gmju.apifox.cn/api-464597876.md): 官方文档: https://fal.ai/models/fal-ai/flux-1/dev/image-to-image
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-1/dev/redux](https://g6uh59gmju.apifox.cn/api-464597877.md): 官方文档: https://fal.ai/models/fal-ai/flux-1/dev/redux
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-1/schnell/redux](https://g6uh59gmju.apifox.cn/api-464597878.md): 官方文档: https://fal.ai/models/fal-ai/flux-1/schnell/redux
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-pro/kontext](https://g6uh59gmju.apifox.cn/api-464597879.md): 官方文档: https://fal.ai/models/fal-ai/flux-pro/kontext
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-pro/kontext/text-to-image](https://g6uh59gmju.apifox.cn/api-464597880.md): 官方文档: https://fal.ai/models/fal-ai/flux-pro/kontext/text-to-image
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-pro/kontext/max](https://g6uh59gmju.apifox.cn/api-464597881.md): 官方文档:  https://fal.ai/models/fal-ai/flux-pro/kontext/max
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-pro/kontext/max/multi](https://g6uh59gmju.apifox.cn/api-464597882.md): 官方文档: https://fal.ai/models/fal-ai/flux-pro/kontext/max/multi
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/wan/v2.2-a14b/image-to-image](https://g6uh59gmju.apifox.cn/api-464597883.md): 官方文档: https://fal.ai/models/fal-ai/wan/v2.2-a14b/image-to-image
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/bytedance/seedream/v4/text-to-image](https://g6uh59gmju.apifox.cn/api-464597884.md): 官方文档: https://fal.ai/models/fal-ai/bytedance/seedream/v4/text-to-image
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/bytedance/seedream/v4/edit](https://g6uh59gmju.apifox.cn/api-464597885.md): 官方文档: https://fal.ai/models/fal-ai/bytedance/seedream/v4/edit
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/vidu/reference-to-image](https://g6uh59gmju.apifox.cn/api-464597886.md): 官方文档: https://fal.ai/models/fal-ai/vidu/reference-to-image
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/imagen4/preview](https://g6uh59gmju.apifox.cn/api-464597887.md): 官方文档: https://fal.ai/models/fal-ai/imagen4/preview
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/qwen-image-edit-lora](https://g6uh59gmju.apifox.cn/api-464597888.md): 官方文档: https://fal.ai/models/fal-ai/qwen-image-edit-lora
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/qwen-image-edit-plus](https://g6uh59gmju.apifox.cn/api-464597889.md): 官方文档: https://fal.ai/models/fal-ai/qwen-image-edit-plus
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/kling-video/v2.5-turbo/pro/text-to-video](https://g6uh59gmju.apifox.cn/api-464597890.md): 官方文档: https://fal.ai/models//fal-ai/kling-video/v2.5-turbo/pro/text-to-video
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/kling-video/v2.5-turbo/pro/image-to-video](https://g6uh59gmju.apifox.cn/api-464597891.md): 官方文档: https://fal.ai/models/fal-ai/kling-video/v2.5-turbo/pro/image-to-video
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-lora](https://g6uh59gmju.apifox.cn/api-464597892.md): 官方文档: https://fal.ai/models/fal-ai/flux-lora
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-lora/image-to-image](https://g6uh59gmju.apifox.cn/api-464597893.md): 官方文档: https://fal.ai/models/fal-ai/flux-lora/image-to-image
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/flux-lora/inpainting](https://g6uh59gmju.apifox.cn/api-464597894.md): 官方文档: https://fal.ai/models/fal-ai/flux-lora/inpainting
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/kling-video/v2.5-turbo/pro/text-to-video](https://g6uh59gmju.apifox.cn/api-464597895.md): 
+- 根目录 > Fal-ai 聚合平台 [/fal-ai/qwen-image-edit-lora](https://g6uh59gmju.apifox.cn/api-464597896.md): 
+- 根目录 > 帮助中心 [上传图片到图床](https://g6uh59gmju.apifox.cn/api-464597902.md): 

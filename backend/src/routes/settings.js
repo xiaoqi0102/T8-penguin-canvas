@@ -16,6 +16,16 @@ const DEFAULT_SETTINGS = {
   // v1.2.9.16: 取消 rhWalletApiKey —— RH 钱包应用节点与普通 RunningHub 节点统一使用 rhApiKey
   llmApiKey: '',
   llmBaseUrl: config.ZHENZHEN_BASE_URL, // 同贞贞工坊上游
+  // v1.5.6: 七牛云 AI 大模型推理服务（独立 provider，仅用于图像生成）
+  //   - baseUrl 不强制锁定（国内 https://openai.qiniu.com / 海外 https://openai.sufy.com）
+  //   - Key 完全独立，不与 zhenzhenApiKey/llmApiKey 共用
+  qiniuApiKey: '',
+  qiniuBaseUrl: config.QINIU_BASE_URL,
+  // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+  // v1.5.6: Grsai 中转站独立 provider（自有协议，非 OpenAI 兼容）
+  grsaiApiKey: '',
+  grsaiBaseUrl: config.GRSAI_BASE_URL,
+  // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   // 分类 Key（留空时 fallback 到 zhenzhenApiKey）
   gptImageApiKey: '',
   nanoBananaApiKey: '',
@@ -101,6 +111,10 @@ router.get('/', (_req, res) => {
     zhenzhenApiKey: maskKey(settings.zhenzhenApiKey),
     rhApiKey: maskKey(settings.rhApiKey),
     llmApiKey: maskKey(settings.llmApiKey),
+    qiniuApiKey: maskKey(settings.qiniuApiKey),
+    // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+    grsaiApiKey: maskKey(settings.grsaiApiKey),
+    // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   };
   for (const f of CLASSIFIED_KEY_FIELDS) {
     masked[f] = maskKey(settings[f]);

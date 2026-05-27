@@ -116,6 +116,14 @@ export interface ApiSettings {
   rhBaseUrl: string; // https://www.runninghub.cn
   llmApiKey: string;
   llmBaseUrl: string; // 锁定 https://ai.t8star.org
+  // v1.5.6: 七牛云 AI 大模型推理服务（独立 provider，仅图像生成）
+  qiniuApiKey?: string;
+  qiniuBaseUrl?: string; // 默认 https://openai.qiniu.com，可切到海外 https://openai.sufy.com
+  // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+  // v1.5.6: Grsai 中转站（独立 provider，自有协议，仅图像生成）
+  grsaiApiKey?: string;
+  grsaiBaseUrl?: string; // 默认 https://grsai.dakka.com.cn（国内），可切到 https://grsaiapi.com（全球）
+  // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   // 分类 API Key（留空时 fallback 到 zhenzhenApiKey）
   gptImageApiKey?: string;
   nanoBananaApiKey?: string;

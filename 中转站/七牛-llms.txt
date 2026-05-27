@@ -1,0 +1,311 @@
+# 七牛云大模型推理服务
+
+## Docs
+- 根目录 [七牛云 AI 大模型推理服务](https://apidocs.qnaigc.com/7922623m0.md): 
+- 根目录 [常见问题 FAQ](https://apidocs.qnaigc.com/7926450m0.md): 
+- 根目录 [关键概念与术语表](https://apidocs.qnaigc.com/7926451m0.md): 
+- 根目录 [本文档站使用方式](https://apidocs.qnaigc.com/7937480m0.md): 
+- 根目录 [如何获取API-KEY](https://apidocs.qnaigc.com/7937500m0.md): 
+- 根目录 [Claude 模型缓存功能使用指南 (Cache Control)](https://apidocs.qnaigc.com/8286697m0.md): 
+- 根目录 > 聊天 > 原厂接口 [什么是原厂接口](https://apidocs.qnaigc.com/8606548m0.md): 
+- 根目录 > 视频 [Webhook](https://apidocs.qnaigc.com/8430416m0.md): 
+- 根目录 > 视频 [Veo](https://apidocs.qnaigc.com/79540479f0.md): 
+- 根目录 > 视频 > Fal格式 [vidu](https://apidocs.qnaigc.com/81536345f0.md): 
+- 根目录 > 视频 [kling](https://apidocs.qnaigc.com/84065884f0.md): 
+- 根目录 [管理接口的认证方式](https://apidocs.qnaigc.com/7941635m0.md): 
+
+## API Docs
+- 根目录 > 模型 [模型列表](https://apidocs.qnaigc.com/397274067e0.md): 
+- 根目录 > 聊天 > 原厂接口 [bypass Anthropic协议](https://apidocs.qnaigc.com/432088078e0.md): 这个接口允许直接通过anthropic协议调用claude系列模型，支持联网搜索
+- 根目录 > 聊天 > 原厂接口 [bypass Vertex/Gemini协议](https://apidocs.qnaigc.com/432089873e0.md): 本接口允许通过vertex/gemini的协议格式调用gemini模型，
+- 根目录 > 聊天 > 原厂接口 [bypass Responses协议](https://apidocs.qnaigc.com/432091837e0.md): 本接口允许直接使用response API协议调用gpt系列模型，支持联网搜索
+- 根目录 > 聊天 > gemini-3.1-pro-preview [gemini-3.1-pro-preview 思考](https://apidocs.qnaigc.com/402539887e0.md): ## 对于 思考模式 需注意
+- 根目录 > 聊天 > gemini-3.1-pro-preview [gemini-3.1-pro-preview qfile](https://apidocs.qnaigc.com/420450123e0.md): 
+- 根目录 > 聊天 > gemini-2.5-pro [gemini-2.5-pro思考](https://apidocs.qnaigc.com/397517805e0.md): 可以使用 reasoning_effort 和 thinking 字段控制思考长度
+- 根目录 > 聊天 > openai/gpt-5 [openai/gpt-5 思考](https://apidocs.qnaigc.com/397570848e0.md): openai/gpt-5 模型使用 reasoning_effort 字段控制思考程度
+- 根目录 > 聊天 > openai/gpt-5.2 [openai/gpt-5.2 思考](https://apidocs.qnaigc.com/417509979e0.md): # 思考
+- 根目录 > 聊天 > openai/gpt-5.2-codex [openai/gpt-5.2-codex](https://apidocs.qnaigc.com/417178194e0.md): 
+- 根目录 > 聊天 > gemini-2.5-flash [gemini-2.5-flash 思考](https://apidocs.qnaigc.com/397607762e0.md): 可以使用 reasoning_effort 和 thinking 字段控制思考长度
+- 根目录 > 聊天 > claude-4.5-sonnet [claude-4.5-sonnet 思考](https://apidocs.qnaigc.com/397609803e0.md): 
+- 根目录 > 聊天 > claude-4.6-opus [claude-4.6-opus 思考](https://apidocs.qnaigc.com/416350659e0.md): 参考 https://platform.claude.com/docs/zh-CN/build-with-claude/adaptive-thinking
+- 根目录 > 聊天 > deepseek/deepseek-v3.2-251201 [deepseek/deepseek-v3.2-251201 思考](https://apidocs.qnaigc.com/397639742e0.md): 
+- 根目录 > 聊天 > deepseek-v3 [聊天](https://apidocs.qnaigc.com/397618816e0.md): 
+- 根目录 > 聊天 > claude-3.7-sonnet [聊天完成](https://apidocs.qnaigc.com/407188323e0.md): 
+- 根目录 > 聊天 > doubao-seed-1.6 [doubao-seed-1.6](https://apidocs.qnaigc.com/412585955e0.md): 
+- 根目录 > 聊天 > qwen3-max-2026-01-23 [聊天完成](https://apidocs.qnaigc.com/414196458e0.md): 
+- 根目录 > 聊天 > moonshotai/kimi-k2.5 [聊天完成](https://apidocs.qnaigc.com/415777183e0.md): 
+- 根目录 > 聊天 [聊天完成](https://apidocs.qnaigc.com/397561432e0.md): 
+- 根目录 > 聊天 [Anthropic协议](https://apidocs.qnaigc.com/413432574e0.md): 
+- 根目录 > 视频 > sora-2 [创建视频生成任务](https://apidocs.qnaigc.com/395453397e0.md): 创建视频生成任务，支持文生视频和图生视频。提交后会返回任务 ID，需要使用查询接口轮询任务状态并获取生成的视频。
+- 根目录 > 视频 > sora-2 [查询视频生成状态](https://apidocs.qnaigc.com/395453398e0.md): 根据视频任务 ID 查询视频生成状态和结果。建议定期轮询直到状态变为 completed 或 failed。
+- 根目录 > 视频 > sora-2 [视频 Remix](https://apidocs.qnaigc.com/395453399e0.md): 基于已完成的视频任务，使用新的提示词重新生成视频。保持原视频的时长和分辨率。
+- 根目录 > 视频 > sora-2-pro [创建视频生成任务](https://apidocs.qnaigc.com/412986563e0.md): 创建视频生成任务，支持文生视频和图生视频。提交后会返回任务 ID，需要使用查询接口轮询任务状态并获取生成的视频。
+- 根目录 > 视频 > sora-2-pro [查询视频生成状态](https://apidocs.qnaigc.com/412986564e0.md): 根据视频任务 ID 查询视频生成状态和结果。建议定期轮询直到状态变为 completed 或 failed。
+- 根目录 > 视频 > sora-2-pro [视频 Remix](https://apidocs.qnaigc.com/412986565e0.md): 基于已完成的视频任务，使用新的提示词重新生成视频。保持原视频的时长和分辨率。
+- 根目录 > 视频 > Veo [创建视频生成任务](https://apidocs.qnaigc.com/423900623e0.md): 提交一个异步视频生成任务。任务创建成功后返回任务 ID，可通过 GET `/videos/generations/{id}` 查询任务状态和结果。
+- 根目录 > 视频 > Veo [查询视频生成任务](https://apidocs.qnaigc.com/423900624e0.md): 通过任务 ID 查询视频生成任务的状态和结果。任务完成后，响应中的 `data.videos` 字段包含生成的视频下载链接（有效期 14 天）。
+- 根目录 > 视频 > 火山格式 > bytedance/doubao-seedance-2-0-260128 [创建视频生成任务](https://apidocs.qnaigc.com/439818050e0.md):  | 项目 | 说明 |
+- 根目录 > 视频 > 火山格式 > bytedance/doubao-seedance-2-0-260128 [查询视频生成任务](https://apidocs.qnaigc.com/439818051e0.md): 根据任务 `id` 查询视频生成任务状态与结果。
+- 根目录 > 视频 > Fal格式 > bytedance/doubao-seedance-2-0-260128 [创建文生视频任务](https://apidocs.qnaigc.com/446267649e0.md): 提交文本提示词生成视频任务。成功时返回 `IN_QUEUE` 及后续查询用的 `request_id`、状态/结果 URL。支持通过请求体 `callback_url` 或查询参数 `fal_webhook` 指定 HTTPS 回调地址（查询参数优先级更高），回调 payload 为 Fal 格式。`prompt` 必填且不超过 2500 字符。
+- 根目录 > 视频 > Fal格式 > bytedance/doubao-seedance-2-0-260128 [创建图生视频任务](https://apidocs.qnaigc.com/446267650e0.md): 基于首帧图片（及可选尾帧）与文本提示词生成视频。`image_url` 必填；`end_image_url` 可选。图片支持公网 HTTP(S) URL 或 `data:image/...` Base64（大小受限）。
+- 根目录 > 视频 > Fal格式 > bytedance/doubao-seedance-2-0-260128 [创建参考生视频任务](https://apidocs.qnaigc.com/446267651e0.md): 基于多模态参考（图片、视频、音频）与提示词生成视频。至少需提供 `image_urls` 或 `video_urls` 中一类；若提供 `audio_urls`，则必须同时至少包含一张参考图或一段参考视频。参考数量约束：图片最多 9 张，视频最多 3 段，音频最多 3 段，合计不超过 12。
+- 根目录 > 视频 > Fal格式 > bytedance/doubao-seedance-2-0-260128 [查询任务状态](https://apidocs.qnaigc.com/446267652e0.md): 根据 `request_id`（即创建任务返回的 `request_id`）查询任务状态。未完成时通常返回 HTTP 202 与 `IN_QUEUE` 或 `IN_PROGRESS`；已完成（成功或失败）返回 HTTP 200，`status` 为 `COMPLETED`，失败时在 `detail` 中给出错误信息，成功时可在 `result` 中看到视频信息。
+- 根目录 > 视频 > Fal格式 > bytedance/doubao-seedance-2-0-260128 [查询任务结果](https://apidocs.qnaigc.com/446267653e0.md): 获取任务最终结果。若任务仍在进行中，返回 HTTP 400，响应体为 Fal 状态结构且 `detail.type` 为 `request_in_progress`。若任务失败、取消或过期，返回对应 HTTP 状态码及 `FalErrorResponse`。成功则返回 HTTP 200，正文为 `FalResultResponse`（含 `video`）。
+- 根目录 > 视频 > Fal格式 > veo-3.1-fast-generate-001 [查询状态](https://apidocs.qnaigc.com/424737417e0.md): 
+- 根目录 > 视频 > Fal格式 > veo-3.1-fast-generate-001 [创建首尾帧生视频任务](https://apidocs.qnaigc.com/429622273e0.md): 使用首帧和尾帧图片生成视频，支持 Google Veo 3.1 模型。两张图片如果是 HTTP URL 会自动并行转存到 GCS。
+- 根目录 > 视频 > Fal格式 > veo-3.1-fast-generate-001 [创建图生视频任务](https://apidocs.qnaigc.com/424737419e0.md): 
+- 根目录 > 视频 > Fal格式 > veo-3.1-fast-generate-001 [获取结果](https://apidocs.qnaigc.com/424737420e0.md): 
+- 根目录 > 视频 > Fal格式 > vidu > viduq1 [创建文生视频任务](https://apidocs.qnaigc.com/417903311e0.md): 创建文生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq1 [创建参考生视频任务-非主体调用（视频生成） ](https://apidocs.qnaigc.com/417907439e0.md): 创建参考生视频任务参考生视频分为音视频直出、视频直出功能，二者使用相同的接口地址与请求方式，请求体不同，参考下方示例。
+- 根目录 > 视频 > Fal格式 > vidu > viduq1 [创建参考生视频任务-主体调用（支持音视频功能）](https://apidocs.qnaigc.com/417907829e0.md): 创建参考生视频任务参考生视频分为音视频直出、视频直出功能，二者使用相同的接口地址与请求方式，请求体不同，参考下方示例。
+- 根目录 > 视频 > Fal格式 > vidu > viduq1 [查询任务状态](https://apidocs.qnaigc.com/417919085e0.md): 根据request_id查询视频任务的状态
+- 根目录 > 视频 > Fal格式 > vidu > viduq1 [查询任务结果](https://apidocs.qnaigc.com/417919667e0.md): 根据request_id查询视频任务的结果
+- 根目录 > 视频 > Fal格式 > vidu > viduq2 [创建文生视频任务](https://apidocs.qnaigc.com/417911128e0.md): 创建文生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq2 [创建参考生视频任务-非主体调用（视频生成](https://apidocs.qnaigc.com/417911896e0.md): 创建参考生视频任务参考生视频分为音视频直出、视频直出功能，二者使用相同的接口地址与请求方式，请求体不同，参考下方示例。
+- 根目录 > 视频 > Fal格式 > vidu > viduq2 [创建参考生视频任务-主体调用（支持音视频功能）](https://apidocs.qnaigc.com/417911901e0.md): 创建参考生视频任务参考生视频分为音视频直出、视频直出功能，二者使用相同的接口地址与请求方式，请求体不同，参考下方示例。
+- 根目录 > 视频 > Fal格式 > vidu > viduq2 [查询任务状态](https://apidocs.qnaigc.com/417938129e0.md): 根据request_id查询视频任务的状态
+- 根目录 > 视频 > Fal格式 > vidu > viduq2 [查询任务结果](https://apidocs.qnaigc.com/417938136e0.md): 根据request_id查询视频任务的结果
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-pro [创建图生视频任务](https://apidocs.qnaigc.com/417912235e0.md): 创建图生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-pro [创建首尾帧生视频任务](https://apidocs.qnaigc.com/417918627e0.md): 创建首尾帧生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-pro [创建参考生视频任务-非主体调用（视频生成）](https://apidocs.qnaigc.com/439140413e0.md): 创建参考生视频任务参考生视频分为音视频直出、视频直出功能，二者使用相同的接口地址与请求方式，请求体不同，参考下方示例。
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-pro [查询任务状态](https://apidocs.qnaigc.com/417938516e0.md): 根据request_id查询视频任务的状态
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-pro [查询任务结果](https://apidocs.qnaigc.com/417938522e0.md): 根据request_id查询视频任务的结果
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-turbo [创建图生视频任务](https://apidocs.qnaigc.com/417918574e0.md): 创建图生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-turbo [创建首尾帧生视频任务](https://apidocs.qnaigc.com/417918812e0.md): 创建首尾帧生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-turbo [查询任务状态](https://apidocs.qnaigc.com/417938777e0.md): 根据request_id查询视频任务的状态
+- 根目录 > 视频 > Fal格式 > vidu > viduq2-turbo [查询任务结果](https://apidocs.qnaigc.com/417938792e0.md): 根据request_id查询视频任务的结果
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-pro [创建图生视频任务](https://apidocs.qnaigc.com/426890494e0.md): 创建图生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-pro [创建文生视频任务](https://apidocs.qnaigc.com/426890278e0.md): 创建文生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-pro [创建首尾帧生视频任务](https://apidocs.qnaigc.com/426890534e0.md): 创建首尾帧生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-pro [查询任务状态](https://apidocs.qnaigc.com/426890561e0.md): 根据request_id查询视频任务的状态
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-pro [查询任务结果](https://apidocs.qnaigc.com/426890599e0.md): 根据request_id查询视频任务的结果
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-turbo [创建图生视频任务](https://apidocs.qnaigc.com/426455788e0.md): 创建图生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-turbo [创建文生视频任务](https://apidocs.qnaigc.com/426455782e0.md): 创建文生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-turbo [创建首尾帧生视频任务](https://apidocs.qnaigc.com/426455814e0.md): 创建首尾帧生视频任务，返回任务ID和查询任务状态及结果的URL
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-turbo [查询任务状态](https://apidocs.qnaigc.com/426455877e0.md): 根据request_id查询视频任务的状态
+- 根目录 > 视频 > Fal格式 > vidu > viduq3-turbo [查询任务结果](https://apidocs.qnaigc.com/426455881e0.md): 根据request_id查询视频任务的结果
+- 根目录 > 视频 > Fal格式 > kling > kling-v2-5-turbo [文生视频](https://apidocs.qnaigc.com/459444093e0.md): v2.5-turbo text-to-video 仅支持 pro mode。
+- 根目录 > 视频 > Fal格式 > kling > kling-v2-5-turbo [图生视频](https://apidocs.qnaigc.com/459444094e0.md): v2.5-turbo image-to-video 支持 standard/pro，不支持 4k。
+- 根目录 > 视频 > Fal格式 > kling > kling-v2-6 [文生视频](https://apidocs.qnaigc.com/459444095e0.md): v2.6 text-to-video 仅支持 pro mode。
+- 根目录 > 视频 > Fal格式 > kling > kling-v2-6 [图生视频](https://apidocs.qnaigc.com/459444096e0.md): v2.6 image-to-video 仅支持 pro mode。
+- 根目录 > 视频 > Fal格式 > kling > kling-v2-6 [动作控制](https://apidocs.qnaigc.com/459444097e0.md): v2.6 motion-control 支持 standard/pro。
+- 根目录 > 视频 > Fal格式 > kling > kling-v3 [文生视频](https://apidocs.qnaigc.com/459444098e0.md): v3 text-to-video 支持 standard/pro/4k。
+- 根目录 > 视频 > Fal格式 > kling > kling-v3 [图生视频](https://apidocs.qnaigc.com/459444099e0.md): v3 image-to-video 支持 standard/pro/4k。
+- 根目录 > 视频 > Fal格式 > kling > kling-v3 [动作控制](https://apidocs.qnaigc.com/459444100e0.md): 当前分支代码中，v3 motion-control 支持 standard/pro/4k。
+- 根目录 > 视频 > Fal格式 > kling > kling-video-o1 [图生视频](https://apidocs.qnaigc.com/459444101e0.md): o1 image-to-video 支持 standard/pro，不支持 4k；pro 也兼容 `/queue/fal-ai/kling-video/o1/image-to-video` 省略 mode 路径。
+- 根目录 > 视频 > Fal格式 > kling > kling-video-o1 [参考生视频](https://apidocs.qnaigc.com/459444102e0.md): o1 reference-to-video 支持 standard/pro，不支持 4k；pro 也兼容 `/queue/fal-ai/kling-video/o1/reference-to-video` 省略 mode 路径。
+- 根目录 > 视频 > Fal格式 > kling > kling-v3-omni [文生视频](https://apidocs.qnaigc.com/459444103e0.md): o3 text-to-video 支持 standard/pro/4k。
+- 根目录 > 视频 > Fal格式 > kling > kling-v3-omni [图生视频](https://apidocs.qnaigc.com/459444104e0.md): o3 image-to-video 支持 standard/pro/4k。
+- 根目录 > 视频 > Fal格式 > kling > kling-v3-omni [参考生视频](https://apidocs.qnaigc.com/459444105e0.md): o3 reference-to-video 支持 standard/pro/4k。
+- 根目录 > 视频 > Fal格式 > kling [查询任务状态](https://apidocs.qnaigc.com/459444106e0.md): 查询当前用户的 Kling Video 任务状态。
+- 根目录 > 视频 > Fal格式 > kling [查询任务结果](https://apidocs.qnaigc.com/459444107e0.md): 查询当前用户的 Kling Video 任务结果。
+- 根目录 > 视频 > kling > kling-v2-1 [创建视频任务](https://apidocs.qnaigc.com/396127760e0.md): 使用 kling-v2-1 模型创建视频生成任务。支持图生视频及参考首尾帧生成，不支持纯文生视频。提交后返回任务 ID，需使用查询接口轮询任务状态并获取生成的视频。
+- 根目录 > 视频 > kling > kling-v2-1 [查询视频生成状态](https://apidocs.qnaigc.com/396127761e0.md): 根据视频任务 ID 查询 kling-v2-1 模型的视频生成状态和结果。建议定期轮询直到状态变为 completed 或 failed。
+- 根目录 > 视频 > kling > kling-v2-5-turbo [创建视频任务](https://apidocs.qnaigc.com/396145809e0.md): 使用 kling-v2-5-turbo 模型创建视频生成任务。支持文生视频、图生视频、视频生视频和参考首尾帧生视频全功能。提交后返回任务 ID，需使用查询接口轮询任务状态并获取生成的视频。
+- 根目录 > 视频 > kling > kling-v2-5-turbo [查询视频生成状态](https://apidocs.qnaigc.com/396145810e0.md): 根据视频任务 ID 查询 kling-v2-5-turbo 模型的视频生成状态和结果。建议定期轮询直到状态变为 completed 或 failed。
+- 根目录 > 视频 > kling > kling-v2-6 [创建视频任务](https://apidocs.qnaigc.com/404263380e0.md): 创建可灵 v2.6 模型的视频生成任务，支持文生视频、图生视频、多图生视频、有声视频和动作控制等功能。任务创建成功后立即返回任务ID，视频生成为异步处理，需通过查询接口获取生成结果。
+- 根目录 > 视频 > kling > kling-v2-6 [查询视频生成状态](https://apidocs.qnaigc.com/404261174e0.md): 查询视频生成任务的当前状态和结果。通过任务ID获取任务详情，包括生成进度、完成状态、视频URL等信息。
+- 根目录 > 视频 > kling > kling-v3 [创建视频任务](https://apidocs.qnaigc.com/421288748e0.md): 
+- 根目录 > 视频 > kling > kling-v3 [查询视频生成状态](https://apidocs.qnaigc.com/421288749e0.md): 查询视频生成任务的当前状态和结果。通过任务ID获取任务详情，包括生成进度、完成状态、视频URL等信息。
+- 根目录 > 视频 > kling > kling-video-o1 [创建视频任务](https://apidocs.qnaigc.com/396194574e0.md): 使用 kling-video-o1 模型创建视频生成任务。支持文生视频、图生视频、视频生视频和参考首尾帧生视频全功能。提交后返回任务 ID，需使用查询接口轮询任务状态并获取生成的视频。
+- 根目录 > 视频 > kling > kling-video-o1 [查询视频生成状态](https://apidocs.qnaigc.com/396194575e0.md): 根据视频任务 ID 查询 kling-video-o1 模型的视频生成状态和结果。建议定期轮询直到状态变为 completed 或 failed。
+- 根目录 > 视频 > kling > kling-v3-omni [创建视频任务](https://apidocs.qnaigc.com/420877484e0.md): 
+- 根目录 > 视频 > kling > kling-v3-omni [查询视频生成状态](https://apidocs.qnaigc.com/420877485e0.md): 根据视频任务 ID 查询 kling-v3-omni 模型的视频生成状态和结果。建议定期轮询直到状态变为 completed 或 failed。
+- 根目录 > 图像生成 > kling-v1 [创建文生图或单图生图任务](https://apidocs.qnaigc.com/396977229e0.md): 使用 Kling V1 模型根据文本描述生成图像(文生图),或基于单张参考图像生成新图像(单图生图)。返回任务 ID 用于后续查询
+- 根目录 > 图像生成 > kling-v1 [查询任务状态](https://apidocs.qnaigc.com/396977231e0.md): 根据任务 ID 查询图像生成状态和结果
+- 根目录 > 图像生成 > kling-v1-5 [创建文生图或单图生图任务](https://apidocs.qnaigc.com/397001380e0.md): 使用 Kling V1.5 模型根据文本描述生成图像(文生图),或基于单张参考图像生成新图像(单图生图)。支持角色特征参考和人物长相参考功能,返回任务 ID 用于后续查询
+- 根目录 > 图像生成 > kling-v1-5 [查询任务状态](https://apidocs.qnaigc.com/397001382e0.md): 根据任务 ID 查询图像生成状态和结果
+- 根目录 > 图像生成 > kling-v2 [创建文生图或单图生图任务](https://apidocs.qnaigc.com/397002020e0.md): 使用 Kling V2 模型根据文本描述生成图像(文生图),或基于单张参考图像生成新图像(单图生图)。返回任务 ID 用于后续查询
+- 根目录 > 图像生成 > kling-v2 [创建多图生图任务](https://apidocs.qnaigc.com/397002021e0.md): 使用 Kling V2 模型基于多张参考图像和文本描述生成新的图像。需要提供2张及以上参考图片,支持多种参考图片类型,返回任务 ID 用于后续查询
+- 根目录 > 图像生成 > kling-v2 [查询任务状态](https://apidocs.qnaigc.com/397002022e0.md): 根据任务 ID 查询图像生成状态和结果
+- 根目录 > 图像生成 > kling-v2-new [创建单图生图任务](https://apidocs.qnaigc.com/397002374e0.md): 使用 Kling V2-New 模型基于单张参考图像生成新图像(单图生图)。返回任务 ID 用于后续查询
+- 根目录 > 图像生成 > kling-v2-new [查询任务状态](https://apidocs.qnaigc.com/397002376e0.md): 根据任务 ID 查询图像生成状态和结果
+- 根目录 > 图像生成 > kling-v2-1 [创建文生图或单图生图任务](https://apidocs.qnaigc.com/397002563e0.md): 使用 Kling V2.1 模型根据文本描述生成图像(文生图),或基于单张参考图像生成新图像(单图生图)。返回任务 ID 用于后续查询
+- 根目录 > 图像生成 > kling-v2-1 [创建多图生图任务](https://apidocs.qnaigc.com/397002564e0.md): 使用 Kling V2.1 模型基于多张参考图像和文本描述生成新的图像。需要提供2张及以上参考图片,返回任务 ID 用于后续查询
+- 根目录 > 图像生成 > kling-v2-1 [查询任务状态](https://apidocs.qnaigc.com/397002565e0.md): 根据任务 ID 查询图像生成状态和结果
+- 根目录 > 图像生成 > gemini-2.5-flash-image [对话接口 - 支持文生图、图生图和纯对话](https://apidocs.qnaigc.com/397191373e0.md): 通用对话接口，支持 Gemini 模型的文生图、图生图和纯对话功能。
+- 根目录 > 图像生成 > gemini-2.5-flash-image [文生图接口 - 根据文本描述生成图像](https://apidocs.qnaigc.com/397191374e0.md): 根据文本描述生成全新的图像，支持多种宽高比配置。输出分辨率为 1K。
+- 根目录 > 图像生成 > gemini-2.5-flash-image [图生图接口 - 基于输入图像生成新图像](https://apidocs.qnaigc.com/397191375e0.md): 基于输入图像和文本描述生成新的图像，支持图像编辑、风格转换和内容修改。输出分辨率为 1K。
+- 根目录 > 图像生成 > gemini-3.0-pro-image-preview [对话接口 - 支持文生图、图生图和纯对话](https://apidocs.qnaigc.com/397197786e0.md): 通用对话接口，支持 Gemini 模型的文生图、图生图和纯对话功能。
+- 根目录 > 图像生成 > gemini-3.0-pro-image-preview [文生图接口 - 根据文本描述生成图像](https://apidocs.qnaigc.com/397197787e0.md): 根据文本描述生成全新的图像，支持多种分辨率和宽高比配置。
+- 根目录 > 图像生成 > gemini-3.0-pro-image-preview [图生图接口 - 基于输入图像生成新图像](https://apidocs.qnaigc.com/397197788e0.md): 基于输入图像和文本描述生成新的图像，支持图像编辑、风格转换和内容修改。
+- 根目录 > 图像生成 > gemini-3.1-flash-image-preview [对话接口 - 支持文生图、图生图和纯对话](https://apidocs.qnaigc.com/421308051e0.md): 通用对话接口，支持 Gemini 模型的文生图、图生图和纯对话功能。
+- 根目录 > 图像生成 > gemini-3.1-flash-image-preview [文生图接口 - 根据文本描述生成图像](https://apidocs.qnaigc.com/421308052e0.md): 根据文本描述生成全新的图像，支持多种分辨率和宽高比配置。
+- 根目录 > 图像生成 > gemini-3.1-flash-image-preview [图生图接口 - 基于输入图像生成新图像](https://apidocs.qnaigc.com/421308053e0.md): 基于输入图像和文本描述生成新的图像，支持图像编辑、风格转换和内容修改。
+- 根目录 > 图像生成 > kling-image-o1 [创建图像生成任务](https://apidocs.qnaigc.com/411327685e0.md): 创建可灵 OmniImage 图像生成任务。支持文本提示词、参考图片的多模态输入方式。任务为异步执行，创建成功后返回任务 ID，需通过查询接口获取生成结果。
+- 根目录 > 图像生成 > kling-image-o1 [查询图像生成任务](https://apidocs.qnaigc.com/411327686e0.md): 根据任务 ID 查询图像生成任务的状态和结果。任务完成后，返回生成的图像 URL 列表。
+- 根目录 > 图像生成 > kling-image-o1 [获取结果](https://apidocs.qnaigc.com/413134656e0.md): 根据任务 ID 查询图像生成任务的状态和结果。任务完成后，返回生成的图像 URL 列表。
+- 根目录 > 图像生成 > openai/gpt-image-2 [文生图](https://apidocs.qnaigc.com/448014490e0.md): ## 常用 size ：
+- 根目录 > 图像生成 > openai/gpt-image-2 [图生图](https://apidocs.qnaigc.com/448014970e0.md): 
+- 根目录 > 文件 [创建文件上传任务](https://apidocs.qnaigc.com/417774894e0.md): ### 文件上传
+- 根目录 > 文件 [查询文件状态](https://apidocs.qnaigc.com/417774896e0.md): 根据文件 ID 查询文件的详细信息和当前状态。
+- 根目录 > 文件 [列出用户文件](https://apidocs.qnaigc.com/417774895e0.md): 获取当前用户的文件列表。支持按状态过滤和游标分页。
+- 根目录 > API Key 管理 [批量创建 API Key](https://apidocs.qnaigc.com/399815449e0.md): 使用七牛云 AK/SK 鉴权批量创建 AI 大模型推理 API Key。单次最多可创建100个 API Key,用户账户下累计最多100个 API Key。
+- 根目录 > 日志导出 [导出请求日志](https://apidocs.qnaigc.com/398233321e0.md): 导出请求日志，返回 JSON 格式的响应体。支持按时间范围、模型、状态码、APIKey 等条件过滤。
+- 根目录 > 日志导出 [导出请求日志为文件](https://apidocs.qnaigc.com/398233322e0.md): 导出请求日志为 JSON 文件下载。参数和过滤条件与 `/v2/stat/export_log` 接口完全相同。
+
+## Schemas
+- 根目录 > 聊天 [ChatCompletionRequest](https://apidocs.qnaigc.com/233004161d0.md): 
+- 根目录 > 聊天 [ChatCompletionRequestMessage](https://apidocs.qnaigc.com/233004162d0.md): 
+- 根目录 > 聊天 [MessageContent](https://apidocs.qnaigc.com/233004163d0.md): 
+- 根目录 > 聊天 [ImageUrl](https://apidocs.qnaigc.com/233004164d0.md): 
+- 根目录 > 聊天 [VideoUrl](https://apidocs.qnaigc.com/233004165d0.md): 
+- 根目录 > 聊天 [FileUrl](https://apidocs.qnaigc.com/233004167d0.md): 
+- 根目录 > 聊天 [InputAudio](https://apidocs.qnaigc.com/233004168d0.md): 
+- 根目录 > 聊天 [CacheControl](https://apidocs.qnaigc.com/233004169d0.md): 
+- 根目录 > 聊天 [ThinkingBlock](https://apidocs.qnaigc.com/233004170d0.md): 
+- 根目录 > 聊天 [Image](https://apidocs.qnaigc.com/233004171d0.md): 
+- 根目录 > 聊天 [ToolObject](https://apidocs.qnaigc.com/233004173d0.md): 
+- 根目录 > 聊天 [ToolFunction](https://apidocs.qnaigc.com/233004174d0.md): 
+- 根目录 > 聊天 [ToolParameters](https://apidocs.qnaigc.com/233004175d0.md): 
+- 根目录 > 聊天 [ToolCall](https://apidocs.qnaigc.com/233004176d0.md): 
+- 根目录 > 聊天 [ToolCallFunction](https://apidocs.qnaigc.com/233004177d0.md): 
+- 根目录 > 聊天 [FunctionCall](https://apidocs.qnaigc.com/233004178d0.md): 
+- 根目录 > 聊天 [ChatTemplateKwargs](https://apidocs.qnaigc.com/233004179d0.md): 
+- 根目录 > 聊天 [ThinkType](https://apidocs.qnaigc.com/233004180d0.md): 
+- 根目录 > 聊天 [ReasoningType](https://apidocs.qnaigc.com/233004181d0.md): 
+- 根目录 > 聊天 [ImageConfig](https://apidocs.qnaigc.com/233004182d0.md): 
+- 根目录 > 聊天 [SafetySetting](https://apidocs.qnaigc.com/233004185d0.md): 
+- 根目录 > 视频 > Sora [SoraVideoTask](https://apidocs.qnaigc.com/231792457d0.md): 
+- 根目录 > 视频 > Sora [SoraVideoTaskRemix](https://apidocs.qnaigc.com/231792461d0.md): 
+- 根目录 > 视频 > kling-v2-1 [KlingV21CreateRequest](https://apidocs.qnaigc.com/232217270d0.md): 
+- 根目录 > 视频 > kling-v2-1 [KlingV21CreateResponse](https://apidocs.qnaigc.com/232217271d0.md): 
+- 根目录 > 视频 > kling-v2-1 [KlingV21StatusResponse](https://apidocs.qnaigc.com/232217272d0.md): 
+- 根目录 > 视频 > kling-video-o1 [KlingVideoO1CreateRequest](https://apidocs.qnaigc.com/232292708d0.md): 
+- 根目录 > 视频 > kling-video-o1 [KlingVideoO1CreateResponse](https://apidocs.qnaigc.com/232292709d0.md): 
+- 根目录 > 视频 > kling-video-o1 [KlingVideoO1StatusResponse](https://apidocs.qnaigc.com/232292710d0.md): 
+- 根目录 > 视频 > kling-v2-5-turbo [KlingV25TurboCreateRequest](https://apidocs.qnaigc.com/232252468d0.md): 
+- 根目录 > 视频 > kling-v2-5-turbo [KlingV25TurboCreateResponse](https://apidocs.qnaigc.com/232252469d0.md): 
+- 根目录 > 视频 > kling-v2-5-turbo [KlingV25TurboStatusResponse](https://apidocs.qnaigc.com/232252470d0.md): 
+- 根目录 > 视频 > kling-v3-omni [KlingV3OmniCreateRequest](https://apidocs.qnaigc.com/248853958d0.md): 
+- 根目录 > 视频 > kling-v3 [KlingV3CreateRequest ](https://apidocs.qnaigc.com/249120857d0.md): 
+- 根目录 > 视频 > kling-v2-6 [KlingV26CreateRequest](https://apidocs.qnaigc.com/237751551d0.md): 
+- 根目录 > 视频 > kling-v2-6 [KlingV26CreateResponse](https://apidocs.qnaigc.com/237751552d0.md): 
+- 根目录 > 视频 > kling-v2-6 [KlingV26VideoStatusResponse](https://apidocs.qnaigc.com/237751553d0.md): 
+- 根目录 > 视频 > Veo [CreateVideoGenerationRequest](https://apidocs.qnaigc.com/251109268d0.md): 
+- 根目录 > 视频 > Veo [Instance](https://apidocs.qnaigc.com/251109269d0.md): 
+- 根目录 > 视频 > Veo [ImageInput](https://apidocs.qnaigc.com/251109270d0.md): 
+- 根目录 > 视频 > Veo [LastFrameInput](https://apidocs.qnaigc.com/251109271d0.md): 
+- 根目录 > 视频 > Veo [VideoInput](https://apidocs.qnaigc.com/251109272d0.md): 
+- 根目录 > 视频 > Veo [ReferenceImage](https://apidocs.qnaigc.com/251109273d0.md): 
+- 根目录 > 视频 > Veo [Parameters](https://apidocs.qnaigc.com/251109274d0.md): 
+- 根目录 > 视频 > Veo [CreateVideoGenerationResponse](https://apidocs.qnaigc.com/251109275d0.md): 
+- 根目录 > 视频 > Veo [VideoGenerationJobInfo](https://apidocs.qnaigc.com/251109276d0.md): 
+- 根目录 > 视频 > Veo [VideoGenerationData](https://apidocs.qnaigc.com/251109277d0.md): 
+- 根目录 > 视频 > Veo [VideoResult](https://apidocs.qnaigc.com/251109278d0.md): 
+- 根目录 > 视频 > Veo [ErrorResponse](https://apidocs.qnaigc.com/251109279d0.md): 
+- 根目录 > 视频 [VideoCreateResponse](https://apidocs.qnaigc.com/248854581d0.md): 
+- 根目录 > 视频 [VideoStatusResponse](https://apidocs.qnaigc.com/248854589d0.md): 
+- 根目录 > 视频 [File](https://apidocs.qnaigc.com/251637609d0.md): 
+- 根目录 > 图像生成 > kling-v1 [KlingV1CreateImageRequest](https://apidocs.qnaigc.com/232842159d0.md): 
+- 根目录 > 图像生成 > kling-v1 [KlingV1EditImageRequest](https://apidocs.qnaigc.com/232842162d0.md): 
+- 根目录 > 图像生成 > kling-v1-5 [KlingV15CreateImageRequest](https://apidocs.qnaigc.com/232855452d0.md): 
+- 根目录 > 图像生成 > kling-v2 [KlingV2CreateImageRequest](https://apidocs.qnaigc.com/232855830d0.md): 
+- 根目录 > 图像生成 > kling-v2 [KlingV2EditImageRequest](https://apidocs.qnaigc.com/232855831d0.md): 
+- 根目录 > 图像生成 > kling-v2-new [KlingV2NewCreateImageRequest](https://apidocs.qnaigc.com/232856258d0.md): 
+- 根目录 > 图像生成 > kling-v2-1 [KlingV21CreateImageRequest](https://apidocs.qnaigc.com/232856349d0.md): 
+- 根目录 > 图像生成 > kling-v2-1 [KlingV21EditImageRequest](https://apidocs.qnaigc.com/232856350d0.md): 
+- 根目录 > 图像生成 > gemini-2.5-flash-image [Gemini25FlashImageChatCompletionRequest](https://apidocs.qnaigc.com/232985882d0.md): 
+- 根目录 > 图像生成 > gemini-2.5-flash-image [Gemini25FlashImageGenerationRequest](https://apidocs.qnaigc.com/232985883d0.md): 
+- 根目录 > 图像生成 > gemini-2.5-flash-image [Gemini25FlashImageEditRequest](https://apidocs.qnaigc.com/232985884d0.md): 
+- 根目录 > 图像生成 > gemini-2.5-flash-image [Gemini25FlashImageConfig](https://apidocs.qnaigc.com/232985885d0.md): 
+- 根目录 > 图像生成 > gemini-3.0-pro-image-preview [Gemini30ProImageChatCompletionRequest](https://apidocs.qnaigc.com/232991283d0.md): 
+- 根目录 > 图像生成 > gemini-3.0-pro-image-preview [Gemini30ProImageGenerationRequest](https://apidocs.qnaigc.com/232991284d0.md): 
+- 根目录 > 图像生成 > gemini-3.0-pro-image-preview [Gemini30ProImageEditRequest](https://apidocs.qnaigc.com/232991285d0.md): 
+- 根目录 > 图像生成 > gemini-3.0-pro-image-preview [Gemini30ProImageConfig](https://apidocs.qnaigc.com/232991286d0.md): 
+- 根目录 > 图像生成 [KlingImageTaskResponse](https://apidocs.qnaigc.com/232855453d0.md): 
+- 根目录 > 图像生成 [KlingImageTaskStatusResponse](https://apidocs.qnaigc.com/232842161d0.md): 
+- 根目录 > 图像生成 [ChatMessage](https://apidocs.qnaigc.com/232985886d0.md): 
+- 根目录 > 图像生成 [ChatCompletionResponse](https://apidocs.qnaigc.com/232985887d0.md): 
+- 根目录 > 图像生成 [CreateOmniImageRequest](https://apidocs.qnaigc.com/242386967d0.md): 
+- 根目录 > 图像生成 [Gemini31FlashImageChatCompletionRequest](https://apidocs.qnaigc.com/249132012d0.md): 
+- 根目录 > 图像生成 [CreateOmniImageResponse](https://apidocs.qnaigc.com/242386968d0.md): 
+- 根目录 > 图像生成 [Gemini31FlashImageGenerationRequest](https://apidocs.qnaigc.com/249132013d0.md): 
+- 根目录 > 图像生成 [ImageTaskInfoResponse](https://apidocs.qnaigc.com/242386969d0.md): 
+- 根目录 > 图像生成 [Gemini31FlashImageEditRequest](https://apidocs.qnaigc.com/249132014d0.md): 
+- 根目录 > 图像生成 [Gemini31FlashImageConfig](https://apidocs.qnaigc.com/249132015d0.md): 
+- 根目录 [CreateFileRequest](https://apidocs.qnaigc.com/246833937d0.md): 
+- 根目录 [HappyHorseTextToVideoRequest](https://apidocs.qnaigc.com/270710915d0.md): 
+- 根目录 [ViduQ3ReferenceToVideoRequest](https://apidocs.qnaigc.com/278134420d0.md): 
+- 根目录 [ContentItem](https://apidocs.qnaigc.com/261837536d0.md): 
+- 根目录 [FalSeedanceTextToVideoRequest](https://apidocs.qnaigc.com/266293689d0.md): 
+- 根目录 [QueueStatus](https://apidocs.qnaigc.com/251637606d0.md): 
+- 根目录 [FalOmniImageRequest](https://apidocs.qnaigc.com/275071165d0.md): 
+- 根目录 [MultiPromptItem](https://apidocs.qnaigc.com/275071167d0.md): 
+- 根目录 [AssetGroupCreateRequest](https://apidocs.qnaigc.com/276616952d0.md): 
+- 根目录 [FileResponse](https://apidocs.qnaigc.com/246833929d0.md): 
+- 根目录 [HappyHorseImageToVideoRequest](https://apidocs.qnaigc.com/270710916d0.md): 
+- 根目录 [FalSubmitResponse](https://apidocs.qnaigc.com/278134421d0.md): 
+- 根目录 [FalSeedanceImageToVideoRequest](https://apidocs.qnaigc.com/266293690d0.md): 
+- 根目录 [FalOmniImageElement](https://apidocs.qnaigc.com/275071166d0.md): 
+- 根目录 [ElementListItem](https://apidocs.qnaigc.com/275071168d0.md): 
+- 根目录 [Veo31FastFirstLastFrameToVideoInput](https://apidocs.qnaigc.com/254967007d0.md): 
+- 根目录 [ToolItem](https://apidocs.qnaigc.com/261837537d0.md): 
+- 根目录 [AssetGroupUpdateRequest](https://apidocs.qnaigc.com/276616953d0.md): 
+- 根目录 [ReferenceElement](https://apidocs.qnaigc.com/275090979d0.md): 
+- 根目录 [HappyHorseReferenceToVideoRequest](https://apidocs.qnaigc.com/270710917d0.md): 
+- 根目录 [FalSeedanceReferenceToVideoRequest](https://apidocs.qnaigc.com/266293691d0.md): 
+- 根目录 [CreateVideoTaskResponse](https://apidocs.qnaigc.com/261837538d0.md): 
+- 根目录 [AssetGroupResponse](https://apidocs.qnaigc.com/276616954d0.md): 
+- 根目录 [FileListResponse](https://apidocs.qnaigc.com/246833938d0.md): 
+- 根目录 [HappyHorseVideoEditRequest](https://apidocs.qnaigc.com/270710918d0.md): 
+- 根目录 [FalStatus](https://apidocs.qnaigc.com/266293692d0.md): 
+- 根目录 [KlingV25TurboTextToVideoRequest](https://apidocs.qnaigc.com/275071170d0.md): 
+- 根目录 [ApiErrorBody](https://apidocs.qnaigc.com/261837539d0.md): 
+- 根目录 [AssetGroupListResponse](https://apidocs.qnaigc.com/276616955d0.md): 
+- 根目录 [File](https://apidocs.qnaigc.com/233004166d0.md): 
+- 根目录 [ImageUrlObject](https://apidocs.qnaigc.com/233004172d0.md): 
+- 根目录 [FileDeleteResponse](https://apidocs.qnaigc.com/246833939d0.md): 
+- 根目录 [FalRequestURLs](https://apidocs.qnaigc.com/266293693d0.md): 
+- 根目录 [CommonPromptFields](https://apidocs.qnaigc.com/275071169d0.md): 
+- 根目录 [KlingV26TextToVideoRequest](https://apidocs.qnaigc.com/275071171d0.md): 
+- 根目录 [GetVideoTaskResponse](https://apidocs.qnaigc.com/261837540d0.md): 
+- 根目录 [ChatMessage](https://apidocs.qnaigc.com/249132016d0.md): 
+- 根目录 [AssetCreateRequest](https://apidocs.qnaigc.com/276616956d0.md): 
+- 根目录 [KlingV3TextToVideoRequest](https://apidocs.qnaigc.com/275071172d0.md): 
+- 根目录 [AssetResponse](https://apidocs.qnaigc.com/276616957d0.md): 
+- 根目录 [KodoSource](https://apidocs.qnaigc.com/246833932d0.md): 
+- 根目录 [KlingV3OmniTextToVideoRequest](https://apidocs.qnaigc.com/275090980d0.md): 
+- 根目录 [AssetListResponse](https://apidocs.qnaigc.com/276616958d0.md): 
+- 根目录 [ErrorResponse](https://apidocs.qnaigc.com/232842163d0.md): 
+- 根目录 [KlingV25TurboImageToVideoRequest](https://apidocs.qnaigc.com/275071174d0.md): 
+- 根目录 [ChatCompletionResponse](https://apidocs.qnaigc.com/249132017d0.md): 
+- 根目录 [KlingOmniO3TextToVideoRequest](https://apidocs.qnaigc.com/275071173d0.md): 
+- 根目录 [KlingV26ImageToVideoRequest](https://apidocs.qnaigc.com/275071175d0.md): 
+- 根目录 [Veo31FastImageToVideoInput](https://apidocs.qnaigc.com/251637607d0.md): 
+- 根目录 [KlingV3ImageToVideoRequest](https://apidocs.qnaigc.com/275071176d0.md): 
+- 根目录 [KlingVideoO1ImageToVideoRequest](https://apidocs.qnaigc.com/275090981d0.md): 
+- 根目录 [ErrorDetail](https://apidocs.qnaigc.com/270710919d0.md): 
+- 根目录 [KlingV3OmniImageToVideoRequest](https://apidocs.qnaigc.com/275090982d0.md): 
+- 根目录 [FileError](https://apidocs.qnaigc.com/246833940d0.md): 
+- 根目录 [KlingVideoO1ReferenceToVideoRequest](https://apidocs.qnaigc.com/275090983d0.md): 
+- 根目录 [KlingOmniO1ImageToVideoRequest](https://apidocs.qnaigc.com/275071177d0.md): 
+- 根目录 [KlingV3OmniReferenceToVideoRequest](https://apidocs.qnaigc.com/275090984d0.md): 
+- 根目录 [KlingOmniO3ImageToVideoRequest](https://apidocs.qnaigc.com/275071178d0.md): 
+- 根目录 [ImageGenerationResponse](https://apidocs.qnaigc.com/249132018d0.md): 
+- 根目录 [FalLogEntry](https://apidocs.qnaigc.com/266293694d0.md): 
+- 根目录 [FalMetrics](https://apidocs.qnaigc.com/266293695d0.md): 
+- 根目录 [FalVideoItem](https://apidocs.qnaigc.com/266293696d0.md): 
+- 根目录 [FalResultResponse](https://apidocs.qnaigc.com/266293697d0.md): 
+- 根目录 [FalStatusResponse](https://apidocs.qnaigc.com/266293700d0.md): 
+- 根目录 [FalErrorDetail](https://apidocs.qnaigc.com/266293698d0.md): 
+- 根目录 [FalErrorResponse](https://apidocs.qnaigc.com/266293699d0.md): 
+- 根目录 [KlingOmniO1ReferenceToVideoRequest](https://apidocs.qnaigc.com/275071179d0.md): 
+- 根目录 [KlingV26MotionControlRequest](https://apidocs.qnaigc.com/275071181d0.md): 
+- 根目录 [VideoUrlObject](https://apidocs.qnaigc.com/261837541d0.md): 
+- 根目录 [KlingOmniO3ReferenceToVideoRequest](https://apidocs.qnaigc.com/275071180d0.md): 
+- 根目录 [KlingV3MotionControlRequest](https://apidocs.qnaigc.com/275071182d0.md): 
+- 根目录 [AudioUrlObject](https://apidocs.qnaigc.com/261837542d0.md): 
+- 根目录 [DraftTaskObject](https://apidocs.qnaigc.com/261837543d0.md): 
+- 根目录 [FalImageItem](https://apidocs.qnaigc.com/275071183d0.md): 
+- 根目录 [VideoTaskOutputContent](https://apidocs.qnaigc.com/261837544d0.md): 
+- 根目录 [VideoTaskToolUsageItem](https://apidocs.qnaigc.com/261837545d0.md): 
+- 根目录 [VideoTaskUsage](https://apidocs.qnaigc.com/261837546d0.md): 
+- 根目录 [StatLogOKResp](https://apidocs.qnaigc.com/233744310d0.md): 
+- 根目录 [BatchCreateApiKeysRequest](https://apidocs.qnaigc.com/234718927d0.md): 
+- 根目录 [StatLogResp](https://apidocs.qnaigc.com/233743575d0.md): 
+- 根目录 [ErrorResponse](https://apidocs.qnaigc.com/233674869d0.md): 
+- 根目录 [BatchCreateApiKeysSuccessResponse](https://apidocs.qnaigc.com/234718928d0.md): 
+- 根目录 [BatchCreateApiKeysData](https://apidocs.qnaigc.com/234718929d0.md): 
+- 根目录 [ApiKeyInfo](https://apidocs.qnaigc.com/234718930d0.md): 
+- 根目录 [ErrorDetail](https://apidocs.qnaigc.com/234718931d0.md): 

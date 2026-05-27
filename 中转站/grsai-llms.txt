@@ -1,0 +1,8 @@
+# Grsai API
+
+## API Docs
+- Grsai图片/视频生成接口 [nano-banana接口](https://qmy27nhsd9.apifox.cn/452392911e0.md): 基础节点：
+- Grsai图片/视频生成接口 [gpt-image-2接口](https://qmy27nhsd9.apifox.cn/452409160e0.md): 基础节点：
+- Grsai图片/视频生成接口 [异步生成结果查询接口](https://qmy27nhsd9.apifox.cn/452409577e0.md): 基础节点：
+- openai-completions接口 [/v1/chat/completions](https://qmy27nhsd9.apifox.cn/452418916e0.md): 基础节点：
+- openai-generations接口 [/v1/images/generations](https://qmy27nhsd9.apifox.cn/452417029e0.md): 基础节点：

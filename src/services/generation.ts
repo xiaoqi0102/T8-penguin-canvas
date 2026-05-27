@@ -6,7 +6,11 @@
 export interface GenerateImageRequest {
   model: string;          // 节点 id (gpt-image-2 / nano-banana-2 / nano-banana-pro)
   apiModel?: string;       // 上游真实模型名(优先使用)
-  paramKind?: 'gpt-size' | 'banana-ratio' | 'mj';
+  // paramKind 类型刻意放宽到 string —— 实际 ImageNode 走 /api/proxy/image 的只可能是
+  // 'gpt-size' | 'banana-ratio' | 'mj' 三种；自定义 provider（如 qiniu/grsai）会被
+  // ImageNode 内 isXxx 分支提前拦截走独立 runner，不会调本接口。保留 string 避免
+  // ImageParamKind 联合扩张时一路连改本文件。
+  paramKind?: string;
   prompt: string;
   n?: number;
   // 主参数(双协议通用):
@@ -79,6 +83,41 @@ export async function queryImageStatus(taskId: string, apiModel?: string): Promi
   const data = await r.json();
   if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
   // 失败状态下 success=false 但返回 body 中仍包含 status:'failed'
+  return data.data || { status: data.success ? 'pending' : 'failed', progress: '0%', error: data?.error };
+}
+
+// ========================================================================
+// 七牛云 AI 图像生成 (v1.5.6)
+//   独立 provider，走 /api/proxy/qiniu/image[/submit|/status/:tid]
+//   仅支持 OpenAI 兼容的 size + quality 两个调参，参考图自动走 /v1/images/edits
+// ========================================================================
+export interface QiniuImageSubmitRequest {
+  /** 上游真实模型名，例如 'gemini-3.1-flash-image-preview' / 'openai/gpt-image-2' */
+  model: string;
+  prompt: string;
+  /** 'auto' / 'low' / 'medium' / 'high' */
+  quality?: 'auto' | 'low' | 'medium' | 'high';
+  /** 'auto' / '1024x1024' / '1536x1024' / '1024x1536' / '2048x2048' ... */
+  size?: string;
+  /** 参考图 URL（http(s):// / /files/* / data:image/...;base64,*）；非空走 edits 接口 */
+  images?: string[];
+}
+
+export async function submitQiniuImage(req: QiniuImageSubmitRequest): Promise<ImageSubmitResult> {
+  const r = await fetch('/api/proxy/qiniu/image/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  const data = await r.json();
+  if (!r.ok || !data.success) throw new Error(data?.error || `HTTP ${r.status}`);
+  return data.data;
+}
+
+export async function queryQiniuImageStatus(taskId: string): Promise<ImageQueryResult> {
+  const r = await fetch(`/api/proxy/qiniu/image/status/${encodeURIComponent(taskId)}`);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
   return data.data || { status: data.success ? 'pending' : 'failed', progress: '0%', error: data?.error };
 }
 
@@ -750,4 +789,42 @@ export async function uploadRhAsset(url: string): Promise<{ fileName: string; fi
 // ============================================================================
 // (原崩溃前遗留的 MJ 代码块已移除; MJ 实现参见上方 buildMjPrompt / submitMjImagine / queryMjTask / uploadMjImage 及 fileToDataUrl)
 // ============================================================================
+
+// >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时本块整体保留即可)
+// ========================================================================
+// Grsai 中转站 AI 图像生成 (v1.5.6)
+//   独立 provider，走 /api/proxy/grsai/image[/submit|/status/:tid]
+//   上游协议：POST /v1/api/generate + GET /v1/api/result?id=
+//   不复用 OpenAI 兼容路径（这是 grsai 自有协议）
+// ========================================================================
+export interface GrsaiImageSubmitRequest {
+  /** 上游真实模型名（nano-banana 系列 9 个 / gpt-image-2 系列 2 个） */
+  model: string;
+  prompt: string;
+  /** 参考图 URL（http(s):// / /files/* / data:image/...;base64,*） */
+  images?: string[];
+  /** 比例字符串 'auto'|'1:1'|...|'8:1' 或像素串 '1024x1024' 等（gpt-image-2-vip 必须像素串） */
+  aspectRatio?: string;
+  /** '1K'|'2K'|'4K'，仅 nano-banana 系列读取（runner 中根据 model 决定是否传） */
+  imageSize?: '1K' | '2K' | '4K';
+}
+
+export async function submitGrsaiImage(req: GrsaiImageSubmitRequest): Promise<ImageSubmitResult> {
+  const r = await fetch('/api/proxy/grsai/image/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  const data = await r.json();
+  if (!r.ok || !data.success) throw new Error(data?.error || `HTTP ${r.status}`);
+  return data.data;
+}
+
+export async function queryGrsaiImageStatus(taskId: string): Promise<ImageQueryResult> {
+  const r = await fetch(`/api/proxy/grsai/image/status/${encodeURIComponent(taskId)}`);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+  return data.data || { status: data.success ? 'pending' : 'failed', progress: '0%', error: data?.error };
+}
+// <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 

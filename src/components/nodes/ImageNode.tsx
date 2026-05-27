@@ -33,6 +33,12 @@ import {
   buildMjPrompt,
   type MjSpeed,
 } from '../../services/generation';
+// >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时，本块整体保留即可)
+import QiniuImageTab from '../../integrations/qiniu/QiniuImageTab';
+import { runQiniuImage } from '../../integrations/qiniu/runQiniuImage';
+import GrsaiImageTab from '../../integrations/grsai/GrsaiImageTab';
+import { runGrsaiImage } from '../../integrations/grsai/runGrsaiImage';
+// <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useHasAutoOutput } from './useHasAutoOutput';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
@@ -111,6 +117,11 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const mjOrefImages: string[] = Array.isArray(d?.mjOrefImages) ? d.mjOrefImages : [];
   const MJ_REF_MAX = 2; // sref 与 oref 各最多 2 张
 
+  // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+  const isQiniu = modelDef.paramKind === 'qiniu';
+  const isGrsai = modelDef.paramKind === 'grsai';
+  // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
+
   // 参考图上限(FAL 使用 FAL_REGISTRY.maxRefs,其他走原设计)
   const maxRefs = falDef?.maxRefs ?? modelDef.maxReferenceImages;
   const status: 'idle' | 'generating' | 'success' | 'error' = d?.status || 'idle';
@@ -160,6 +171,18 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       if (!d?.mjAr) patch.mjAr = DEFAULT_MJ_RATIO;
       if (!d?.mjSpeed) patch.mjSpeed = DEFAULT_MJ_SPEED;
       if (d?.mjSv === undefined) patch.mjSv = '1';
+    } else if (newDef.paramKind === 'qiniu') {
+      // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+      if (!d?.qiniuQuality) patch.qiniuQuality = 'auto';
+      const curQiniuSize = d?.qiniuSize || newDef.defaultSize;
+      if (!newDef.sizes.includes(curQiniuSize)) patch.qiniuSize = newDef.defaultSize;
+      // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
+    } else if (newDef.paramKind === 'grsai') {
+      // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
+      if (!d?.grsaiAspectRatio) patch.grsaiAspectRatio = newDef.defaultAspectRatio || 'auto';
+      const curGrsaiSize = d?.grsaiImageSize || newDef.defaultSize;
+      if (!newDef.sizes.includes(curGrsaiSize)) patch.grsaiImageSize = newDef.defaultSize;
+      // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
     } else {
       if (!newDef.aspectRatios.includes(aspectRatio)) patch.aspectRatio = newDef.defaultAspectRatio;
       if (!newDef.sizes.includes(sizeLevel)) patch.sizeLevel = newDef.defaultSize;
@@ -349,6 +372,17 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         }
         throw new Error(`MJ 轮询超时: ${maxPoll} 次 × ${interval / 1000}s`);
       }
+
+      // >>> CUSTOM-PROVIDER-INTEGRATIONS-START (七牛云走独立 runner，逻辑见 integrations/qiniu/runQiniuImage.ts)
+      if (isQiniu) {
+        await runQiniuImage({ id, apiModel, finalPrompt, allRefs, d, update });
+        return;
+      }
+      if (isGrsai) {
+        await runGrsaiImage({ id, apiModel, finalPrompt, allRefs, d, update });
+        return;
+      }
+      // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
       // ============ FAL 路径(对齐 gpt-image-2-web runGPTFal / runNanoFal) ============
       if (isFal && falDef) {
@@ -619,8 +653,8 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           </div>
         )}
 
-        {/* 比例 + 尺寸 并排(非 FAL 且非 MJ 模型) */}
-        {!isFal && !isMj && (
+        {/* 比例 + 尺寸 并排(非 FAL 且非 MJ 且非七牛模型) */}
+        {!isFal && !isMj && !isQiniu && !isGrsai && (
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-white/50 block mb-1">比例</label>
@@ -650,6 +684,11 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             </div>
           </div>
         )}
+
+        {/* >>> CUSTOM-PROVIDER-INTEGRATIONS-START (七牛云专属参数面板) */}
+        {isQiniu && <QiniuImageTab d={d} update={update} sizes={modelDef.sizes} />}
+        {isGrsai && <GrsaiImageTab d={d} update={update} apiModel={apiModel} />}
+        {/* <<< CUSTOM-PROVIDER-INTEGRATIONS-END */}
 
         {/* ========== FAL 专属参数面板(完全对齐 gpt-image-2-web gf_panel / nano_fal_panel) ========== */}
         {isFal && falKind === 'gpt-fal' && (
