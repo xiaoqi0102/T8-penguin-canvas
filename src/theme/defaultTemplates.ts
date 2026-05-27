@@ -6,12 +6,14 @@ const pixelThemeMusicUrl = new URL('../assets/theme-music/pixel-theme-of-sss.mp3
 const opThemeMusicUrl = new URL('../assets/theme-music/op-battle-scars.mp3', import.meta.url).href;
 export const rhThemeMusicUrl = new URL('../assets/theme-music/rh-tide.mp3', import.meta.url).href;
 export const rhHiddenThemeMusicUrl = new URL('../assets/theme-music/rh-hidden-saya.mp3', import.meta.url).href;
+export const narutoThemeMusicUrl = new URL('../assets/theme-music/naruto-shinsei-gyakuten.mp3', import.meta.url).href;
 
 export const DEFAULT_THEME_TEMPLATE_ID = 'pixel-candy';
 export const TECH_TEMPLATE_ID = 'tech-default';
 export const PIXEL_TEMPLATE_ID = 'pixel-candy';
 export const OP_TEMPLATE_ID = 'op-style';
 export const RH_TEMPLATE_ID = 'rh-style';
+export const NARUTO_TEMPLATE_ID = 'naruto-style';
 
 const techDark: ThemeTokens = {
   appBg: '#09090b',
@@ -301,6 +303,80 @@ const rhLight: ThemeTokens = {
   portAudio: '#7c5cf0',
 };
 
+const narutoLight: ThemeTokens = {
+  appBg: '#f6d38a',
+  canvasBg: '#efbd62',
+  panelBg: '#fff1c5',
+  panelBgElevated: '#fff7dc',
+  panelBgMuted: '#e9b55b',
+  nodeBg: '#fff0bf',
+  nodeHeaderBg: '#d84a22',
+  textMain: '#24130c',
+  textMuted: '#5b2d18',
+  textDim: '#8a5a35',
+  border: '#33180f',
+  borderStrong: '#33180f',
+  accent: '#e94b1c',
+  accentHover: '#ff7a1f',
+  accentText: '#fff7dc',
+  secondary: '#1f9ec5',
+  warning: '#f8b33a',
+  danger: '#bf1f2f',
+  success: '#2f9e54',
+  shadowPanel: '5px 5px 0 #33180f',
+  shadowButton: '3px 3px 0 #33180f',
+  shadowStrong: '7px 7px 0 #33180f',
+  radiusPanel: '10px',
+  radiusButton: '7px',
+  radiusNode: '12px',
+  gridDot: '#9b6a38',
+  edge: '#33180f',
+  edgeSelected: '#e94b1c',
+  selectionBg: 'rgba(233,75,28,0.18)',
+  selectionBorder: '#1f9ec5',
+  portText: '#1f9ec5',
+  portImage: '#f8b33a',
+  portVideo: '#e94b1c',
+  portAudio: '#7b5bd6',
+  fontFamily: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+  displayFont: "'Arial Black', Impact, 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif",
+};
+
+const narutoDark: ThemeTokens = {
+  ...narutoLight,
+  appBg: '#120b08',
+  canvasBg: '#1a0e09',
+  panelBg: '#2b1710',
+  panelBgElevated: '#3a2116',
+  panelBgMuted: '#4b2514',
+  nodeBg: '#2f1a12',
+  nodeHeaderBg: '#8c2418',
+  textMain: '#fff0c8',
+  textMuted: '#e3bc79',
+  textDim: '#a87845',
+  border: '#ffd37a',
+  borderStrong: '#ff7a1f',
+  accent: '#ff5b1f',
+  accentHover: '#ff8c2f',
+  accentText: '#160a06',
+  secondary: '#43d5ff',
+  warning: '#f8b33a',
+  danger: '#ff4f5f',
+  success: '#56d278',
+  shadowPanel: '0 18px 48px rgba(0,0,0,0.50), 5px 5px 0 #0b0503',
+  shadowButton: '3px 3px 0 #0b0503',
+  shadowStrong: '0 24px 70px rgba(0,0,0,0.62), 7px 7px 0 #0b0503',
+  gridDot: '#6a3b22',
+  edge: '#d9974c',
+  edgeSelected: '#ff5b1f',
+  selectionBg: 'rgba(255,91,31,0.20)',
+  selectionBorder: '#43d5ff',
+  portText: '#43d5ff',
+  portImage: '#f8b33a',
+  portVideo: '#ff5b1f',
+  portAudio: '#b996ff',
+};
+
 export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
   {
     schema: 't8-theme-template',
@@ -416,6 +492,34 @@ export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
       copyrightNote: 'RH 风格默认音乐文件；隐藏模式会自动切换到隐藏主题音乐，可在主题模板中上传替换普通主题音乐。',
     },
     modes: { dark: { tokens: rhDark }, light: { tokens: rhLight } },
+  },
+  {
+    schema: 't8-theme-template',
+    version: THEME_TEMPLATE_VERSION,
+    id: NARUTO_TEMPLATE_ID,
+    name: '火影忍者风格',
+    description: '热血忍者视觉：木叶护额、卷轴节点、火焰查克拉、忍术阵底纹与战斗感斜切控件。',
+    author: 'T8',
+    builtIn: true,
+    legacyStyle: 'pixel',
+    visuals: {
+      style: 'naruto',
+      intensity: 'strong',
+      iconPack: 'naruto',
+      canvasPattern: 'chakra',
+      nodeFrame: 'shinobi-scroll',
+      headerMark: 'KONOHA',
+    },
+    music: {
+      title: '形势逆转',
+      preset: 'shinobi-flame',
+      source: 'url',
+      url: narutoThemeMusicUrl,
+      volume: 0.16,
+      bpm: 146,
+      copyrightNote: '火影忍者风格默认音乐文件，可在主题模板中上传替换。',
+    },
+    modes: { dark: { tokens: narutoDark }, light: { tokens: narutoLight } },
   },
 ];
 

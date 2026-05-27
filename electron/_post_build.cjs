@@ -197,6 +197,7 @@ function main() {
   checkFrontendAsset('op-battle-scars-', '.mp3');
   checkFrontendAsset('rh-tide-', '.mp3');
   checkFrontendAsset('rh-hidden-saya-', '.mp3');
+  checkFrontendAsset('naruto-shinsei-gyakuten-', '.mp3');
 
   console.log('\n[3] 清除可能混入的明文后端源码:');
   nukePlainBackend();

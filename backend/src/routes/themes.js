@@ -6,12 +6,12 @@ const config = require('../config');
 const router = express.Router();
 const SCHEMA = 't8-theme-template';
 const VERSION = 2;
-const VISUAL_STYLES = new Set(['plain', 'tech', 'pixel', 'op', 'rh']);
+const VISUAL_STYLES = new Set(['plain', 'tech', 'pixel', 'op', 'rh', 'naruto']);
 const INTENSITIES = new Set(['subtle', 'medium', 'strong']);
-const ICON_PACKS = new Set(['default', 'op']);
-const CANVAS_PATTERNS = new Set(['none', 'dots', 'map', 'circuit', 'confetti', 'hub']);
-const NODE_FRAMES = new Set(['plain', 'glass', 'sticker', 'wanted', 'hub-card']);
-const MUSIC_PRESETS = new Set(['tech-pulse', 'pixel-pop', 'grand-line-adventure', 'rh-pulse']);
+const ICON_PACKS = new Set(['default', 'op', 'naruto']);
+const CANVAS_PATTERNS = new Set(['none', 'dots', 'map', 'circuit', 'confetti', 'hub', 'chakra']);
+const NODE_FRAMES = new Set(['plain', 'glass', 'sticker', 'wanted', 'hub-card', 'shinobi-scroll']);
+const MUSIC_PRESETS = new Set(['tech-pulse', 'pixel-pop', 'grand-line-adventure', 'rh-pulse', 'shinobi-flame']);
 const MUSIC_SOURCES = new Set(['synth', 'url', 'upload']);
 
 function loadSettings() {
@@ -66,6 +66,8 @@ function normalizeVisuals(raw, legacyStyle) {
         ? 'map'
         : style === 'rh'
           ? 'hub'
+        : style === 'naruto'
+          ? 'chakra'
         : style === 'tech'
           ? 'circuit'
           : 'dots',
@@ -75,6 +77,8 @@ function normalizeVisuals(raw, legacyStyle) {
         ? 'wanted'
         : style === 'rh'
           ? 'hub-card'
+        : style === 'naruto'
+          ? 'shinobi-scroll'
         : style === 'tech'
           ? 'glass'
           : 'sticker',
@@ -102,6 +106,16 @@ function defaultMusicFor(legacyStyle, visuals) {
       volume: 0.14,
       bpm: 104,
       copyrightNote: 'RH 工作台氛围默认音乐；可替换为已授权音频 URL。',
+    };
+  }
+  if (style === 'naruto') {
+    return {
+      title: 'Shinobi Flame Loop',
+      preset: 'shinobi-flame',
+      source: 'synth',
+      volume: 0.16,
+      bpm: 146,
+      copyrightNote: '原创火焰查克拉氛围合成循环；可替换为已授权音频 URL。',
     };
   }
   if (legacyStyle === 'tech' || style === 'tech') {

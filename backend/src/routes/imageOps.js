@@ -12,14 +12,92 @@ const sharp = require('sharp');
 const config = require('../config');
 
 const router = express.Router();
+const RESOURCE_DB_FILE = 'resource_library.json';
+
+function assertInside(root, target) {
+  const base = path.resolve(root);
+  const resolved = path.resolve(target);
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) return null;
+  return resolved;
+}
+
+function toLocalPathnameIfSameApp(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    if (host === '127.0.0.1' || host === 'localhost' || host === '::1') {
+      return decodeURIComponent(u.pathname || '');
+    }
+  } catch {
+    // Relative URLs continue through the normal path.
+  }
+  return url;
+}
+
+function getResourceLibraryRoot() {
+  try {
+    let settings = {};
+    if (fs.existsSync(config.SETTINGS_FILE)) {
+      settings = JSON.parse(fs.readFileSync(config.SETTINGS_FILE, 'utf-8'));
+    }
+    const root = String(settings.resourceLibraryPath || config.DEFAULT_RESOURCE_LIBRARY_DIR || '').trim();
+    return root || '';
+  } catch {
+    return '';
+  }
+}
+
+function readResourceDb(root) {
+  try {
+    const file = path.join(root, RESOURCE_DB_FILE);
+    if (!fs.existsSync(file)) return null;
+    const db = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return Array.isArray(db?.items) ? db : null;
+  } catch {
+    return null;
+  }
+}
 
 // 把本地 URL 解析为绝对路径
 function resolveLocalUrl(url) {
   if (!url || typeof url !== 'string') return null;
-  if (url.startsWith('/files/output/')) return path.join(config.OUTPUT_DIR, url.replace('/files/output/', ''));
-  if (url.startsWith('/files/input/')) return path.join(config.INPUT_DIR, url.replace('/files/input/', ''));
-  if (url.startsWith('/output/')) return path.join(config.OUTPUT_DIR, url.replace('/output/', ''));
-  if (url.startsWith('/input/')) return path.join(config.INPUT_DIR, url.replace('/input/', ''));
+  const clean = toLocalPathnameIfSameApp(url).split(/[?#]/)[0];
+  const decodeTail = (prefix) => decodeURIComponent(clean.slice(prefix.length)).replace(/^[/\\]+/, '');
+  if (clean.startsWith('/files/output/')) {
+    return assertInside(config.OUTPUT_DIR, path.join(config.OUTPUT_DIR, decodeTail('/files/output/')));
+  }
+  if (clean.startsWith('/files/input/')) {
+    return assertInside(config.INPUT_DIR, path.join(config.INPUT_DIR, decodeTail('/files/input/')));
+  }
+  if (clean.startsWith('/output/')) {
+    return assertInside(config.OUTPUT_DIR, path.join(config.OUTPUT_DIR, decodeTail('/output/')));
+  }
+  if (clean.startsWith('/input/')) {
+    return assertInside(config.INPUT_DIR, path.join(config.INPUT_DIR, decodeTail('/input/')));
+  }
+
+  // 资源库素材和素材集子素材：浏览器可直接预览，但图像操作需要落到真实文件路径。
+  const resourceRoot = getResourceLibraryRoot();
+  if (resourceRoot) {
+    const db = readResourceDb(resourceRoot);
+    const items = Array.isArray(db?.items) ? db.items : [];
+    const fileMatch = /^\/api\/resources\/file\/([^/?#]+)/.exec(clean);
+    if (fileMatch) {
+      const id = decodeURIComponent(fileMatch[1]);
+      const item = items.find((x) => x?.id === id);
+      if (item?.fileRel) return assertInside(resourceRoot, path.join(resourceRoot, item.fileRel));
+    }
+    const setMatch = /^\/api\/resources\/set-file\/([^/?#]+)\/(\d+)/.exec(clean);
+    if (setMatch) {
+      const id = decodeURIComponent(setMatch[1]);
+      const index = Number(setMatch[2]);
+      const item = items.find((x) => x?.id === id);
+      const child = item?.kind === 'set' && Array.isArray(item.materialSetItems)
+        ? item.materialSetItems[index]
+        : null;
+      if (child?.fileRel) return assertInside(resourceRoot, path.join(resourceRoot, child.fileRel));
+    }
+  }
   return null;
 }
 

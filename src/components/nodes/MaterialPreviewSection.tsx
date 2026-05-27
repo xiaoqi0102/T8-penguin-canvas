@@ -1,17 +1,4 @@
-import { memo, useMemo } from 'react';
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCenter,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  rectSortingStrategy,
-  arrayMove,
-} from '@dnd-kit/sortable';
+import { memo, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import {
   Image as ImageIcon,
   Video as VideoIcon,
@@ -28,7 +15,7 @@ import type { Material } from './useUpstreamMaterials';
  *
  * 职责:
  *   1. 分组渲染 (text / image / video / audio) 上游聚合素材 + 本地上传素材
- *   2. dnd-kit 跨类型自由排序, onReorder 回调输出新 order 数组 (写到 data.materialOrder)
+ *   2. pointer 跨类型自由排序, onReorder 回调输出新 order 数组 (写到 data.materialOrder)
  *   3. 始终展开显示 (取消折叠功能, 头条仅作为分组标识 + 数量徽章)
  *   4. 双主题适配 (科技风 dark / 像素风 pixel-light), 通过 isDark + isPixel props 切换
  *
@@ -38,7 +25,7 @@ import type { Material } from './useUpstreamMaterials';
  *
  * 与 xyflow 的协同:
  *   - 顶层 onMouseDown stopPropagation 防止触发节点拖动
- *   - 内部 dnd-kit useSortable 给每个缩略加 className="nodrag"
+ *   - 内部缩略加 className="nodrag"，并在 pointer 捕获阶段拦截 ReactFlow 节点拖动
  */
 
 interface UploadAction {
@@ -98,10 +85,11 @@ const MaterialPreviewSection = ({
   title = '上游素材',
 }: Props) => {
   const total = texts.length + images.length + videos.length + audios.length;
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-  );
+  const sortScopeRef = useRef(`material-preview-${Math.random().toString(36).slice(2)}`);
+  const [sortDrag, setSortDrag] = useState<{ activeId: string; overId: string | null; moved: boolean } | null>(null);
+  const sortDragRef = useRef<{ activeId: string; overId: string | null; moved: boolean } | null>(null);
+  const sortStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const sortWindowCleanupRef = useRef<(() => void) | null>(null);
 
   const allItems = useMemo(() => {
     const m: Record<string, Material[]> = {
@@ -113,16 +101,83 @@ const MaterialPreviewSection = ({
     return groups.flatMap((g) => m[g] || []);
   }, [groups, texts, images, videos, audios]);
 
-  const handleDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    const ids = allItems.map((it) => it.id);
-    const oldIdx = ids.indexOf(String(active.id));
-    const newIdx = ids.indexOf(String(over.id));
-    if (oldIdx < 0 || newIdx < 0) return;
-    const moved = arrayMove(ids, oldIdx, newIdx);
-    onReorder(moved);
+  const setSortDragState = (next: typeof sortDrag) => {
+    sortDragRef.current = next;
+    setSortDrag(next);
   };
+
+  const cleanupSortWindowListeners = () => {
+    sortWindowCleanupRef.current?.();
+    sortWindowCleanupRef.current = null;
+  };
+
+  const findSortOverId = (clientX: number, clientY: number): string | null => {
+    const scope = sortScopeRef.current;
+    const stack = document.elementsFromPoint(clientX, clientY);
+    for (const el of stack) {
+      if (!(el instanceof HTMLElement)) continue;
+      const thumb = el.closest(`[data-material-preview-section="${scope}"][data-material-preview-thumb-id]`) as HTMLElement | null;
+      if (thumb) return thumb.dataset.materialPreviewThumbId || null;
+    }
+    return null;
+  };
+
+  const finishSortDrag = () => {
+    const current = sortDragRef.current;
+    if (!current) return;
+    cleanupSortWindowListeners();
+    if (current.moved && current.overId && current.activeId !== current.overId) {
+      const ids = allItems.map((it) => it.id);
+      const oldIdx = ids.indexOf(current.activeId);
+      const newIdx = ids.indexOf(current.overId);
+      if (oldIdx >= 0 && newIdx >= 0) {
+        const moved = ids.slice();
+        const [item] = moved.splice(oldIdx, 1);
+        moved.splice(newIdx, 0, item);
+        onReorder(moved);
+      }
+    }
+    sortStartRef.current = null;
+    setSortDragState(null);
+  };
+
+  const beginSortDrag = (event: PointerEvent<HTMLDivElement>, itemId: string) => {
+    if (allItems.length <= 1) return;
+    if ((event.target as HTMLElement | null)?.closest('button')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    cleanupSortWindowListeners();
+    sortStartRef.current = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+    setSortDragState({ activeId: itemId, overId: itemId, moved: false });
+
+    const onWindowMove = (nativeEvent: globalThis.PointerEvent) => {
+      const current = sortDragRef.current;
+      const start = sortStartRef.current;
+      if (!current || !start) return;
+      nativeEvent.preventDefault();
+      nativeEvent.stopPropagation();
+      const moved = current.moved || Math.hypot(nativeEvent.clientX - start.x, nativeEvent.clientY - start.y) >= 3;
+      const overId = findSortOverId(nativeEvent.clientX, nativeEvent.clientY) || current.overId;
+      if (moved !== current.moved || overId !== current.overId) {
+        setSortDragState({ ...current, moved, overId });
+      }
+    };
+    const onWindowUp = (nativeEvent: globalThis.PointerEvent) => {
+      nativeEvent.preventDefault();
+      nativeEvent.stopPropagation();
+      finishSortDrag();
+    };
+    window.addEventListener('pointermove', onWindowMove, true);
+    window.addEventListener('pointerup', onWindowUp, true);
+    window.addEventListener('pointercancel', onWindowUp, true);
+    sortWindowCleanupRef.current = () => {
+      window.removeEventListener('pointermove', onWindowMove, true);
+      window.removeEventListener('pointerup', onWindowUp, true);
+      window.removeEventListener('pointercancel', onWindowUp, true);
+    };
+  };
+
+  useEffect(() => () => cleanupSortWindowListeners(), []);
 
   // 没有任何素材也没有上传入口 → 不渲染
   if (total === 0 && !imageUploadAction) return null;
@@ -203,85 +258,80 @@ const MaterialPreviewSection = ({
     >
       {/* ============== 标题头 (仅作为分组标识 + 数量徽章, 不再可折叠) ============== */}
       <div
-        className="w-full flex items-center gap-1.5 select-none"
+        className="t8-material-preview-header w-full flex items-center gap-1.5 select-none"
         style={headerStyle}
       >
         <Layers size={12} />
         <span style={{ flex: 1, textAlign: 'left' }}>{title}</span>
-        <span style={headerCountStyle}>{total}</span>
+        <span className="t8-material-preview-count" style={headerCountStyle}>{total}</span>
       </div>
 
-      {/* ============== 内容区 - 分组 + dnd-kit (始终展开) ============== */}
+      {/* ============== 内容区 - 分组 + pointer 排序 (始终展开) ============== */}
       {total > 0 || imageUploadAction ? (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={allItems.map((m) => m.id)}
-            strategy={rectSortingStrategy}
-          >
-            {groups.map((g) => {
-              const list =
-                g === 'text' ? texts : g === 'image' ? images : g === 'video' ? videos : audios;
-              const showUpload = g === 'image' && imageUploadAction;
-              if (!list.length && !showUpload) return null;
-              const Ic = ICON_MAP[g];
-              const indexOffset = (() => {
-                let off = 0;
-                for (const gg of groups) {
-                  if (gg === g) break;
-                  off += (gg === 'text' ? texts : gg === 'image' ? images : gg === 'video' ? videos : audios).length;
-                }
-                return off;
-              })();
-              return (
-                <div key={g} className="space-y-1">
-                  <div className="flex items-center gap-1" style={groupLabelStyle}>
-                    <Ic size={10} />
-                    <span>
-                      {LABEL_MAP[g]} ({list.length}
-                      {showUpload && imageUploadAction?.remaining != null
-                        ? `/${list.length + imageUploadAction.remaining}`
-                        : ''}
-                      )
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {list.map((m, i) => (
-                      <MaterialThumbnail
-                        key={m.id}
-                        material={m}
-                        index={indexOffset + i}
-                        isPixel={isPixel}
-                        isDark={isDark}
-                        draggable
-                        removable={m.origin === 'local'}
-                        onRemove={onRemoveLocal ? () => onRemoveLocal(m) : undefined}
-                      />
-                    ))}
-                    {showUpload && imageUploadAction && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          imageUploadAction.onClick();
-                        }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        className="nodrag"
-                        style={uploadBtnStyle}
-                        title={imageUploadAction.title || '上传本地素材'}
-                      >
-                        <Plus size={16} />
-                      </button>
-                    )}
-                  </div>
+        <>
+          {groups.map((g) => {
+            const list =
+              g === 'text' ? texts : g === 'image' ? images : g === 'video' ? videos : audios;
+            const showUpload = g === 'image' && imageUploadAction;
+            if (!list.length && !showUpload) return null;
+            const Ic = ICON_MAP[g];
+            const indexOffset = (() => {
+              let off = 0;
+              for (const gg of groups) {
+                if (gg === g) break;
+                off += (gg === 'text' ? texts : gg === 'image' ? images : gg === 'video' ? videos : audios).length;
+              }
+              return off;
+            })();
+            return (
+              <div key={g} className="space-y-1">
+                <div className="t8-material-preview-group-label flex items-center gap-1" style={groupLabelStyle}>
+                  <Ic size={10} />
+                  <span>
+                    {LABEL_MAP[g]} ({list.length}
+                    {showUpload && imageUploadAction?.remaining != null
+                      ? `/${list.length + imageUploadAction.remaining}`
+                      : ''}
+                    )
+                  </span>
                 </div>
-              );
-            })}
-          </SortableContext>
-        </DndContext>
+                <div className="flex flex-wrap gap-1.5">
+                  {list.map((m, i) => (
+                    <MaterialThumbnail
+                      key={m.id}
+                      material={m}
+                      index={indexOffset + i}
+                      isPixel={isPixel}
+                      isDark={isDark}
+                      draggable
+                      sortScope={sortScopeRef.current}
+                      isSorting={sortDrag?.activeId === m.id && !!sortDrag.moved}
+                      isSortOver={!!sortDrag?.moved && sortDrag.overId === m.id && sortDrag.activeId !== m.id}
+                      onSortPointerDown={(event) => beginSortDrag(event, m.id)}
+                      removable={m.origin === 'local'}
+                      onRemove={onRemoveLocal ? () => onRemoveLocal(m) : undefined}
+                    />
+                  ))}
+                  {showUpload && imageUploadAction && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        imageUploadAction.onClick();
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="t8-material-preview-upload nodrag"
+                      style={uploadBtnStyle}
+                      title={imageUploadAction.title || '上传本地素材'}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </>
       ) : null}
     </div>
   );

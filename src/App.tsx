@@ -252,6 +252,7 @@ function App() {
   const isPixel = style === 'pixel';
   const isOp = currentTemplate.visuals?.style === 'op';
   const isRh = currentTemplate.visuals?.style === 'rh';
+  const isNaruto = currentTemplate.visuals?.style === 'naruto';
 
   const handleAddNode = (type: NodeType) => {
     addNodeRef.current?.(type);
@@ -288,7 +289,7 @@ function App() {
     <div
       className={`t8-app-shell h-screen flex flex-col overflow-hidden ${
         isPixel ? '' : isDark ? 'bg-zinc-950 text-white' : 'bg-zinc-50 text-zinc-900'
-      } ${isOp ? 't8-app-shell--op' : ''} ${isRh ? 't8-app-shell--rh' : ''}`}
+      } ${isOp ? 't8-app-shell--op' : ''} ${isRh ? 't8-app-shell--rh' : ''} ${isNaruto ? 't8-app-shell--naruto' : ''}`}
       style={{ background: 'var(--t8-bg-app)', color: 'var(--t8-text-main)' }}
     >
       {/* 头部状态栏 */}
@@ -331,6 +332,20 @@ function App() {
                 </div>
               </div>
             </div>
+          ) : isNaruto ? (
+            <div className="t8-naruto-brand flex items-center gap-2">
+              <span className="t8-naruto-brand__mark" aria-hidden="true">
+                <span className="t8-naruto-brand__leaf" />
+              </span>
+              <div className="min-w-0">
+                <h1 className="t8-naruto-brand__title text-[14px] font-black leading-none">
+                  火影 · 贞贞的无限画布
+                </h1>
+                <div className="t8-naruto-brand__sub text-[9px] font-bold tracking-wide leading-none mt-0.5">
+                  SHINOBI CHAKRA CANVAS
+                </div>
+              </div>
+            </div>
           ) : isPixel ? (
             <>
               <h1 className="px-title text-[14px] font-bold tracking-wide leading-none">
@@ -345,7 +360,7 @@ function App() {
             className={
               isPixel
                 ? 'px-chip px-chip--mint text-[10px]'
-                : `text-[10px] px-1.5 py-0.5 rounded ${
+                : `t8-topbar-status-chip text-[10px] px-1.5 py-0.5 rounded ${
                     isDark ? 'bg-white/10 text-white/60' : 'bg-black/5 text-zinc-500'
                   }`
             }
@@ -370,7 +385,7 @@ function App() {
             </span>
           ) : (
             <div
-              className={`flex items-center gap-1.5 text-[11px] ${
+              className={`t8-topbar-status-chip flex items-center gap-1.5 text-[11px] ${
                 backendStatus === 'ok'
                   ? 'text-emerald-400'
                   : backendStatus === 'error'

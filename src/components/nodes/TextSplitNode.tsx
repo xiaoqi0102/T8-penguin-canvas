@@ -35,11 +35,11 @@ import { useUpstreamMaterials } from './useUpstreamMaterials';
 
 const MODE_OPTIONS = Object.entries(TEXT_SPLIT_MODE_LABEL) as Array<[TextSplitMode, string]>;
 const TEXT_SPLIT_PRESET_SCHEMA = 't8-text-split-presets';
-const TEXT_SPLIT_ALGO_VERSION = 4;
+const TEXT_SPLIT_ALGO_VERSION = 5;
 
 const MODE_HELP: Record<TextSplitMode, string> = {
   line: '每一行切成一段，适合提示词列表、批量人设、逐行分镜。',
-  paragraph: '按换行/空行切段，适合一段一条提示词；会自动去掉空段。',
+  paragraph: '按至少一个空行切成段落；普通换行会保留在同一段里，适合多行提示词块。',
   custom: '按你输入的分隔符切开，例如 ---、###、END。',
   storyboard: '自动识别 Markdown 标题、镜头/分镜/场景、Scene/Shot、内外景/日夜等分镜标题，适合整套分镜脚本。',
   regex: '用正则做高级分割或提取，适合格式固定的模板；正则错误只会在节点内提示。',

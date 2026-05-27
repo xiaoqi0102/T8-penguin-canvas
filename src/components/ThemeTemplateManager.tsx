@@ -15,6 +15,7 @@ import {
   BUILT_IN_THEME_TEMPLATES,
   getTemplateMode,
   resolveThemeTemplate,
+  narutoThemeMusicUrl,
   rhHiddenThemeMusicUrl,
   rhThemeMusicUrl,
 } from '../theme/defaultTemplates';
@@ -81,6 +82,7 @@ const VISUAL_STYLE_OPTIONS = [
   { value: 'pixel', label: '像素糖果' },
   { value: 'op', label: 'OP 航海' },
   { value: 'rh', label: 'RH 工作台' },
+  { value: 'naruto', label: '火影忍者' },
 ] as const;
 
 const VISUAL_INTENSITY_OPTIONS = [
@@ -94,6 +96,7 @@ const MUSIC_PRESET_OPTIONS: Array<{ value: ThemeMusicPreset; label: string }> = 
   { value: 'pixel-pop', label: '像素弹跳' },
   { value: 'grand-line-adventure', label: '航海冒险' },
   { value: 'rh-pulse', label: 'RH 脉冲' },
+  { value: 'shinobi-flame', label: '忍者火焰' },
 ];
 
 const MAX_THEME_AUDIO_SIZE = 20 * 1024 * 1024;
@@ -130,6 +133,17 @@ function visualDefaultsFor(style: ThemeVisuals['style'], legacyStyle: LegacyThem
       canvasPattern: 'hub',
       nodeFrame: 'hub-card',
       headerMark: prev?.headerMark || 'RH',
+    };
+  }
+  if (style === 'naruto') {
+    return {
+      ...fallbackVisuals(legacyStyle),
+      ...(prev || {}),
+      style,
+      iconPack: 'naruto',
+      canvasPattern: 'chakra',
+      nodeFrame: 'shinobi-scroll',
+      headerMark: prev?.headerMark || 'KONOHA',
     };
   }
   if (style === 'tech') {
@@ -176,6 +190,17 @@ function fallbackMusic(legacyStyle: LegacyThemeStyle, visuals?: ThemeVisuals): T
       volume: 0.16,
       bpm: 104,
       copyrightNote: 'RH 风格默认音乐；隐藏模式会自动切换隐藏主题音乐。',
+    };
+  }
+  if (visualStyle === 'naruto') {
+    return {
+      title: '形势逆转',
+      preset: 'shinobi-flame',
+      source: 'url',
+      url: narutoThemeMusicUrl,
+      volume: 0.16,
+      bpm: 146,
+      copyrightNote: '火影忍者风格默认音乐文件，可在主题模板中上传替换。',
     };
   }
   if (legacyStyle === 'tech' || visualStyle === 'tech') {

@@ -36,6 +36,8 @@ D:\zhenzhen\theme-templates
 | `tech` | 科技、玻璃、霓虹 | 适合深色仪表盘、AI 工具感。 |
 | `pixel` | 糖果、贴纸、像素 | 适合活泼、可爱、强描边。 |
 | `op` | 航海、冒险、悬赏令 | 带更强主题皮肤，需要注意不要遮挡节点内容。 |
+| `rh` | 工作台、黑绿、云工作流 | RunningHub 亲和风格，强调无边框卡片、荧光运行态和高对比。 |
+| `naruto` | 热血、忍者、战斗感 | 火影忍者风格，强调木叶护额、卷轴节点、火焰查克拉和斜切控件。 |
 
 如果你只导入 JSON，不应该写新的 `style` 字符串。后端会过滤未知枚举，未知值会回退到现有风格。
 
@@ -50,7 +52,9 @@ D:\zhenzhen\theme-templates
 - MiniMap、缩放控制条、音乐按钮、右键菜单等浮层。
 - GroupBox 打组后的组边框、背景、水印和输出口。
 
-主题识别度来自重复出现的“视觉母题”，例如 OP 风格使用海图、悬赏令、草帽、赤红、海蓝、金币金；像素糖果风使用硬描边、贴纸卡片、糖果色、圆胶囊和硬阴影。
+主题识别度来自重复出现的“视觉母题”，例如 OP 风格使用海图、悬赏令、草帽、赤红、海蓝、金币金；RH 风格使用黑绿工作台、荧光运行态、云工作流网格和无边框卡片；火影忍者风格使用木叶护额、卷轴纸、查克拉蓝、火焰橙红和忍术阵纹理；像素糖果风使用硬描边、贴纸卡片、糖果色、圆胶囊和硬阴影。
+
+SHIFT 划线断连也是主题的一部分。新增官方主题时，除了节点、端口和背景，也要为 `--t8-cut-cursor`、`--t8-cut-button-mask`、`--t8-cut-color` 提供主题化切断符号，例如 OP 用弯刀、RH 用断链、火影用手里剑，避免所有主题都显示默认剪刀。
 
 ## 模板 JSON 结构
 
@@ -215,11 +219,11 @@ D:\zhenzhen\theme-templates
 
 | 字段 | 可选值 | 说明 |
 |---|---|---|
-| `style` | `plain` / `tech` / `pixel` / `op` | 选择视觉皮肤。 |
+| `style` | `plain` / `tech` / `pixel` / `op` / `rh` / `naruto` | 选择视觉皮肤。 |
 | `intensity` | `subtle` / `medium` / `strong` | 装饰强度。不是所有皮肤都会用满三档。 |
-| `iconPack` | `default` / `op` | 图标包。OP 风格可用 `op`。 |
-| `canvasPattern` | `none` / `dots` / `map` / `circuit` / `confetti` | 画布纹理倾向。 |
-| `nodeFrame` | `plain` / `glass` / `sticker` / `wanted` | 节点外框倾向。 |
+| `iconPack` | `default` / `op` / `naruto` | 图标包。OP 风格可用 `op`，火影忍者风格可用 `naruto`。 |
+| `canvasPattern` | `none` / `dots` / `map` / `circuit` / `confetti` / `hub` / `chakra` | 画布纹理倾向。 |
+| `nodeFrame` | `plain` / `glass` / `sticker` / `wanted` / `hub-card` / `shinobi-scroll` | 节点外框倾向。 |
 | `headerMark` | 任意短文本 | 标题装饰字，后端会截断到 40 字符。 |
 
 推荐组合：
@@ -230,15 +234,19 @@ D:\zhenzhen\theme-templates
 | 轻量工具 | `tech` | `plain` | `none` | `plain` |
 | 可爱贴纸 | `pixel` | `pixel` | `dots` | `sticker` |
 | 冒险航海 | `pixel` | `op` | `map` | `wanted` |
+| RH 工作台 | `tech` | `rh` | `hub` | `hub-card` |
+| 忍者战斗 | `pixel` | `naruto` | `chakra` | `shinobi-scroll` |
 
 ## 音乐规范
 
 主题音乐默认静音，只有用户点击音乐按钮后才播放。
 
+内置官方主题可以使用项目内 `src/assets/theme-music/*.mp3`，打包脚本需要同步校验对应文件；公开模板 JSON 则不要内嵌未授权音乐。
+
 | 字段 | 可选值或范围 | 说明 |
 |---|---|---|
 | `title` | 文本 | 音乐名。 |
-| `preset` | `tech-pulse` / `pixel-pop` / `grand-line-adventure` | 合成音乐预设或音乐气质。 |
+| `preset` | `tech-pulse` / `pixel-pop` / `grand-line-adventure` / `rh-pulse` / `shinobi-flame` | 合成音乐预设或音乐气质。 |
 | `source` | `synth` / `url` / `upload` | 音乐来源。 |
 | `url` | `http(s)://...` 或 `data:audio/...` | 上传音乐会导出为 data URL。 |
 | `volume` | `0` 到 `0.5` | 默认不要太大，建议 `0.12` 到 `0.18`。 |
@@ -250,7 +258,7 @@ D:\zhenzhen\theme-templates
 ## 好看主题的制作流程
 
 1. 先写一句主题描述：例如“海风、旧纸地图、悬赏令、红蓝金”。
-2. 选一个基础视觉：`tech`、`pixel`、`op` 或 `plain`。
+2. 选一个基础视觉：`tech`、`pixel`、`op`、`rh`、`naruto` 或 `plain`。
 3. 定义 3 个核心色：背景色、主强调色、副强调色。
 4. 定义文字颜色，先保证可读性。
 5. 定义节点背景和节点标题背景，让节点从画布里立起来。
@@ -287,7 +295,7 @@ D:\zhenzhen\theme-templates
 
 ## 代码贡献者：新增完整视觉皮肤
 
-如果你想新增一种真正的视觉风格，而不是只用现有 `plain/tech/pixel/op` 调色，需要改代码。
+如果你想新增一种真正的视觉风格，而不是只用现有 `plain/tech/pixel/op/rh/naruto` 调色，需要改代码。
 
 至少需要同步这些位置：
 

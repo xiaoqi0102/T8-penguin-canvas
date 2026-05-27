@@ -15,6 +15,12 @@ html[data-theme-visual="op"] {
   --op-map-line: color-mix(in srgb, var(--t8-grid-dot) 60%, transparent);
   --op-wanted-bg: color-mix(in srgb, var(--t8-bg-panel) 80%, var(--t8-warning));
   --op-focus-ring: 0 0 0 3px color-mix(in srgb, var(--t8-warning) 38%, transparent);
+  --t8-cut-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%232b1b10' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M4 20c6-2 12-8 16-16'/><path d='M6 18l4 4'/><path d='M13 8l3 3'/><path d='M17 4l3 3'/></svg>") 14 14, crosshair;
+  --t8-cut-color: var(--op-route);
+  --t8-cut-track: color-mix(in srgb, var(--op-route) 82%, transparent);
+  --t8-cut-button-bg: var(--op-paper);
+  --t8-cut-button-fg: var(--op-route);
+  --t8-cut-button-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M20.7 3.3c.4.4.4 1 0 1.4L9.9 15.5l2.6 2.6-2.1 2.1-2.7-2.6-3.1 3.1-1.3-1.3 3.1-3.1-2.6-2.7 2.1-2.1 2.6 2.6L19.3 3.3c.4-.4 1-.4 1.4 0Z'/></svg>");
 }
 
 html[data-theme-visual="op"][data-theme-mode="dark"] {

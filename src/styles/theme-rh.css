@@ -20,6 +20,12 @@ html[data-theme-visual="rh"] {
   --rh-control-active: linear-gradient(135deg, color-mix(in srgb, var(--t8-accent) 82%, #ffffff 8%), var(--t8-secondary));
   --rh-icon-bg: color-mix(in srgb, var(--t8-bg-panel-elevated) 62%, var(--t8-accent) 18%);
   --rh-ring: 0 0 0 3px color-mix(in srgb, var(--t8-accent) 24%, transparent);
+  --t8-cut-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%23a6ff3d' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M8 12H3'/><path d='M21 12h-5'/><path d='M10 7l4 10'/><path d='M14 7l-4 10'/><circle cx='12' cy='12' r='2.2' fill='%2326d9a4'/></svg>") 14 14, crosshair;
+  --t8-cut-color: var(--rh-lime);
+  --t8-cut-track: color-mix(in srgb, var(--rh-lime) 86%, transparent);
+  --t8-cut-button-bg: var(--rh-card);
+  --t8-cut-button-fg: var(--rh-lime);
+  --t8-cut-button-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M8 5h4v3h-2v3H7v2h3v3h2v3H8v-3H5v-3H2v-2h3V8h3V5Zm8 0h-4v3h2v3h3v2h-3v3h-2v3h4v-3h3v-3h3v-2h-3V8h-3V5Z'/></svg>");
 }
 
 html[data-theme-visual="rh"][data-theme-mode="light"] {

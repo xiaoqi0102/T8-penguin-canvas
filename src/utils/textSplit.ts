@@ -72,7 +72,7 @@ function splitByBlankParagraph(text: string): string[] {
 }
 
 function splitByParagraph(text: string): string[] {
-  return splitByBlankParagraph(text).flatMap((part) => part.split(/\n+/));
+  return splitByBlankParagraph(text);
 }
 
 function applyCleanup(raw: string, opts: Required<Pick<TextSplitOptions, 'trim' | 'normalizeSpaces' | 'stripNumbering'>>): string {

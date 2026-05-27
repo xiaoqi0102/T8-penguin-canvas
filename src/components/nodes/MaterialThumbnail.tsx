@@ -1,6 +1,4 @@
 import { memo, type DragEvent, type MouseEvent, type PointerEvent } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import {
   Video as VideoIcon,
   Music,
@@ -28,7 +26,7 @@ import type { Material } from './useUpstreamMaterials';
  *   - isPixel=false → 圆角 + 半透明描边 + 白/teal 高亮
  *
  * 交互:
- *   - 整个缩略项是 dnd-kit useSortable 的拖把手
+ *   - 整个缩略项可作为 MaterialPreviewSection 的 pointer 排序拖把手
  *   - 加 className="nodrag" 让 xyflow 节点拖动不抢事件
  *   - 删除按钮 onPointerDown stopPropagation 避免触发拖动
  */
@@ -43,6 +41,10 @@ interface Props {
   onRemove?: () => void;
   size?: number;
   cursor?: React.CSSProperties['cursor'];
+  sortScope?: string;
+  isSorting?: boolean;
+  isSortOver?: boolean;
+  onSortPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
 }
 
 const MaterialThumbnail = ({
@@ -55,13 +57,16 @@ const MaterialThumbnail = ({
   onRemove,
   size = 56,
   cursor,
+  sortScope,
+  isSorting = false,
+  isSortOver = false,
+  onSortPointerDown,
 }: Props) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: material.id, disabled: !draggable });
-  const sortablePointerDown = (listeners as any)?.onPointerDown;
-
   const stopFlowPointer = (event: PointerEvent<HTMLDivElement>) => {
-    sortablePointerDown?.(event);
+    if (onSortPointerDown) {
+      onSortPointerDown(event);
+      return;
+    }
     event.stopPropagation();
   };
   const stopFlowMouse = (event: MouseEvent<HTMLDivElement>) => {
@@ -77,17 +82,18 @@ const MaterialThumbnail = ({
   } as unknown as React.CSSProperties;
 
   const wrapStyle: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isSorting ? 0.58 : 1,
     width: size,
     height: size,
-    cursor: cursor || (draggable ? 'grab' : 'default'),
+    cursor: cursor || (isSorting ? 'grabbing' : draggable ? 'grab' : 'default'),
     touchAction: 'none',
     ...noNativeDragStyle,
     position: 'relative',
     overflow: 'hidden',
     flex: '0 0 auto',
+    outline: isSortOver ? '2px solid var(--t8-accent, #22c55e)' : 'none',
+    outlineOffset: 2,
+    transition: 'opacity 120ms ease, outline-color 120ms ease',
     ...(isPixel
       ? { border: '1.5px solid var(--px-ink, #1a1a1a)', boxShadow: '1px 1px 0 var(--px-ink, #1a1a1a)' }
       : { borderRadius: 6, border: `1px solid ${isDark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.12)'}` }),
@@ -108,12 +114,11 @@ const MaterialThumbnail = ({
 
   return (
     <div
-      ref={setNodeRef}
       style={wrapStyle}
       className="nodrag nopan"
-      {...attributes}
-      {...listeners}
-      onPointerDown={stopFlowPointer}
+      data-material-preview-section={sortScope || undefined}
+      data-material-preview-thumb-id={sortScope ? material.id : undefined}
+      onPointerDownCapture={stopFlowPointer}
       onMouseDown={stopFlowMouse}
       onDragStart={preventNativeImageDrag}
       title={material.label || material.url}

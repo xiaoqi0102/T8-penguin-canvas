@@ -4,6 +4,7 @@
 @import './theme-core.css';
 @import './theme-op.css';
 @import './theme-rh.css';
+@import './theme-naruto.css';
 
 @tailwind base;
 @tailwind components;
@@ -32,6 +33,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --t8-cut-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='%230f172a' stroke='%2338bdf8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'><path d='M17 2 7 13h6l-3 9 10-12h-6l3-8Z'/><path d='M5 20 20 5'/></svg>") 14 14, crosshair;
+  --t8-cut-color: #38bdf8;
+  --t8-cut-track: rgba(56, 189, 248, 0.86);
+  --t8-cut-button-bg: #ffffff;
+  --t8-cut-button-fg: #ef4444;
+  --t8-cut-button-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M17 2 7 13h6l-3 9 10-12h-6l3-8Z'/></svg>");
 }
 
 * {
@@ -174,10 +181,10 @@ body.bulk-reconnecting .react-flow__handle {
 /* 预览态(仅按住 SHIFT, 未拖动): 在画布空白 / GroupBoxNode 本体 光标预点为剩刀,
    让用户一眼看出「在这里拖动可划断连线」, 避免默认 grab 手掌误导为 panning */
 body.shift-mode .react-flow__pane {
-  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%23EF4444' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><line x1='20' y1='4' x2='8.12' y2='15.88'/><line x1='14.47' y1='14.48' x2='20' y2='20'/><line x1='8.12' y1='8.12' x2='12' y2='12'/></svg>") 14 14, crosshair !important;
+  cursor: var(--t8-cut-cursor, crosshair) !important;
 }
 body.shift-mode .react-flow__node-groupBox {
-  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%23EF4444' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><line x1='20' y1='4' x2='8.12' y2='15.88'/><line x1='14.47' y1='14.48' x2='20' y2='20'/><line x1='8.12' y1='8.12' x2='12' y2='12'/></svg>") 14 14, crosshair !important;
+  cursor: var(--t8-cut-cursor, crosshair) !important;
 }
 /* 组节点内交互元素 SHIFT 期间仍保持各自语义光标, 避免被剩刀覆盖 */
 body.shift-mode .react-flow__node-groupBox button {
@@ -195,13 +202,12 @@ body.shift-mode .react-flow__node-groupBox [contenteditable="true"] {
    - .cut-overlay-svg/cut-overlay-path 为临时轨迹覆盖层 */
 body.cut-mode,
 body.cut-mode * {
-  /* 科技风红色剩刀 */
-  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%23EF4444' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><line x1='20' y1='4' x2='8.12' y2='15.88'/><line x1='14.47' y1='14.48' x2='20' y2='20'/><line x1='8.12' y1='8.12' x2='12' y2='12'/></svg>") 14 14, crosshair !important;
+  cursor: var(--t8-cut-cursor, crosshair) !important;
   user-select: none !important;
 }
 /* 待切 edge 高亮(主路径变红 + 变粗 + 虚线) */
 .react-flow__edge.cut-marked .react-flow__edge-path {
-  stroke: #EF4444 !important;
+  stroke: var(--t8-cut-color, #ef4444) !important;
   stroke-width: 3.2 !important;
   stroke-dasharray: 6 4 !important;
   opacity: 0.9 !important;
@@ -215,12 +221,47 @@ body.cut-mode .react-flow__edge .react-flow__edge-interaction {
 }
 /* 轨迹 SVG overlay (鼠标划过的轨迹, 红色虚线) */
 .cut-overlay-svg .cut-overlay-path {
-  stroke: rgba(239, 68, 68, 0.85);
+  stroke: var(--t8-cut-track, rgba(239, 68, 68, 0.85));
   stroke-width: 2.5;
   stroke-dasharray: 6 4;
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
+}
+
+.t8-edge-cut-button {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--t8-cut-button-bg, #ffffff);
+  border: 1.5px solid var(--t8-cut-button-fg, #ef4444);
+  color: var(--t8-cut-button-fg, #ef4444);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  padding: 0;
+  transition: transform 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.t8-edge-cut-button:hover {
+  background: var(--t8-cut-button-fg, #ef4444);
+  color: var(--t8-cut-button-bg, #ffffff);
+  transform: scale(1.15);
+}
+
+.t8-edge-cut-glyph {
+  width: 15px;
+  height: 15px;
+  display: block;
+  background: currentColor;
+  -webkit-mask: var(--t8-cut-button-mask) center / contain no-repeat;
+  mask: var(--t8-cut-button-mask) center / contain no-repeat;
+}
+
+.t8-edge-theme-marker {
+  display: none;
 }
 
 /* === 批量移线 phantom 节点(透明锚点) === */

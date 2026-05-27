@@ -1,0 +1,694 @@
+/*
+ * Naruto visual skin
+ * A code-native fifth official template: shinobi scroll cards, forehead
+ * protector marks, flame chakra controls, and a lightweight jutsu-map canvas.
+ */
+
+html[data-theme-visual="naruto"] {
+  --nt-ink: var(--t8-text-main);
+  --nt-paper: var(--t8-bg-panel);
+  --nt-paper-deep: var(--t8-bg-panel-muted);
+  --nt-fire: var(--t8-accent);
+  --nt-fire-hot: var(--t8-accent-hover);
+  --nt-chakra: var(--t8-secondary);
+  --nt-metal: color-mix(in srgb, var(--t8-text-muted) 55%, var(--t8-bg-panel-elevated));
+  --nt-metal-edge: color-mix(in srgb, var(--t8-text-main) 58%, var(--t8-bg-panel));
+  --nt-scroll-line: color-mix(in srgb, var(--t8-grid-dot) 60%, transparent);
+  --nt-smoke: color-mix(in srgb, var(--t8-bg-panel-elevated) 56%, transparent);
+  --nt-scorch: color-mix(in srgb, var(--t8-edge) 34%, transparent);
+  --nt-button-shape: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  --nt-card-shape: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%, 0 14px);
+  --nt-ring: 0 0 0 3px color-mix(in srgb, var(--t8-secondary) 28%, transparent);
+  --nt-konoha-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 42'><g fill='none' stroke='black' stroke-width='5.6' stroke-linecap='round' stroke-linejoin='round'><path d='M5 34 16 16C22 6 38 4 45 13c7 10-2 23-15 22-10-1-15-10-10-17 5-7 16-5 17 4 1 7-9 9-11 2-1-3 1-5 4-5'/><path d='M45 13 59 4'/></g></svg>");
+  --nt-shuriken-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='m12 1.8 2.7 6.9L22 5.8l-3.1 6.4 3.3 6.1-7.2-2.1-3 6.2-3-6.2-7.2 2.1 3.3-6.1L2 5.8l7.3 2.9L12 1.8Zm0 7.5a2.7 2.7 0 1 0 0 5.4 2.7 2.7 0 0 0 0-5.4Z'/></svg>");
+  --t8-cut-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='%23ff7a1f' stroke='%2333180f' stroke-width='1.7' stroke-linejoin='round'><path d='m12 2 2.6 6.6L21 6l-2.7 6.2L21.4 18l-6.8-2.1L12 22l-2.6-6.1L2.6 18l3.1-5.8L3 6l6.4 2.6L12 2Z'/><circle cx='12' cy='12' r='2.4' fill='%23fff1c5'/></svg>") 14 14, crosshair;
+  --t8-cut-color: var(--nt-fire);
+  --t8-cut-track: color-mix(in srgb, var(--nt-fire-hot) 88%, transparent);
+  --t8-cut-button-bg: var(--nt-paper);
+  --t8-cut-button-fg: var(--nt-fire);
+  --t8-cut-button-mask: var(--nt-shuriken-mask);
+}
+
+html[data-theme-visual="naruto"][data-theme-mode="dark"] {
+  --nt-metal: #594635;
+  --nt-metal-edge: #f4c46c;
+  --nt-scroll-line: rgba(255, 211, 122, 0.14);
+  --nt-smoke: rgba(255, 132, 42, 0.08);
+  --nt-scorch: rgba(255, 91, 31, 0.22);
+}
+
+html[data-theme-visual="naruto"] body,
+html[data-theme-visual="naruto"] #root {
+  background:
+    radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--nt-fire-hot) 16%, transparent), transparent 30%),
+    radial-gradient(circle at 84% 18%, color-mix(in srgb, var(--nt-chakra) 12%, transparent), transparent 28%),
+    var(--t8-bg-app);
+  color: var(--t8-text-main);
+  font-family: var(--t8-font-family);
+}
+
+html[data-theme-visual="naruto"] .t8-app-shell {
+  background:
+    repeating-linear-gradient(135deg, transparent 0 26px, var(--nt-scorch) 26px 28px, transparent 28px 54px),
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--nt-fire) 16%, transparent), transparent 30%),
+    var(--t8-bg-app) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-topbar {
+  position: relative;
+  min-height: 52px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--t8-bg-panel) 84%, var(--nt-fire) 16%), var(--t8-bg-panel)) !important;
+  border-bottom: 3px solid var(--nt-ink) !important;
+  box-shadow:
+    0 4px 0 color-mix(in srgb, var(--nt-fire) 62%, var(--nt-ink)),
+    0 13px 32px rgba(0, 0, 0, 0.18);
+  overflow: visible;
+}
+
+html[data-theme-visual="naruto"] .t8-topbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 5px;
+  background:
+    repeating-linear-gradient(90deg, var(--nt-ink) 0 16px, var(--nt-fire) 16px 44px, var(--nt-chakra) 44px 58px);
+  border-top: 1px solid var(--nt-ink);
+  border-bottom: 1px solid var(--nt-ink);
+  pointer-events: none;
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand {
+  position: relative;
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 30px;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--nt-metal) 86%, #fff), var(--nt-metal));
+  border: 2px solid var(--nt-ink);
+  box-shadow: 3px 3px 0 var(--nt-ink);
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__mark::before,
+html[data-theme-visual="naruto"] .t8-naruto-brand__mark::after {
+  content: "";
+  position: absolute;
+  top: 11px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--nt-ink);
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__mark::before {
+  left: 6px;
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__mark::after {
+  right: 6px;
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__leaf {
+  width: 24px;
+  height: 17px;
+  display: block;
+  background: var(--nt-ink);
+  -webkit-mask: var(--nt-konoha-mask) center / contain no-repeat;
+  mask: var(--nt-konoha-mask) center / contain no-repeat;
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__leaf::before {
+  content: none;
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__leaf::after {
+  content: none;
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__title {
+  color: var(--nt-fire);
+  font-family: var(--t8-font-display);
+  letter-spacing: 0;
+  text-shadow: 1.5px 1.5px 0 color-mix(in srgb, var(--nt-ink) 86%, transparent);
+}
+
+html[data-theme-visual="naruto"] .t8-naruto-brand__sub {
+  color: var(--nt-chakra);
+}
+
+html[data-theme-visual="naruto"] .t8-topbar button,
+html[data-theme-visual="naruto"] .t8-topbar .px-btn,
+html[data-theme-visual="naruto"] .t8-topbar .t8-btn,
+html[data-theme-visual="naruto"] .t8-topbar .px-chip,
+html[data-theme-visual="naruto"] .t8-topbar-status-chip {
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 7px !important;
+  clip-path: var(--nt-button-shape);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--t8-bg-panel-elevated) 86%, var(--nt-fire) 14%), var(--t8-bg-panel-elevated)) !important;
+  color: var(--t8-text-main) !important;
+  box-shadow: 3px 3px 0 var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-topbar button:hover,
+html[data-theme-visual="naruto"] .t8-topbar .t8-btn:hover {
+  transform: translate(-1px, -1px);
+  background: linear-gradient(180deg, var(--nt-fire-hot), var(--nt-fire)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow:
+    3px 3px 0 var(--nt-ink),
+    0 0 22px color-mix(in srgb, var(--nt-fire-hot) 42%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-topbar-status-chip,
+html[data-theme-visual="naruto"] .t8-topbar .px-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar {
+  position: relative;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--nt-paper) 92%, #fff 8%), var(--nt-paper)) !important;
+  border-right: 4px solid var(--nt-ink) !important;
+  box-shadow: 5px 0 0 color-mix(in srgb, var(--nt-fire) 60%, var(--nt-ink));
+  overflow: hidden !important;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar > * {
+  position: relative;
+  z-index: 2;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 0 18px, var(--nt-scroll-line) 18px 20px, transparent 20px),
+    repeating-linear-gradient(135deg, transparent 0 26px, color-mix(in srgb, var(--nt-fire) 9%, transparent) 26px 27px, transparent 27px 58px);
+  opacity: 0.46;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 18px;
+  z-index: 1;
+  width: 54px;
+  aspect-ratio: 64 / 42;
+  opacity: 0.30;
+  background: color-mix(in srgb, var(--nt-fire) 58%, var(--nt-ink));
+  -webkit-mask: var(--nt-konoha-mask) center / contain no-repeat;
+  mask: var(--nt-konoha-mask) center / contain no-repeat;
+  transform: rotate(-5deg);
+  pointer-events: none;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar input {
+  background: color-mix(in srgb, var(--t8-bg-panel-elevated) 88%, transparent) !important;
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 7px !important;
+  color: var(--t8-text-main) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink);
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar .t8-sidebar-search-box {
+  box-sizing: border-box;
+  margin-left: 8px;
+  width: calc(100% - 8px);
+  max-width: calc(100% - 8px);
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 7px !important;
+  background: color-mix(in srgb, var(--t8-bg-panel-elevated) 90%, transparent) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink);
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar .t8-sidebar-search-box input {
+  min-width: 0;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar .px-btn--icon {
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 7px !important;
+  clip-path: var(--nt-button-shape);
+  background: linear-gradient(180deg, var(--nt-fire-hot), var(--nt-fire)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar .px-group-title {
+  margin-left: 8px;
+  padding: 5px 9px !important;
+  border: 2px solid var(--nt-ink);
+  border-radius: 7px !important;
+  clip-path: var(--nt-button-shape);
+  background: linear-gradient(180deg, var(--nt-fire-hot), var(--nt-fire)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink);
+  font-family: var(--t8-font-display);
+  width: calc(100% - 8px);
+  max-width: calc(100% - 8px);
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar .px-row,
+html[data-theme-visual="naruto"] .t8-sidebar-node {
+  position: relative;
+  margin-left: 8px;
+  width: calc(100% - 8px);
+  max-width: calc(100% - 8px);
+  border: 2px solid transparent;
+  border-radius: 7px !important;
+  clip-path: var(--nt-button-shape);
+  overflow: hidden;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar .px-row:hover,
+html[data-theme-visual="naruto"] .t8-sidebar .px-row.is-active,
+html[data-theme-visual="naruto"] .t8-sidebar-node:hover {
+  background: color-mix(in srgb, var(--nt-fire) 22%, var(--t8-bg-panel)) !important;
+  border-color: var(--nt-ink) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink);
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-sidebar-node > span:first-child {
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 6px !important;
+  background: linear-gradient(180deg, var(--nt-fire-hot), var(--nt-fire)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow: 1.5px 1.5px 0 var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-canvas-shell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--nt-fire) 12%, transparent), transparent 30%),
+    var(--t8-bg-canvas) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-canvas-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, var(--t8-grid-dot) 1.15px, transparent 1.35px),
+    linear-gradient(90deg, transparent 0 63px, color-mix(in srgb, var(--nt-ink) 14%, transparent) 64px 65px),
+    linear-gradient(180deg, transparent 0 63px, color-mix(in srgb, var(--nt-ink) 14%, transparent) 64px 65px),
+    repeating-linear-gradient(135deg, transparent 0 42px, color-mix(in srgb, var(--nt-fire) 9%, transparent) 42px 44px);
+  background-size: 18px 18px, 65px 65px, 65px 65px, 88px 88px;
+  opacity: 0.88;
+}
+
+html[data-theme-visual="naruto"] .t8-canvas-shell::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
+  width: min(38vw, 420px);
+  aspect-ratio: 64 / 42;
+  background: color-mix(in srgb, var(--nt-fire) 34%, var(--nt-ink) 26%);
+  -webkit-mask: var(--nt-konoha-mask) center / contain no-repeat;
+  mask: var(--nt-konoha-mask) center / contain no-repeat;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  opacity: 0.31;
+  pointer-events: none;
+}
+
+html[data-theme-visual="naruto"] .react-flow {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-visual="naruto"] .react-flow__renderer,
+html[data-theme-visual="naruto"] .react-flow__viewport,
+html[data-theme-visual="naruto"] .react-flow__nodes {
+  position: relative;
+  z-index: 2;
+}
+
+html[data-theme-visual="naruto"] .react-flow__edges {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-visual="naruto"] .react-flow__background {
+  background: transparent !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__background-pattern circle {
+  fill: var(--t8-grid-dot) !important;
+  opacity: 0.58;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child,
+html[data-theme-visual="naruto"] .t8-node,
+html[data-theme-visual="naruto"] .t8-card,
+html[data-theme-visual="naruto"] .t8-panel {
+  position: relative;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--nt-paper) 92%, #fff 8%), var(--nt-paper)) !important;
+  border: 3px solid var(--nt-ink) !important;
+  border-radius: var(--t8-radius-node) !important;
+  box-shadow: var(--t8-shadow-panel) !important;
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child::before,
+html[data-theme-visual="naruto"] .t8-node::before,
+html[data-theme-visual="naruto"] .t8-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  height: 5px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, transparent, var(--nt-fire), var(--nt-chakra), var(--nt-fire), transparent);
+  opacity: 0.88;
+  pointer-events: none;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div:first-child {
+  outline: 2px solid var(--nt-chakra) !important;
+  outline-offset: 6px !important;
+  box-shadow:
+    var(--t8-shadow-panel),
+    0 0 0 3px color-mix(in srgb, var(--nt-fire) 34%, transparent),
+    0 0 30px color-mix(in srgb, var(--nt-chakra) 34%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-node-header,
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) [class*="border-b"] {
+  border-color: color-mix(in srgb, var(--nt-ink) 78%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) [class~="w-6"][class~="h-6"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) [class~="w-7"][class~="h-7"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) [class~="w-8"][class~="h-8"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) [class~="h-7"][class~="w-7"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) [class~="h-8"][class~="w-8"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) [style*="width: 24px"][style*="height: 24px"][style*="justify-content: center"] {
+  clip-path: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 6px !important;
+  background: linear-gradient(180deg, var(--nt-metal), color-mix(in srgb, var(--nt-metal) 68%, var(--nt-fire))) !important;
+  color: var(--nt-ink) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) button:not(.react-flow__controls-button):not([class*="text-red"]):not([class*="bg-red"]):not([title*="删除"]):not([aria-label*="删除"]) {
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 7px !important;
+  clip-path: var(--nt-button-shape);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--nt-paper) 88%, var(--nt-fire) 12%), var(--nt-paper)) !important;
+  color: var(--t8-text-main) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) button:not(.react-flow__controls-button):not([class*="text-red"]):not([class*="bg-red"]):not([title*="删除"]):not([aria-label*="删除"]):hover {
+  background: linear-gradient(180deg, var(--nt-fire-hot), var(--nt-fire)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow:
+    2px 2px 0 var(--nt-ink),
+    0 0 18px color-mix(in srgb, var(--nt-fire-hot) 42%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-material-preview-header {
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 7px !important;
+  clip-path: var(--nt-button-shape);
+  background: linear-gradient(180deg, var(--nt-fire-hot), var(--nt-fire)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink) !important;
+  font-family: var(--t8-font-display);
+}
+
+html[data-theme-visual="naruto"] .t8-material-preview-count {
+  border: 1.5px solid var(--nt-ink) !important;
+  border-radius: 3px !important;
+  background: color-mix(in srgb, var(--nt-paper) 76%, var(--nt-fire) 24%) !important;
+  color: var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-material-preview-group-label {
+  color: color-mix(in srgb, var(--nt-ink) 74%, var(--nt-fire)) !important;
+  font-weight: 700;
+}
+
+html[data-theme-visual="naruto"] .t8-material-preview-upload {
+  border: 2px dashed var(--nt-ink) !important;
+  border-radius: 7px !important;
+  background: color-mix(in srgb, var(--nt-paper) 88%, var(--nt-fire) 12%) !important;
+  color: var(--nt-ink) !important;
+  box-shadow: 2px 2px 0 var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-btn,
+html[data-theme-visual="naruto"] .t8-chip {
+  border: 2px solid var(--nt-ink);
+  border-radius: 7px;
+  clip-path: var(--nt-button-shape);
+  box-shadow: 2px 2px 0 var(--nt-ink);
+}
+
+html[data-theme-visual="naruto"] .t8-btn-primary {
+  background: linear-gradient(180deg, var(--nt-fire-hot), var(--nt-fire));
+  color: var(--t8-accent-text);
+}
+
+html[data-theme-visual="naruto"] .t8-input,
+html[data-theme-visual="naruto"] .t8-select,
+html[data-theme-visual="naruto"] .t8-textarea,
+html[data-theme-visual="naruto"] .react-flow__node input,
+html[data-theme-visual="naruto"] .react-flow__node select,
+html[data-theme-visual="naruto"] .react-flow__node textarea {
+  background: color-mix(in srgb, var(--t8-bg-panel-elevated) 88%, transparent) !important;
+  border: 2px solid var(--nt-ink) !important;
+  border-radius: 7px !important;
+  color: var(--t8-text-main) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nt-fire) 10%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__handle {
+  width: 16px !important;
+  height: 16px !important;
+  border: 3px solid var(--nt-ink) !important;
+  background: radial-gradient(circle, var(--nt-chakra) 0 35%, var(--nt-fire) 37% 68%, var(--nt-ink) 70%) !important;
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--nt-chakra) 18%, transparent),
+    0 0 18px color-mix(in srgb, var(--nt-fire) 30%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__handle-right {
+  background: radial-gradient(circle, var(--nt-fire-hot) 0 35%, var(--nt-fire) 37% 68%, var(--nt-ink) 70%) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__edge-path {
+  stroke: var(--t8-edge) !important;
+  stroke-width: 2.9 !important;
+  stroke-dasharray: 2 10 11 10 !important;
+  stroke-linecap: butt;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--nt-fire) 18%, transparent));
+}
+
+html[data-theme-visual="naruto"] .react-flow__edge.selected .react-flow__edge-path,
+html[data-theme-visual="naruto"] .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--nt-fire) !important;
+  stroke-dasharray: 4 7 13 7 !important;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--nt-fire-hot) 72%, transparent));
+}
+
+html[data-theme-visual="naruto"] .t8-edge-theme-marker {
+  display: block;
+  width: 22px;
+  height: 22px;
+  background: color-mix(in srgb, var(--nt-fire) 86%, var(--nt-ink));
+  -webkit-mask: var(--nt-shuriken-mask) center / contain no-repeat;
+  mask: var(--nt-shuriken-mask) center / contain no-repeat;
+  opacity: 0.72;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--nt-fire-hot) 42%, transparent));
+}
+
+html[data-theme-visual="naruto"] .react-flow__controls,
+html[data-theme-visual="naruto"] .react-flow__minimap {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--t8-bg-panel) 92%, var(--nt-fire) 8%), var(--t8-bg-panel)) !important;
+  border: 3px solid var(--nt-ink) !important;
+  border-radius: 10px !important;
+  box-shadow: 4px 4px 0 var(--nt-ink) !important;
+  overflow: hidden;
+}
+
+html[data-theme-visual="naruto"] .react-flow__controls {
+  left: 18px !important;
+  bottom: 26px !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__controls-button {
+  color: var(--t8-text-main) !important;
+  border-bottom: 2px solid var(--nt-ink) !important;
+  background: transparent !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__controls-button:hover {
+  background: color-mix(in srgb, var(--nt-fire) 20%, var(--t8-bg-panel)) !important;
+  color: var(--nt-fire) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__minimap {
+  width: 154px !important;
+  height: 128px !important;
+  right: 24px !important;
+  bottom: 40px !important;
+  border-radius: 12px !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__minimap::before {
+  content: "CHAKRA MAP";
+  position: absolute;
+  left: 9px;
+  top: 6px;
+  z-index: 2;
+  color: var(--nt-fire);
+  font-family: var(--t8-font-display);
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  pointer-events: none;
+}
+
+html[data-theme-visual="naruto"] .react-flow__minimap-mask {
+  fill: color-mix(in srgb, var(--nt-chakra) 24%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__minimap-node {
+  fill: var(--nt-fire) !important;
+  stroke: var(--nt-ink) !important;
+  stroke-width: 1.2 !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node-groupBox > div,
+html[data-theme-visual="naruto"] [data-theme-visual="naruto"].t8-group-box {
+  border-color: var(--nt-ink) !important;
+  box-shadow:
+    5px 5px 0 var(--nt-ink),
+    inset 0 0 0 2px color-mix(in srgb, var(--nt-fire) 32%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-group-box::before {
+  background:
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--nt-fire) 11%, transparent), transparent 48%),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 22px, color-mix(in srgb, var(--nt-ink) 10%, transparent) 23px 24px) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-group-box::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  z-index: 0;
+  width: min(44%, 260px);
+  aspect-ratio: 64 / 42;
+  background: color-mix(in srgb, var(--nt-fire) 32%, var(--nt-ink) 20%);
+  -webkit-mask: var(--nt-konoha-mask) center / contain no-repeat;
+  mask: var(--nt-konoha-mask) center / contain no-repeat;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  opacity: 0.26;
+  pointer-events: none;
+}
+
+html[data-theme-visual="naruto"] .t8-group-box > :not(.react-flow__handle) {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-visual="naruto"] .t8-group-box__header {
+  border-bottom: 3px solid var(--nt-ink) !important;
+  background: linear-gradient(90deg, var(--nt-fire), var(--nt-fire-hot)) !important;
+  color: var(--t8-accent-text) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-group-box__handle {
+  background: radial-gradient(circle, var(--nt-chakra) 0 38%, var(--nt-fire) 41% 68%, var(--nt-ink) 70%) !important;
+  border: 3px solid var(--nt-ink) !important;
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--nt-chakra) 20%, transparent),
+    0 0 18px color-mix(in srgb, var(--nt-fire) 34%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-theme-music-toggle {
+  border: 3px solid var(--nt-ink) !important;
+  border-radius: 8px !important;
+  clip-path: var(--nt-button-shape);
+  background: linear-gradient(180deg, var(--nt-paper), var(--nt-paper-deep)) !important;
+  color: var(--nt-fire) !important;
+  box-shadow: 3px 3px 0 var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-theme-music-toggle.is-playing {
+  background: linear-gradient(180deg, var(--nt-fire-hot), var(--nt-fire)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow:
+    3px 3px 0 var(--nt-ink),
+    0 0 22px color-mix(in srgb, var(--nt-fire-hot) 52%, transparent) !important;
+}
+
+html[data-theme-visual="naruto"] [data-canvas-floating-ui],
+html[data-theme-visual="naruto"] .t8-modal,
+html[data-theme-visual="naruto"] .resource-library-drawer {
+  color: var(--t8-text-main);
+}
+
+.t8-theme-preview[data-theme-visual="naruto"] {
+  --nt-ink: var(--t8-text-main);
+  --nt-fire: var(--t8-accent);
+  --nt-fire-hot: var(--t8-accent-hover);
+  --nt-chakra: var(--t8-secondary);
+  --nt-paper: var(--t8-bg-panel);
+  background:
+    radial-gradient(circle at 50% 36%, color-mix(in srgb, var(--nt-fire) 10%, transparent), transparent 42%),
+    repeating-linear-gradient(135deg, transparent 0 24px, color-mix(in srgb, var(--nt-fire) 8%, transparent) 24px 26px),
+    var(--t8-bg-canvas) !important;
+}
+
+.t8-theme-preview[data-theme-visual="naruto"] .t8-panel,
+.t8-theme-preview[data-theme-visual="naruto"] .t8-node {
+  border: 3px solid var(--nt-ink) !important;
+  border-radius: 10px !important;
+  box-shadow: 4px 4px 0 var(--nt-ink) !important;
+}
+
+.t8-theme-preview[data-theme-visual="naruto"] .t8-node::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, var(--nt-fire), var(--nt-chakra), transparent);
+}

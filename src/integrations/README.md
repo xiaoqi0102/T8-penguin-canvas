@@ -2,7 +2,7 @@
 
 > 目的：把每个第三方 provider 的改动**集中**到独立子目录，让上游主项目（fork 来源）更新时合并冲突最小化。
 >
-> 工作流：fork → 加 provider → 上游更新 → `git merge upstream/main` → 几乎零冲突（已在 v1.5.5 三路合并实战验证）。
+> 工作流：fork → 加 provider → 上游更新 → `git merge upstream/main` → 几乎零冲突（已在 v1.5.5、v1.5.8 两次合并实战验证；v1.5.8 时上游 v1.5.7 与 fork 的 Qiniu/Grsai 仅在 8 个版本号文件冲突，业务源码零冲突）。
 
 ---
 

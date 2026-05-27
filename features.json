@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.5.6",
-  "lastUpdated": "2026-05-28-v1.5.6-qiniu-grsai-providers",
+  "version": "1.5.8",
+  "lastUpdated": "2026-05-28-v1.5.8-merge-upstream-1.5.7-with-qiniu-grsai",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,10 +16,10 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.5.6",
-    "semverVersion": "1.5.6",
-    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.5.6：新增七牛云图像 provider（OpenAI 兼容，子模型 gemini-3.1-flash-image-preview + openai/gpt-image-2）与 Grsai 中转站图像 provider（自有协议 /v1/api/generate → /v1/api/result，11 个子模型），各自独立 API Key + BaseUrl + 后端代理。size / 比例下拉统一改为比例显示（auto + 14 个），按子模型分组限制可选集合；gpt-image-2-vip 在 runner 内将比例转为像素串。Grsai 默认子模型改为 gpt-image-2；UI 与 GPT2 面板对齐，标签全部中文化。",
-    "installer": "dist_electron/T8-PenguinCanvas-Setup-1.5.6.exe (NSIS, ~109 MB)",
+    "version": "1.5.8",
+    "semverVersion": "1.5.8",
+    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.5.8 = 合并上游 v1.5.7（火影忍者官方主题 + 文本分割段落语义 + 宫格剪裁素材集兼容）+ fork 自有的七牛云 / Grsai 图像 provider 接入与比例化 size 选择（原计划的 v1.5.6 范围）。本次为 fork 自增版本，便于追溯 upstream/HEAD 双线时间轴。",
+    "installer": "本次未打包 Electron；上次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
       "backend/src/ 任何文件修改后必须重新 npm run encrypt 再打包",
@@ -40,7 +40,7 @@
     "canvasPanel": { "collapsible": true, "defaultOpen": true, "maxHeight": 224 }
   },
   "themes": {
-    "description": "主题模板体系：内置科技风 / 像素糖果风 / OP 风格 / RH 风格四套模板 × 浅色/深色模式，由 zustand theme store 持久化，data-theme-style + data-theme-mode + data-theme-visual 注入 html 根；新增节点应使用 ThemeToken CSS 变量与通用 t8-* 样式，避免逐节点硬编码主题。",
+    "description": "主题模板体系：内置科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格五套模板 × 浅色/深色模式，由 zustand theme store 持久化，data-theme-style + data-theme-mode + data-theme-visual 注入 html 根；新增节点应使用 ThemeToken CSS 变量与通用 t8-* 样式，避免逐节点硬编码主题。",
     "templateSystem": {
       "schema": "t8-theme-template",
       "version": 2,
@@ -69,7 +69,8 @@
           "pixel-candy": "pixel-theme-of-sss.mp3",
           "op-style": "op-battle-scars.mp3",
           "rh-style": "rh-tide.mp3",
-          "rh-hidden": "rh-hidden-saya.mp3"
+          "rh-hidden": "rh-hidden-saya.mp3",
+          "naruto-style": "naruto-shinsei-gyakuten.mp3"
         },
         "rule": "主题音乐默认静音，通常只在用户主动点击播放按钮后播放；RH 主题隐藏模式是唯一例外，会自动切换隐藏音乐并解除静音。模板编辑器支持上传替换，导出模板可携带 data:audio/*。"
       }
@@ -131,6 +132,19 @@
           "headerMark": "RH"
         },
         "music": "rh-tide.mp3；隐藏模式自动切换 rh-hidden-saya.mp3 并解除静音播放"
+      },
+      "naruto": {
+        "label": "火影忍者风格",
+        "description": "热血忍者视觉模板：木叶护额品牌、卷轴节点卡片、火焰查克拉按钮、斜切控件、chakra 画布纹理与忍术阵水印；不使用胶囊风格，明暗模式均需保持节点长文本可读。",
+        "default": false,
+        "visuals": {
+          "style": "naruto",
+          "iconPack": "naruto",
+          "canvasPattern": "chakra",
+          "nodeFrame": "shinobi-scroll",
+          "headerMark": "KONOHA"
+        },
+        "music": "naruto-shinsei-gyakuten.mp3"
       }
     },
     "defaultStyle": "pixel",
@@ -217,7 +231,9 @@
     "phase72": { "label": "RH 主题模板 (v1.5.3)", "status": "complete", "items": ["新增第四套内置主题 RH风格，参考 RunningHub 工作台观感，提供 light/dark 两套 ThemeTokens。", "主题视觉新增 visuals.style=rh、canvasPattern=hub、nodeFrame=hub-card 与 rh-pulse 合成音乐预设，模板编辑器和后端主题导入校验同步支持。", "新增 theme-rh.css 全局视觉层，覆盖顶部栏、侧边栏、节点卡片、组容器、输入框、端口、连线、MiniMap、Controls、主题音乐按钮和主题预览，保持新节点自动适配。", "RH 皮肤层增加 legacy 内部控件适配器，统一覆盖旧节点里硬编码的标题角标、运行按钮、Tab/segmented controls、状态色、checkbox/radio，避免外壳是 RH 但内部仍是 orange/violet/rose/cyan 节点类型色。", "RH 风格保留科技风兼容层，不引入业务节点分支；后续新增节点只要走 t8-* 变量即可继承该主题。"] },
     "phase73": { "label": "RH 隐藏鸭鸭解码模式收尾 (v1.5.4)", "status": "complete", "items": ["RH 主题下选中已上传图像的 UploadNode 后，长按顶部浮动 RUN 3 秒切换红色隐藏模式；其他主题、非图像上传和未上传节点不触发。", "隐藏模式运行时批量调用 /api/files/duck-decode 尝试 SS_tools 无密码鸭鸭图解码，成功后按真实 kind 输出 image / video / audio；非鸭鸭图或解码失败静默回退普通上传输出，不打扰用户。", "解码成功的 OutputNode 写入 rhDuckDecoded direct-only 标记，OutputNode 不再通过上游连线重新收集解码前鸭鸭原图，只展示解码后的真实素材。", "RH 主题隐藏态覆盖上传节点、输出节点、端口、选中外圈、Edit/RUN 按钮、缩放角点与隐藏解码连线，统一使用荧光红，与普通 RH 荧光绿状态明确区分。", "DeletableEdge 会根据 edge.data.rhDuckEdge 或目标 OutputNode 的 rhDuckDecoded 自动补 rh-duck-edge 类名，避免隐藏模式连线在重渲染后回到绿色。", "RH 风格默认音乐改为 src/assets/theme-music/rh-tide.mp3；隐藏模式启用后 ThemeMusicToggle 自动切换到 rh-hidden-saya.mp3 并解除静音播放，隐藏模式关闭后若原本未手动播放则自动停止。", "后端 duck-decode 仅允许 /files/input/* 与 /files/output/* 本地文件，不暴露任意路径读取；hiddenFeatures.ts 只保存会话态，不持久化进画布 JSON。", "公开版本同步到 1.5.4：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
     "phase74": { "label": "RH 主题音乐与隐藏模式自动播放 (v1.5.5)", "status": "complete", "items": ["RH 风格默认音乐正式替换为 src/assets/theme-music/rh-tide.mp3，对应用户提供的潮鸣音频；隐藏模式音乐新增 src/assets/theme-music/rh-hidden-saya.mp3，对应用户提供的沙耶之歌主题音频。", "ThemeMusic 类型新增 hiddenTitle / hiddenUrl / hiddenVolume，defaultTemplates 内置 RH 模板改为 URL 音频源并声明隐藏模式备用曲目。", "ThemeMusicToggle 监听 hiddenFeatures.rhDuckUploadIds：RH 隐藏模式开启时自动切换隐藏音乐并解除静音播放；关闭隐藏模式时，如果不是用户手动播放，则自动停止，避免普通 RH 主题意外继续响。", "ThemeTemplateManager 与 backend/src/routes/themes.js 保留隐藏音乐字段，主题模板编辑、保存、导入、导出不会丢失 hiddenTitle / hiddenUrl / hiddenVolume。", "_post_build.cjs 校验五首内置主题音乐 mp3，包含 classic-one-summer-day、pixel-theme-of-sss、op-battle-scars、rh-tide、rh-hidden-saya，防止 Electron 用户包漏带音频资源。", "公开版本同步到 1.5.5：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
-    "phase75": { "label": "七牛云 / Grsai 图像 provider 接入与比例化 size 选择 (v1.5.6)", "status": "complete", "items": ["新增七牛云图像 provider：独立 qiniuApiKey + qiniuBaseUrl（与贞贞工坊完全解耦），走 OpenAI 兼容协议（POST /v1/images/generations 文生图，POST /v1/images/edits 图生图，GET /v1/images/tasks/:tid 异步轮询），子模型 gemini-3.1-flash-image-preview（默认）与 openai/gpt-image-2；前端 src/integrations/qiniu/ 独立 runner 与参数面板，后端 /api/proxy/qiniu/image[/submit|/status/:tid] 三条代理路由（pollMaxRetries=1800/2s = 60 分钟上限）。", "新增 Grsai 中转站图像 provider：独立 grsaiApiKey + grsaiBaseUrl，自有协议（非 OpenAI 兼容）POST /v1/api/generate → GET /v1/api/result，11 个子模型（9 个 nano-banana 系列 + 2 个 gpt-image-2 系列），前端 src/integrations/grsai/ 独立 runner 与参数面板，后端 /api/proxy/grsai/image[/submit|/status/:tid] 三条代理路由。", "Grsai 默认子模型从 nano-banana-2 改为 gpt-image-2，apiModelOptions 标签同步加 (默认) 标记。", "size / 比例下拉统一改为比例显示（auto + 14 个），不再向用户暴露像素串；新增 integrations/qiniu/sizeMap.ts 与 integrations/grsai/sizeMap.ts 各自维护按 apiModel 分组的比例集合 + 比例 → 像素串映射器。", "七牛云比例集合按子模型分组：gemini-3.1-flash-image-preview 全 14 个 + auto；openai/gpt-image-2 仅 10 个 ≤3:1 比例 + auto（文档约束「长边/短边 ≤ 3:1」，排除 1:4 / 4:1 / 1:8 / 8:1）。", "Grsai 比例集合按子模型分组：nano-banana / nano-banana-pro 系列 11 通用比例；nano-banana-2 系列 11 + 4 极端（1:4 / 4:1 / 1:8 / 8:1）；gpt-image-2 / gpt-image-2-vip 11 通用比例（gpt-image-2-vip 上游强制像素串，runner 提交前完成 ratio → 像素串转换）。", "比例 → 像素串转换规则：5 个文档「常用 size」直接映射（1:1 → 1024x1024，3:2 → 1536x1024，2:3 → 1024x1536，16:9 → 2048x1152，9:16 → 1152x2048），其它比例按 1MP 目标 + 16px 对齐 + 长边 ≤3840 计算；'auto' 透传；旧画布的像素串值兼容直通；vip 路径下 'auto' 退化到 1024x1024。", "ImageNode 子模型 onChange 与 switchModel 同时按新 apiModel 的允许集合校验已存比例值，越界则迁移到 DEFAULT_QINIU_RATIO / DEFAULT_GRSAI_RATIO，避免跨子模型残留非法选项触发上游报错。", "七牛 / Grsai 参数面板 UI 与 GPT2 面板对齐：去掉外层 sky / violet 颜色边框，使用 grid grid-cols-2 简洁布局；标签全部中文化（Quality → 质量，Size → 比例，AspectRatio → 比例，ImageSize → 尺寸）。", "公开版本同步到 1.5.6：package.json、package-lock.json、vite.config.ts、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/CLAUDE.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] }
+    "phase75": { "label": "火影忍者官方主题 (v1.5.6)", "status": "complete", "items": ["新增第五套内置官方主题「火影忍者风格」，提供 light/dark 两套 ThemeTokens，整体使用热血橙红、卷轴纸、查克拉蓝和焦黑暗色，不走胶囊糖果风。", "主题模板协议扩展 visuals.style=naruto、iconPack=naruto、canvasPattern=chakra、nodeFrame=shinobi-scroll，并在前端类型、后端导入校验、主题编辑器和内置模板中同步白名单。", "新增 theme-naruto.css 全局视觉层，覆盖顶部栏木叶护额品牌、侧边栏卷轴纸、画布 chakra 纹理、节点卷轴卡片、端口、手里剑连线、MiniMap、Controls、音乐按钮、GroupBox 和主题预览。", "Sidebar 图标包新增 naruto 映射，为上传、输出、图像、视频、音频、RunningHub、工具箱、素材集等节点提供更接近忍者战斗主题的图标语义。", "火影主题默认音乐改为 src/assets/theme-music/naruto-shinsei-gyakuten.mp3，主题音乐按钮默认静音，用户可在主题模板编辑器中上传替换。", "SHIFT 划线断连和连线中点断开按钮接入主题化切断标志：科技风能量刃、像素风像素剑、OP 风格弯刀、RH 风格断链、火影风格手里剑。", "公开版本同步到 1.5.6：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 与 docs/theme-design-guide.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase76": { "label": "文本分割段落语义与素材集图像工具兼容 (v1.5.7)", "status": "complete", "items": ["宫格剪裁的上游合集批量拆分继续兼容上传素材多图，同时新增资源库素材集子素材解析：后端 /api/image/* 的图像源解析支持 /api/resources/file/:id 与 /api/resources/set-file/:id/:index，资源库整套插入的素材集也可直接逐张宫格切分。", "图像源解析增加同应用 URL pathname 归一化和资源库路径边界校验，只允许解析资源库数据库声明的 fileRel，避免浏览器可预览但 sharp 后端无法读取的路径断层。", "文本分割按段落模式语义修正：只有至少一个空行才切为新段落，普通换行会保留在同一段里；按行模式继续逐行切分，二者行为重新区分。", "TextSplitNode 的按段落帮助文案同步更新，并将 TEXT_SPLIT_ALGO_VERSION 升到 5，使旧节点缓存的 segmentsOverride 在算法变化后自动失效。", "README 功能亮点同步说明宫格剪裁兼容资源库素材集，以及文本分割按段落 / 按行的边界；公开版本同步到 1.5.7：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase77": { "label": "七牛云 / Grsai 图像 provider 接入与比例化 size 选择（fork 自有 · v1.5.8）", "status": "complete", "items": ["fork 自有特性，原以 v1.5.6 编号本地开发；合并上游 v1.5.7 后整体上行到 v1.5.8 对外。", "新增七牛云图像 provider：独立 qiniuApiKey + qiniuBaseUrl（与贞贞工坊完全解耦），走 OpenAI 兼容协议（POST /v1/images/generations 文生图，POST /v1/images/edits 图生图，GET /v1/images/tasks/:tid 异步轮询），子模型 gemini-3.1-flash-image-preview（默认）与 openai/gpt-image-2；前端 src/integrations/qiniu/ 独立 runner 与参数面板，后端 /api/proxy/qiniu/image[/submit|/status/:tid] 三条代理路由（pollMaxRetries=1800/2s = 60 分钟上限）。", "新增 Grsai 中转站图像 provider：独立 grsaiApiKey + grsaiBaseUrl，自有协议（非 OpenAI 兼容）POST /v1/api/generate → GET /v1/api/result，11 个子模型（9 个 nano-banana 系列 + 2 个 gpt-image-2 系列），前端 src/integrations/grsai/ 独立 runner 与参数面板，后端 /api/proxy/grsai/image[/submit|/status/:tid] 三条代理路由。", "Grsai 默认子模型从 nano-banana-2 改为 gpt-image-2，apiModelOptions 标签同步加 (默认) 标记。", "size / 比例下拉统一改为比例显示（auto + 14 个），不再向用户暴露像素串；新增 integrations/qiniu/sizeMap.ts 与 integrations/grsai/sizeMap.ts 各自维护按 apiModel 分组的比例集合 + 比例 → 像素串映射器。", "七牛云比例集合按子模型分组：gemini-3.1-flash-image-preview 全 14 个 + auto；openai/gpt-image-2 仅 10 个 ≤3:1 比例 + auto（文档约束「长边/短边 ≤ 3:1」，排除 1:4 / 4:1 / 1:8 / 8:1）。", "Grsai 比例集合按子模型分组：nano-banana / nano-banana-pro 系列 11 通用比例；nano-banana-2 系列 11 + 4 极端（1:4 / 4:1 / 1:8 / 8:1）；gpt-image-2 / gpt-image-2-vip 11 通用比例（gpt-image-2-vip 上游强制像素串，runner 提交前完成 ratio → 像素串转换）。", "比例 → 像素串转换规则：5 个文档「常用 size」直接映射（1:1 → 1024x1024，3:2 → 1536x1024，2:3 → 1024x1536，16:9 → 2048x1152，9:16 → 1152x2048），其它比例按 1MP 目标 + 16px 对齐 + 长边 ≤3840 计算；'auto' 透传；旧画布的像素串值兼容直通；vip 路径下 'auto' 退化到 1024x1024。", "ImageNode 子模型 onChange 与 switchModel 同时按新 apiModel 的允许集合校验已存比例值，越界则迁移到 DEFAULT_QINIU_RATIO / DEFAULT_GRSAI_RATIO，避免跨子模型残留非法选项触发上游报错。", "七牛 / Grsai 参数面板 UI 与 GPT2 面板对齐：去掉外层 sky / violet 颜色边框，使用 grid grid-cols-2 简洁布局；标签全部中文化（Quality → 质量，Size → 比例，AspectRatio → 比例，ImageSize → 尺寸）。", "fork 公开版本对外统一到 1.5.8：package.json、package-lock.json、vite.config.ts、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/CLAUDE.md、src/integrations/README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] }
   },
   "categories": {
     "input": {
@@ -273,12 +289,12 @@
         { "type": "frame-pair", "label": "首尾帧获取", "description": "v1.2.7 新增。输入一个视频节点，运行后抽取首帧与尾帧，输出 2 个 image 素材(双 source handle id=first/last)。浏览器端 video+canvas 抽帧上传 base64，双主题 (像素风糖果色/科技风玻璃)，接入运行总线可被批量运行调起" },
         { "type": "loop", "label": "循环器", "description": "v1.2.8 新增。接多个同类型素材(text/image/video/audio)，两种模式: 串联逐个注入自身进发下游可执行子图 / 并联克隆 (N-1) 份子图并发跱发。采集输出位序位填 null，永久保留克隆节点，克隆块垂直堆叠(yOffset = i × blockH)，使用 runBus.runningIds + triggerRunMany 多节点并发触发。双主题 violet 调" },
         { "type": "pick-from-set", "label": "从合集获取", "description": "v1.2.8 新增。从上游多素材集合中按 kind + 序号取出单一素材写入自身 data，下游通过 useUpstreamMaterials 自动拾取。默认 image+第1个，kind 切换时输出 Handle 颜色随动 PORT_COLOR 变化" },
-        { "type": "text-split", "label": "文本分割", "description": "v1.5.2 增强。接上游 text 或手动粘贴长文本，默认按行，可按段落/自定义分隔符/Markdown 标题/序号镜头/智能分镜/正则高级/字数切块输出 textSegments 数组；支持模式说明、中文稳定编辑、去空行、修剪、压空白、去序号、前后缀占位符、双列分段预览编辑、复制全部、手动打散为多个 TextNode、分段收藏、JSON 导入导出，以及一键创建前置循环器链路；前置循环器执行完成后会自动打散为 TextNode" },
+        { "type": "text-split", "label": "文本分割", "description": "v1.5.7 增强。接上游 text 或手动粘贴长文本，默认按行；按段落严格以至少一个空行切段，普通换行保留在同一段，可按自定义分隔符/Markdown 标题/序号镜头/智能分镜/正则高级/字数切块输出 textSegments 数组；支持模式说明、中文稳定编辑、去空行、修剪、压空白、去序号、前后缀占位符、双列分段预览编辑、复制全部、手动打散为多个 TextNode、分段收藏、JSON 导入导出，以及一键创建前置循环器链路；前置循环器执行完成后会自动打散为 TextNode" },
         { "type": "resize", "label": "尺寸调整", "description": "图像尺寸调整(v1.2.0 起默认 fit=cover 裁剪铺满,FIT_OPTIONS 4 选项带中文说明 cover/contain/inside/fill;ImageOpFrame 派生节点下游连 OutputNode 时自动隐藏内部预览避免双显)" },
         { "type": "combine", "label": "合并", "description": "图像合并" },
         { "type": "remove-bg", "label": "抠图", "description": "去除背景", "hidden": true },
         { "type": "upscale", "label": "放大", "description": "图像放大", "hidden": true },
-        { "type": "grid-crop", "label": "宫格剪裁", "description": "网格切图，支持 gap 去缝、常用预设、指定序号导出、输出顺序、上游合集批量拆分和节点内切线预览" }
+        { "type": "grid-crop", "label": "宫格剪裁", "description": "网格切图，支持 gap 去缝、常用预设、指定序号导出、输出顺序、上游合集批量拆分和节点内切线预览；批量拆分兼容上传素材多图与资源库素材集图像" }
       ]
     },
     "auxiliary": {

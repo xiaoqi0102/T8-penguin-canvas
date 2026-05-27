@@ -60,6 +60,35 @@ const OP_ICON_BY_TYPE: Record<string, string> = {
   'video-motion': 'Sailboat',
 };
 
+const NARUTO_ICON_BY_TYPE: Record<string, string> = {
+  upload: 'BadgeUp',
+  output: 'BadgeCheck',
+  text: 'ScrollText',
+  image: 'Flame',
+  video: 'Zap',
+  seedance: 'Film',
+  audio: 'Drum',
+  llm: 'BrainCircuit',
+  runninghub: 'Network',
+  'runninghub-wallet': 'BadgeDollarSign',
+  'rh-tools': 'Boxes',
+  'frame-pair': 'ScanEye',
+  loop: 'Repeat2',
+  'pick-from-set': 'PackageOpen',
+  resize: 'MoveDiagonal',
+  combine: 'Layers3',
+  'grid-crop': 'Grid3x3',
+  idea: 'Lightbulb',
+  bp: 'BookOpen',
+  relay: 'ArrowRightLeft',
+  cinematic: 'Clapperboard',
+  'video-motion': 'Route',
+  'multi-angle-visual': 'Orbit',
+  'text-split': 'Scissors',
+  'image-compare': 'ScanSearch',
+  'material-set': 'Package',
+};
+
 interface SidebarProps {
   onAddNode: (type: NodeType) => void;
 }
@@ -121,7 +150,11 @@ export default function Sidebar({ onAddNode }: SidebarProps) {
   const toggle = (key: string) => setCollapsed((s) => ({ ...s, [key]: !s[key] }));
 
   const renderNode = (n: NodeMeta) => {
-    const themedIcon = visualStyle === 'op' ? OP_ICON_BY_TYPE[n.type] || n.icon : n.icon;
+    const themedIcon = visualStyle === 'op'
+      ? OP_ICON_BY_TYPE[n.type] || n.icon
+      : visualStyle === 'naruto'
+        ? NARUTO_ICON_BY_TYPE[n.type] || n.icon
+        : n.icon;
     const Icon = (Icons as any)[themedIcon] || Icons.Box;
     const colorHex = COLOR_HEX[n.color] || COLOR_HEX.slate;
     return (
@@ -375,12 +408,12 @@ export default function Sidebar({ onAddNode }: SidebarProps) {
 
       {/* 搜索框 */}
       <div
-        className={`p-2 border-b ${
+        className={`t8-sidebar-search-row p-2 border-b ${
           isPixel ? 'border-[#1A1410]/80' : isDark ? 'border-white/10' : 'border-black/10'
         }`}
       >
         <div
-          className={`flex items-center gap-2 px-2 py-1.5 ${
+          className={`t8-sidebar-search-box flex items-center gap-2 px-2 py-1.5 ${
             isPixel
               ? 'px-input rounded-[10px]'
               : `rounded-md ${isDark ? 'bg-white/5' : 'bg-black/5'}`
