@@ -15,11 +15,11 @@ src/integrations/
 │   ├── QiniuImageTab.tsx           # ImageNode 内的 质量 + 比例 (+ openai/gpt-image-2 的清晰度) 面板，动态 2/3 列
 │   ├── runQiniuImage.ts            # 提交 + 轮询的纯函数；submit 前用 sizeMap 按 (ratio, resolution) 转像素串
 │   └── sizeMap.ts                  # 按 apiModel 的比例集合 + ratio→像素串 映射；openai/gpt-image-2 支持 1K/2K/4K 三档（v1.5.6 ratio-only · v1.5.9 加清晰度档）
-└── grsai/                          # Grsai 中转站（v1.5.6 第二个验证案例，自有协议）
+└── grsai/                          # Grsai 中转站（v1.5.6 第二个验证案例，自有协议；v1.5.9 加 gpt-image-2-vip 1K/2K/4K 清晰度档）
     ├── GrsaiSettingsSection.tsx    # API 设置弹窗中独立的 Key + baseUrl 块
-    ├── GrsaiImageTab.tsx           # ImageNode 内的 比例 + 尺寸 面板（与 GPT2 同款 grid 布局）
-    ├── runGrsaiImage.ts            # 提交 + 轮询；vip 模型在 submit 前用 sizeMap 把比例转像素串
-    ├── sizeMap.ts                  # 按 apiModel 的比例集合 + gpt-image-2-vip 专用 ratio→像素串
+    ├── GrsaiImageTab.tsx           # ImageNode 内的 比例 + 尺寸 面板；nano-banana 系列 + gpt-image-2-vip 都显示清晰度档（v1.5.9 起）
+    ├── runGrsaiImage.ts            # 提交 + 轮询；vip 在 submit 前用 sizeMap 按 (ratio, resolution) 转像素串
+    ├── sizeMap.ts                  # 按 apiModel 的比例集合 + gpt-image-2-vip 三档 DOC_PRESETS_BY_RES 文档预设表（v1.5.6 单档 1MP · v1.5.9 三档完整）
     └── README.md                   # 上游协议镜像 + 模型清单
 ```
 
@@ -40,7 +40,7 @@ src/integrations/
 | 端点切换 | 国内 `openai.qiniu.com` / 海外 `openai.sufy.com` | 国内 `grsai.dakka.com.cn` / 全球 `grsaiapi.com` |
 | 默认提交模式 | 上游 `?async=true` 直接异步 | 后端代理默认 `replyType=async` |
 | 认证 Header | `Authorization: Bearer sk-xxx` | `Authorization: Bearer sk-xxx` |
-| UI size 表达 | 显示比例（auto+14 个），runner 内 sizeMap 转像素串送上游；openai/gpt-image-2 v1.5.9 额外暴露 1K/2K/4K 清晰度档（独立第三列下拉），按 (ratio, resolution) 转像素串 | 显示比例（auto+14 个），gpt-image-2-vip 由 sizeMap 转像素串，其它子模型透传比例 |
+| UI size 表达 | 显示比例（auto+14 个），runner 内 sizeMap 转像素串送上游；openai/gpt-image-2 v1.5.9 额外暴露 1K/2K/4K 清晰度档（独立第三列下拉），按 (ratio, resolution) 转像素串 | 显示比例（按子模型分组：nano-banana / gpt-image-2 系列 11 个含 auto，nano-banana-2 系列 +4 个极端，gpt-image-2-vip 14 个去 auto +1:3/3:1/2:1/1:2 共 4 项 vip 独有比例）；nano-banana 系列上送 `imageSize` 给上游；gpt-image-2-vip 自 v1.5.9 起额外暴露 1K/2K/4K 清晰度档（与比例共显双控件），由 sizeMap 按 (ratio, resolution) 查 DOC_PRESETS_BY_RES 三档预设表转像素串；其它子模型透传比例 |
 | 子模型默认 | gemini-3.1-flash-image-preview | gpt-image-2（v1.5.6 起，原 nano-banana-2） |
 
 **接入新 provider 时务必填一行进表**，让后续接入者能快速对比。
@@ -64,13 +64,14 @@ src/integrations/
 - `'auto'` 透传；旧画布的像素串值兼容直通（不做强制改写）
 - 文档约束「长边/短边 ≤ 3:1」的子模型仅保留 11 个 ≤3:1 比例（排除 `1:4` / `4:1` / `1:8` / `8:1`）
 
-**清晰度分档**（v1.5.9 起，目前仅 qiniu `openai/gpt-image-2`）：
-- 节点 data 新增 `qiniuResolution: '1K' | '2K' | '4K'`，默认 `'1K'`；旧画布无该字段时 runner 自动补 `'1K'`，行为与 v1.5.6 完全一致
+**清晰度分档**（v1.5.9 起；qiniu `openai/gpt-image-2` + grsai `gpt-image-2-vip` 同款模式）：
+- 节点 data 字段（按 provider 命名）：qiniu 用 `qiniuResolution`，grsai 用 `grsaiImageSize`（与 nano-banana 共用），类型均为 `'1K' | '2K' | '4K'`，默认 `'1K'`；旧画布无该字段时 runner 自动补 `'1K'`，行为完全一致
 - 三档目标像素：1K ≈ 1 MP、2K ≈ 4 MP（≈2048²）、4K = 8.29 MP（文档上限 3840×2160）
 - 各档维护独立的 `DOC_PRESETS_BY_RES[res]` 文档预设表（命中直接用文档像素值），未命中则按 `computeSize(w, h, RES_TO_TARGET_PIXELS[res])` 计算 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29MP 兜底
-- 1K 档预设保留 v1.5.6 全部 5 项映射（含 16:9 → 2048x1152），确保旧画布默认行为不变
-- UI：`QiniuImageTab` 在 `apiModel === 'openai/gpt-image-2'` 时动态切到 `grid-cols-3` 显示「清晰度」第三列；gemini 子模型保持原两列
-- API：`ratioToQiniuSize(ratio, resolution = '1K')` 第二参数控制档位，向后兼容（既有调用方不传第二参也工作）
+- 1K 档预设保留 v1.5.6 全部映射（qiniu 5 项 / grsai vip 单档 5 项），确保旧画布默认行为不变
+- UI 触发条件：qiniu 用 `apiModel === 'openai/gpt-image-2'`（单条件）；grsai 用 `isNanoBananaSeries(apiModel) || isGptImage2VipModel(apiModel)`（vip 与 nano-banana 共用清晰度控件，写回同一个 `grsaiImageSize` 字段）
+- API 第二/第三参数：qiniu `ratioToQiniuSize(ratio, resolution = '1K')`；grsai `resolveGrsaiAspectRatio(ratio, apiModel, resolution = '1K')`（apiModel 排在中间是因为非 vip 模型走透传分支，resolution 参数被忽略，所以放最末）
+- vip 比例列表特殊：grsai gpt-image-2-vip 用 `GPT_IMAGE_2_VIP_RATIOS`（14 项去 auto + 加 1:3 / 3:1 / 2:1 / 1:2），旧画布残留 `'auto'` 由 runner 兜底到 `1024x1024`；qiniu openai/gpt-image-2 仍用 11 个含 auto 的通用列表
 
 **ImageNode 配套**：
 - 子模型 `<select>` onChange 与 `switchModel` 都按新 apiModel 的允许集合校验已存比例值，越界则迁移到默认，避免跨子模型残留非法选项
@@ -152,7 +153,7 @@ cp -r src/integrations/qiniu src/integrations/xyz
 | `<Name>SettingsSection.tsx` | API 设置弹窗中独立的 Key + baseUrl 块（含外链、端点切换按钮） | `<XyzSettingsSection ... />` |
 | `<Name>ImageTab.tsx`（或 `<Name>VideoTab.tsx` 等） | 节点内的专属参数面板，接收 `apiModel` prop 以决定可选比例集合；**不加外层颜色边框 / 外层 div**，沿用 GPT2 同款 `grid grid-cols-2 gap-2` 布局，标签中文化 | `{isXyz && <XyzImageTab d={d} update={update} apiModel={apiModel} />}` |
 | `run<Name>Image.ts`（或 `run<Name>Video.ts` 等） | 提交 + 轮询 + 写回 node data；纯函数，不依赖任何 React；submit 前调 sizeMap 完成 ratio → 上游字段转换 | `if (isXyz) await runXyzImage({...})` |
-| `sizeMap.ts` | UI 比例集合 + 比例 → 上游字段（像素串或保持 ratio）的映射；导出 `getXyzRatiosForApiModel` / `ratioToXyzSize`（或 `resolveXyzAspectRatio`）/ `DEFAULT_XYZ_RATIO` | ImageNode + `<Name>ImageTab` + runner 各自 import |
+| `sizeMap.ts` | UI 比例集合 + 比例 → 上游字段（像素串或保持 ratio）的映射；导出 `getXyzRatiosForApiModel` / `ratioToXyzSize`（或 `resolveXyzAspectRatio`）/ `DEFAULT_XYZ_RATIO`；**若 provider 含「比例 × 清晰度」双控件**（v1.5.9 模式），追加导出 `XyzResolution` 类型 / `DEFAULT_XYZ_RESOLUTION` / `XYZ_RESOLUTIONS` 数组 / `isXyzVipModel`（或同等判断函数），并让 `resolve<Name>AspectRatio` 接受 `resolution` 末位参数 | ImageNode + `<Name>ImageTab` + runner 各自 import |
 
 可选 `README.md` — 推荐写，存放上游协议镜像、模型清单、已知约束，方便将来调试不用再翻 apifox。
 
@@ -259,11 +260,11 @@ npm run dev
 **Q6：grsai 字段是驼峰命名（aspectRatio / imageSize），与 OpenAI 下划线风格不同，前后端要小心吗？**
 要。runner 和后端代理之间通过 `req.body.aspectRatio` / `req.body.imageSize` 驼峰透传，**不要在中间任何一层做下划线转换**。`/v1/api/generate` 上游只认驼峰，发下划线会被忽略导致比例不生效。
 
-**Q7：gpt-image-2-vip 的「必须传像素串、不接受比例字符串」怎么处理？**（v1.5.6 重构后）
-UI 一律只显示比例（与其他子模型一致），由 `grsai/sizeMap.ts` 的 `resolveGrsaiAspectRatio(ratio, apiModel)` 在 runner submit 前完成转换：当 apiModel 匹配 `/^gpt-image-2.*vip$/i` 时，命中 `COMMON_RATIO_TO_VIP_SIZE`（1:1 → 1024x1024 等 5 个）则用文档值，否则按 `1 MP + 16px 对齐 + ≤3840 长边` 计算像素串；`auto` 退化到默认 1024x1024。其它子模型透传比例字符串。**用户视角完全感知不到内部差异**。
+**Q7：gpt-image-2-vip 的「必须传像素串、不接受比例字符串」怎么处理？**（v1.5.6 单档重构 · v1.5.9 升级双控件）
+UI 一律只显示比例 + 清晰度档，由 `grsai/sizeMap.ts` 的 `resolveGrsaiAspectRatio(ratio, apiModel, resolution)` 在 runner submit 前完成转换：当 apiModel 匹配 `/^gpt-image-2.*vip$/i` 时，按 `DOC_PRESETS_BY_RES[resolution]` 查文档预设（14 比例 × 3 档完整表，1:3 / 3:1 在 2K 档缺位由 `computeVipSize(4MP)` 兜底）；旧画布残留 `'auto'` 兜底到默认 `1024x1024`。其它子模型透传比例字符串，`resolution` 参数被忽略。**用户视角完全感知不到内部差异**。vip 比例列表自 v1.5.9 起从「通用 11 含 auto」改为「14 项去 auto + 加 1:3 / 3:1 / 2:1 / 1:2」，覆盖 vip 文档独有比例。
 
-**Q8：grsai 的 `imageSize` 是只 nano-banana 系列识别吗？怎么避免误传？**
-`runGrsaiImage.ts` 内用 `isNanoBananaSeries(model)` 判断，**仅当 model 以 `nano-banana` 开头才把 imageSize 加进 request**；gpt-image-2 系列不带该字段。后端 `callGrsaiImageUpstream` 也会兜底跳过空字段。
+**Q8：grsai 的 `imageSize` 是只 nano-banana 系列识别吗？怎么避免误传？**（v1.5.9 起 vip 也读但不上送）
+`runGrsaiImage.ts` 内用 `isNanoBananaSeries(model)` 判断是否把 `imageSize` 加进 HTTP request body —— **仅 nano-banana 系列上送给上游**。自 v1.5.9 起 `isGptImage2VipModel(model)` 也读 `d.grsaiImageSize`，但**只作为本地查表参数**传给 `resolveGrsaiAspectRatio`（影响最终的 `aspectRatio` 像素串），**不进入 body**。普通 gpt-image-2 完全忽略该字段。后端 `callGrsaiImageUpstream` 兜底跳过空字段做最后一道防线。
 
 **Q9：为什么 size 下拉要做成「按 apiModel 分组」？**（v1.5.6 起的设计）
 不同子模型的合法比例集合本就不同：
@@ -277,12 +278,40 @@ UI 一律只显示比例（与其他子模型一致），由 `grsai/sizeMap.ts` 
 **Q10：旧画布存的是像素串（如 `qiniuSize: '1024x1024'`），新版本只显示比例会不会显示空？**
 不会。`<Name>ImageTab` 渲染时若 `d.xxxSize` 不在当前 apiModel 的允许列表中，会回退到默认（`DEFAULT_<NAME>_RATIO`）显示。runner 中 `ratioToXxxSize` 也会原样透传已是像素串的旧值给上游，不影响生成。但只要用户重新选一次下拉，数据就会迁移为新版比例字符串。
 
-**Q11：v1.5.9 七牛 `openai/gpt-image-2` 的 1K / 2K / 4K 清晰度档是怎么工作的？**
-- UI 层：`QiniuImageTab` 仅在 `apiModel === 'openai/gpt-image-2'` 时显示「清晰度」第三列下拉（gemini-3.1-flash-image-preview 保持原两列布局）；下拉值写回 `d.qiniuResolution`，类型 `'1K' | '2K' | '4K'`，默认 `'1K'`。
-- runner 层：`runQiniuImage.ts` 读 `d.qiniuResolution`（缺省补 `'1K'`），调 `ratioToQiniuSize(ratio, resolution)` 转上游可识别的像素串；日志同时打印 `ratio` 与 `resolution` 便于排错。
-- sizeMap 层：三档目标像素 `1K = 1 MP / 2K = 4 MP / 4K = 8.29 MP`；每档独立 `DOC_PRESETS_BY_RES` 文档预设表（命中文档值直接用），未命中按目标像素计算 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29 MP 兜底。
-- 兼容性：旧画布无 `qiniuResolution` 字段 → 默认 `'1K'` + 1K 档预设保留 v1.5.6 全部 5 项映射，**完全不影响 v1.5.6/v1.5.8 旧画布的输出**。
-- 接其它 provider 时是否要复制这套机制：只有上游同时支持多个清晰度档（且文档列出对应像素串）的子模型才有意义；grsai `gpt-image-2-vip` 上游协议本质相同，v1.5.9 已同步落地（详见 `grsai/README.md` §五、§六）。
+**Q11：v1.5.9 七牛 / grsai 的 1K / 2K / 4K 清晰度档是怎么工作的？**
+两个 provider 走**完全同款架构**，只是字段名 / 触发条件 / API 签名细节有差异：
 
-**Q12：v1.5.8 之前的「七牛图生图 size 不生效」是什么坑？怎么修的？**
-`backend/src/routes/proxy.js` 的 `callQiniuImageUpstream` 在历史实现里写了 `if (!hasRefs) body.size = size || 'auto';`，**显式过滤掉了图生图分支的 size 字段**——本意是按「OpenAI 兼容协议下 `/v1/images/edits` 不带 size」的猜测做的安全过滤，但七牛 `openai/gpt-image-2` 上游实际接受 size。v1.5.9 去掉该守卫，改成无条件 `body.size = size || 'auto'`；同时把日志里 `body.size || '(edit)'` 的占位符换成直接打印 `body.size`，运维能从日志直接核对透传值。`sizeMap.ts` 顶部「`/v1/images/edits` 不接受 size 参数」的旧注释同步删除。**这是 v1.5.9 的核心修复**，旧画布只要重新生图即可生效。
+| 维度 | qiniu `openai/gpt-image-2` | grsai `gpt-image-2-vip` |
+|---|---|---|
+| 节点 data 字段 | `qiniuResolution: '1K'\|'2K'\|'4K'` | `grsaiImageSize: '1K'\|'2K'\|'4K'`（与 nano-banana 共用同字段） |
+| UI 触发条件 | `apiModel === 'openai/gpt-image-2'`（其他子模型隐藏） | `isNanoBananaSeries(apiModel) \|\| isGptImage2VipModel(apiModel)` |
+| UI 列数 | `grid-cols-3`（质量 + 比例 + 清晰度） | `grid-cols-2`（比例 + 清晰度） |
+| 比例列表 | 11 通用比例（含 auto） | 14 项 vip 专属（去 auto + 加 1:3 / 3:1 / 2:1 / 1:2） |
+| 转换 API | `ratioToQiniuSize(ratio, resolution)` | `resolveGrsaiAspectRatio(ratio, apiModel, resolution)` |
+| 路径分流 | 文/图生图分两个端点（generations / edits），双端共用 size | 单端点 `/v1/api/generate`，靠 images[] 区分 |
+| 关联修复 | v1.5.9 同时去掉 `if (!hasRefs)` 守卫，使图生图也送 size（详见 Q12） | v1.5.6 起就无此问题（vip 一直走 sizeMap 转换） |
+
+**共同点**（接入新 provider 复用这套模式时的核心约定）：
+- 三档目标像素：`1K = 1 MP / 2K = 4 MP / 4K = 8.29 MP`；每档独立 `DOC_PRESETS_BY_RES[res]` 文档预设表（命中文档值直接用），未命中按 `computeSize(w, h, RES_TO_TARGET_PIXELS[res])` 计算 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29 MP 兜底
+- runner 日志同时打印 `ratio` 与 `resolution` / `imageSize` 便于排错
+- 兼容性：旧画布无清晰度字段 → 默认 `'1K'` + 1K 档预设保留 v1.5.6 / v1.5.8 全部映射，**完全不影响旧画布的输出**
+- vip 列表去 `auto`：grsai vip 上游不接受 `auto`，UI 列表也去掉，runner 兜底处理旧画布残留 → `1024x1024`
+
+**Q12：v1.5.9 之前的「七牛图生图 size 不生效」是什么坑？怎么修的？**
+`backend/src/routes/proxy.js` 的 `callQiniuImageUpstream` 在历史实现里写了 `if (!hasRefs) body.size = size || 'auto';`，**显式过滤掉了图生图分支的 size 字段**——本意是按「OpenAI 兼容协议下 `/v1/images/edits` 不带 size」的猜测做的安全过滤，但七牛 `openai/gpt-image-2` 上游实际接受 size。v1.5.9 去掉该守卫，改成无条件 `body.size = size || 'auto'`；同时把日志里 `body.size || '(edit)'` 的占位符换成直接打印 `body.size`，运维能从日志直接核对透传值。`sizeMap.ts` 顶部「`/v1/images/edits` 不接受 size 参数」的旧注释同步删除。**这是 v1.5.9 的核心修复**，旧画布只要重新生图即可生效。grsai 同期 v1.5.9 工作（vip 双控件）不涉及此 bug，详见 `grsai/README.md` §五。
+
+**Q13：什么时候应该给新接入的 provider 加 1K/2K/4K 清晰度档？复用模式的判断清单**
+对照下列条件，**全部满足才有意义**——否则只显示比例下拉就够了：
+
+1. **上游文档明确列出至少 3 档清晰度的官方推荐像素值**（如 1K=1024² / 2K=2048² / 4K=3840²）。若文档只给「1024x1024」一档，做双控件就是过度设计。
+2. **上游 API 必须接受像素串**（runner 内本地查表后送上游）。若上游只接受比例字符串，清晰度档没下游可送，等于无意义参数。
+3. **该子模型存在「同一比例不同档位 → 不同像素值」的实际场景**。如 vip 文档表里 `1:1` 三档分别是 `1024x1024 / 2048x2048 / 2880x2880`，三档差异显著用户值得选；若所有档位都收敛到一个值，就退化成单档。
+4. **存在文档表与计算公式的混合场景**。如果 100% 比例都能命中文档预设，可以省掉 `computeSize` 兜底；但通常文档会缺 1-2 个边角组合（如 vip 文档表 `1:3 / 3:1` 缺 2K 档），需要 `computeSize(target_pixels)` 兜底。
+
+**满足后的复用步骤**（≈40 行新增）：
+1. `sizeMap.ts` 加 `<Name>Resolution` / `RES_TO_TARGET_PIXELS` / `DOC_PRESETS_BY_RES` 三件套；导出 `is<Name>VipModel`（或同等判断函数）
+2. `<Name>ImageTab.tsx` 的 `showImageSize` 触发条件加 vip 分支；UI 复用现有的清晰度下拉（写回同一 `<name>Resolution` / `<name>ImageSize` 字段）
+3. `run<Name>Image.ts` 调用 `resolve<Name>AspectRatio(ratio, apiModel, resolution)`；日志加 `resolution` 打印
+4. 节点 data 类型在 `src/types/canvas.ts` 加 `<name>Resolution?: '1K' | '2K' | '4K'`
+5. `features.json` provider 注册项的 `params` 描述加上新字段
+6. 子目录 `README.md` 加「比例 × 清晰度双控件」章节，附完整预设表方便日后调试
