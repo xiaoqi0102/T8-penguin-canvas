@@ -5,7 +5,7 @@
  */
 import { submitQiniuImage, queryQiniuImageStatus } from '../../services/generation';
 import { logBus } from '../../stores/logs';
-import { ratioToQiniuSize } from './sizeMap';
+import { ratioToQiniuSize, DEFAULT_QINIU_RESOLUTION, type QiniuResolution } from './sizeMap';
 
 export interface RunQiniuImageParams {
   /** 节点 id，仅用于日志 src 命名空间 */
@@ -16,7 +16,7 @@ export interface RunQiniuImageParams {
   finalPrompt: string;
   /** 已合并并截断到 maxRefs 的参考图列表（URL 或 dataURL） */
   allRefs: string[];
-  /** ImageNode 当前 data，用于读取 qiniuQuality / qiniuSize */
+  /** ImageNode 当前 data，用于读取 qiniuQuality / qiniuSize / qiniuResolution */
   d: any;
   /** ImageNode 的 useUpdateNodeData(id) 返回的 update 函数 */
   update: (patch: any) => void;
@@ -26,11 +26,12 @@ export async function runQiniuImage({ id, apiModel, finalPrompt, allRefs, d, upd
   const src = `image:${id.slice(0, 6)}`;
   const quality = (d?.qiniuQuality || 'auto') as 'auto' | 'low' | 'medium' | 'high';
   const ratio = String(d?.qiniuSize || 'auto');
-  // UI 存储的是比例（'1:1' / '16:9' / …），上游接口要求像素串
-  const size = ratioToQiniuSize(ratio);
+  const resolution = (d?.qiniuResolution || DEFAULT_QINIU_RESOLUTION) as QiniuResolution;
+  // UI 存储的是比例（'1:1' / '16:9' / …），上游接口要求像素串；resolution 决定目标像素数档位
+  const size = ratioToQiniuSize(ratio, resolution);
 
   logBus.info(
-    `七牛云提交: model=${apiModel} quality=${quality} ratio=${ratio} size=${size} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
+    `七牛云提交: model=${apiModel} quality=${quality} ratio=${ratio} resolution=${resolution} size=${size} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
     src,
   );
 

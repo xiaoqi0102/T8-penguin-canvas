@@ -2217,8 +2217,7 @@ async function callQiniuImageUpstream({ apiKey, baseUrl, model, prompt, quality,
   const auth = `Bearer ${apiKey}`;
   const hasRefs = Array.isArray(refs) && refs.length > 0;
   const url = `${baseUrl}/v1/images/${hasRefs ? 'edits' : 'generations'}`;
-  const body = { model, prompt, quality: quality || 'auto' };
-  if (!hasRefs) body.size = size || 'auto';
+  const body = { model, prompt, quality: quality || 'auto', size: size || 'auto' };
   if (hasRefs) {
     const images = [];
     for (const ref of refs) {
@@ -2228,7 +2227,7 @@ async function callQiniuImageUpstream({ apiKey, baseUrl, model, prompt, quality,
     if (!images.length) throw new Error('参考图全部转换失败');
     body.image = images;
   }
-  console.log('[upstream] Qiniu →', hasRefs ? '/edits' : '/generations', 'model:', model, 'quality:', body.quality, 'size:', body.size || '(edit)', 'refs:', refs?.length || 0);
+  console.log('[upstream] Qiniu →', hasRefs ? '/edits' : '/generations', 'model:', model, 'quality:', body.quality, 'size:', body.size, 'refs:', refs?.length || 0);
   return await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: auth },
