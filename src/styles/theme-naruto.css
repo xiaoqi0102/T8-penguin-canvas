@@ -546,8 +546,8 @@ html[data-theme-visual="naruto"] .react-flow__minimap {
 }
 
 html[data-theme-visual="naruto"] .react-flow__controls {
-  left: 18px !important;
-  bottom: 26px !important;
+  left: 14px !important;
+  bottom: 12px !important;
 }
 
 html[data-theme-visual="naruto"] .react-flow__controls-button {
@@ -562,34 +562,94 @@ html[data-theme-visual="naruto"] .react-flow__controls-button:hover {
 }
 
 html[data-theme-visual="naruto"] .react-flow__minimap {
-  width: 154px !important;
-  height: 128px !important;
+  position: absolute !important;
+  left: auto !important;
+  top: auto !important;
+  width: 182px !important;
+  height: 122px !important;
   right: 24px !important;
-  bottom: 40px !important;
-  border-radius: 12px !important;
+  bottom: 18px !important;
+  border: 0 !important;
+  border-radius: 18px 18px 12px 12px !important;
+  background:
+    radial-gradient(circle at 50% 64%, color-mix(in srgb, var(--nt-chakra) 16%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 50% 64%, transparent 0 19px, color-mix(in srgb, var(--nt-chakra) 34%, transparent) 20px 21px, transparent 22px 42px, color-mix(in srgb, var(--nt-fire) 26%, transparent) 43px 44px, transparent 45px 66px, color-mix(in srgb, var(--nt-ink) 16%, transparent) 67px 68px, transparent 69px),
+    conic-gradient(from -36deg at 50% 64%, color-mix(in srgb, var(--nt-fire-hot) 24%, transparent) 0 7deg, transparent 8deg 78deg, color-mix(in srgb, var(--nt-chakra) 24%, transparent) 79deg 84deg, transparent 85deg 175deg, color-mix(in srgb, var(--nt-fire) 20%, transparent) 176deg 181deg, transparent 182deg 360deg),
+    repeating-linear-gradient(135deg, transparent 0 13px, color-mix(in srgb, var(--nt-ink) 7%, transparent) 13px 14px, transparent 14px 28px),
+    linear-gradient(180deg, color-mix(in srgb, var(--nt-paper) 84%, var(--nt-fire) 16%) 0 30px, color-mix(in srgb, var(--nt-paper) 92%, var(--nt-chakra) 8%) 30px 100%) !important;
+  box-shadow:
+    0 0 0 3px var(--nt-ink),
+    0 0 0 6px color-mix(in srgb, var(--nt-fire) 74%, var(--nt-ink)),
+    5px 5px 0 var(--nt-ink),
+    inset 0 0 0 1px color-mix(in srgb, var(--nt-metal-edge) 48%, transparent),
+    inset 0 -18px 34px color-mix(in srgb, var(--nt-fire) 10%, transparent) !important;
+  overflow: hidden !important;
 }
 
 html[data-theme-visual="naruto"] .react-flow__minimap::before {
-  content: "CHAKRA MAP";
+  content: "CHAKRA RADAR";
   position: absolute;
-  left: 9px;
+  left: 16px;
+  right: 16px;
   top: 6px;
-  z-index: 2;
-  color: var(--nt-fire);
+  z-index: 4;
+  height: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 23px;
+  color: var(--nt-ink);
   font-family: var(--t8-font-display);
-  font-size: 9px;
-  letter-spacing: 0.6px;
+  font-size: 8px;
+  letter-spacing: 0.7px;
+  line-height: 1;
+  white-space: nowrap;
+  background:
+    radial-gradient(circle at 13px 50%, var(--nt-ink) 0 2px, color-mix(in srgb, var(--nt-metal-edge) 75%, var(--nt-paper)) 2.5px 4.4px, transparent 5px),
+    radial-gradient(circle at calc(100% - 13px) 50%, var(--nt-ink) 0 2px, color-mix(in srgb, var(--nt-metal-edge) 75%, var(--nt-paper)) 2.5px 4.4px, transparent 5px),
+    linear-gradient(180deg, color-mix(in srgb, var(--nt-metal-edge) 45%, var(--nt-paper)) 0%, color-mix(in srgb, var(--nt-metal) 78%, var(--nt-paper)) 48%, color-mix(in srgb, var(--nt-metal-edge) 36%, var(--nt-paper)) 100%);
+  border: 2px solid var(--nt-ink);
+  border-radius: 999px;
+  box-shadow:
+    0 2px 0 color-mix(in srgb, var(--nt-ink) 72%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 46%, transparent);
   pointer-events: none;
 }
 
+html[data-theme-visual="naruto"] .react-flow__minimap::after {
+  content: "";
+  position: absolute;
+  left: 26px;
+  top: 11px;
+  z-index: 5;
+  width: 19px;
+  height: 14px;
+  background: var(--nt-ink);
+  -webkit-mask: var(--nt-konoha-mask) center / contain no-repeat;
+  mask: var(--nt-konoha-mask) center / contain no-repeat;
+  pointer-events: none;
+}
+
+html[data-theme-visual="naruto"] .react-flow__minimap svg {
+  position: relative;
+  z-index: 1;
+  border-radius: inherit !important;
+  background: transparent !important;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--nt-fire-hot) 20%, transparent));
+}
+
 html[data-theme-visual="naruto"] .react-flow__minimap-mask {
-  fill: color-mix(in srgb, var(--nt-chakra) 24%, transparent) !important;
+  fill: color-mix(in srgb, var(--nt-fire) 18%, transparent) !important;
+  stroke: var(--nt-fire-hot) !important;
+  stroke-width: 5px !important;
 }
 
 html[data-theme-visual="naruto"] .react-flow__minimap-node {
-  fill: var(--nt-fire) !important;
+  fill: color-mix(in srgb, var(--nt-fire) 82%, var(--nt-chakra)) !important;
   stroke: var(--nt-ink) !important;
-  stroke-width: 1.2 !important;
+  stroke-width: 1.35 !important;
+  rx: 2px;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--nt-fire-hot) 54%, transparent));
 }
 
 html[data-theme-visual="naruto"] .react-flow__node-groupBox > div,
@@ -642,12 +702,26 @@ html[data-theme-visual="naruto"] .t8-group-box__handle {
 }
 
 html[data-theme-visual="naruto"] .t8-theme-music-toggle {
+  left: 14px !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 140px !important;
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
   border: 3px solid var(--nt-ink) !important;
   border-radius: 8px !important;
   clip-path: var(--nt-button-shape);
   background: linear-gradient(180deg, var(--nt-paper), var(--nt-paper-deep)) !important;
   color: var(--nt-fire) !important;
   box-shadow: 3px 3px 0 var(--nt-ink) !important;
+}
+
+html[data-theme-visual="naruto"] .t8-theme-music-toggle svg {
+  width: 14px;
+  height: 14px;
 }
 
 html[data-theme-visual="naruto"] .t8-theme-music-toggle.is-playing {

@@ -517,7 +517,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 type="text"
                 value={fileSavePathInput}
                 onChange={(e) => setFileSavePathInput(e.target.value)}
-                placeholder="例：D:\\zhenzhen · 路径不存在时会自动创建"
+                placeholder="例：D:\\zhenzhen 或 ~/zhenzhen · 路径不存在时会自动创建"
                 className={inputCls}
                 autoComplete="off"
                 spellCheck={false}
@@ -542,7 +542,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 type="text"
                 value={canvasAutoSavePathInput}
                 onChange={(e) => setCanvasAutoSavePathInput(e.target.value)}
-                placeholder="例：D:\\zhenzhen · 实际保存到此路径下的 T8-penguin-canvas\\canvases"
+                placeholder="例：D:\\zhenzhen 或 ~/zhenzhen · 实际保存到此路径下的 T8-penguin-canvas\\canvases"
                 className={inputCls}
                 autoComplete="off"
                 spellCheck={false}
@@ -550,7 +550,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             </div>
             <div className={`flex items-center gap-2 flex-wrap text-[11px] mt-1.5 ${hintCls}`}>
               <span className="flex items-center gap-1.5">
-                <Lock size={11} /> 默认 D:\zhenzhen；保存文件可直接用画布导入功能恢复。
+                <Lock size={11} /> 默认路径由后端按平台返回：Windows 为 D:\zhenzhen，macOS/Linux 为用户目录下的 zhenzhen。
               </span>
             </div>
           </div>
@@ -567,7 +567,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 type="text"
                 value={resourceLibraryPathInput}
                 onChange={(e) => setResourceLibraryPathInput(e.target.value)}
-                placeholder="例：D:\\zhenzhen\\resources · 路径不存在时会自动创建"
+                placeholder="例：D:\\zhenzhen\\resources 或 ~/zhenzhen/resources · 路径不存在时会自动创建"
                 className={inputCls}
                 autoComplete="off"
                 spellCheck={false}
@@ -592,7 +592,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 type="text"
                 value={themeTemplatePathInput}
                 onChange={(e) => setThemeTemplatePathInput(e.target.value)}
-                placeholder="例：D:\\zhenzhen\\theme-templates · 路径不存在时会自动创建"
+                placeholder="例：D:\\zhenzhen\\theme-templates 或 ~/zhenzhen/theme-templates · 路径不存在时会自动创建"
                 className={inputCls}
                 autoComplete="off"
                 spellCheck={false}

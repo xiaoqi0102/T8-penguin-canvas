@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 // T8-penguin-canvas 后端配置
 // 运行模式:
@@ -13,12 +14,19 @@ const USER_DATA = process.env.T8PC_USER_DATA && process.env.T8PC_USER_DATA.trim(
   ? process.env.T8PC_USER_DATA
   : PROJECT_DIR;
 const DATA_ROOT = IS_PACKAGED ? USER_DATA : PROJECT_DIR;
+const USER_HOME_DIR = os.homedir() || process.env.USERPROFILE || process.env.HOME || PROJECT_DIR;
+const LEGACY_WINDOWS_DEFAULT_ROOT = 'D:\\zhenzhen';
+const DEFAULT_ZHENZHEN_ROOT = process.platform === 'win32'
+  ? LEGACY_WINDOWS_DEFAULT_ROOT
+  : path.join(USER_HOME_DIR, 'zhenzhen');
+const DEFAULT_RESOURCE_LIBRARY_DIR = path.join(DEFAULT_ZHENZHEN_ROOT, 'resources');
+const DEFAULT_THEME_TEMPLATE_DIR = path.join(DEFAULT_ZHENZHEN_ROOT, 'theme-templates');
 
 const config = {
   // 服务器
   HOST: process.env.HOST || '127.0.0.1',
   PORT: process.env.PORT || 18766, // 注意:与主项目 18765 错开
-  APP_VERSION: '1.5.9',
+  APP_VERSION: '1.6.1',
   NODE_ENV: process.env.NODE_ENV || (IS_PACKAGED ? 'production' : 'development'),
   IS_PACKAGED,
 
@@ -73,15 +81,17 @@ const config = {
   // v1.2.10.2: 全局生成素材自动保存到本地的默认路径
   //   用户可在「API 设置 → 文件自动保存路径」覆盖。
   //   不存在时启动会自动创建; 写入失败仅 console.warn, 不阻断业务。
-  DEFAULT_LOCAL_SAVE_DIR: 'D:\\zhenzhen',
+  DEFAULT_LOCAL_SAVE_DIR: DEFAULT_ZHENZHEN_ROOT,
   // v1.3.1: 画布自动保存导出路径默认同本地素材保存路径。
   //   实际文件会写入 <path>/T8-penguin-canvas/canvases/*.json。
-  DEFAULT_CANVAS_AUTO_SAVE_DIR: 'D:\\zhenzhen',
+  DEFAULT_CANVAS_AUTO_SAVE_DIR: DEFAULT_ZHENZHEN_ROOT,
   // v1.3.4: 资源库默认路径。资源文件与 resource_library.json 元数据均保存在此路径,
   //   用户更换版本后只要设置同一路径即可继续读取资源库。
-  DEFAULT_RESOURCE_LIBRARY_DIR: 'D:\\zhenzhen\\resources',
+  DEFAULT_RESOURCE_LIBRARY_DIR,
   // v1.3.6: 主题模板目录。自定义模板 JSON 保存在这里，内置模板仍打包在前端代码里。
-  DEFAULT_THEME_TEMPLATE_DIR: 'D:\\zhenzhen\\theme-templates',
+  DEFAULT_THEME_TEMPLATE_DIR,
+  // 用于旧版本配置迁移：Windows 继续沿用 D:\zhenzhen，非 Windows 遇到旧硬编码默认值时迁移到用户目录。
+  LEGACY_WINDOWS_DEFAULT_ROOT,
 };
 
 // 提前创建打包后的数据目录(避免首次启动报错)

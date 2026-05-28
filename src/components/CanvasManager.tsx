@@ -62,7 +62,7 @@ export default function CanvasManager() {
         </div>
         <button
           onClick={handleCreate}
-          className={`p-1 rounded-md ${
+          className={`t8-mini-icon-button h-7 w-7 p-0 rounded-md ${
             isDark ? 'hover:bg-white/10 text-white/70 hover:text-white' : 'hover:bg-black/10 text-zinc-700'
           }`}
           title="新建画布"

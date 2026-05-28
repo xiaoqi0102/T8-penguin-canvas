@@ -965,7 +965,7 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
                     />
                     <button
                       type="button"
-                      className="nodrag nopan t8-btn absolute right-1.5 top-1.5 z-10 h-7 w-7 p-0 opacity-100 shadow-md transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+                      className="nodrag nopan t8-btn t8-mini-icon-button t8-image-compare-button absolute right-1.5 top-1.5 z-10 h-7 w-7 p-0 opacity-100 shadow-md transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
                       title="对比输入图与结果图"
                       aria-label="对比输入图与结果图"
                       onPointerDown={(e) => {

@@ -1,0 +1,921 @@
+/*
+ * EVA visual skin
+ * NERV command-room UI: black military panels, red alert typography,
+ * MAGI honeycomb analytics, CRT scanlines, and industrial mechanical chrome.
+ */
+
+html[data-theme-visual="eva"] {
+  --eva-black: #030506;
+  --eva-black-2: #070a0b;
+  --eva-steel: #1a2224;
+  --eva-steel-2: #273033;
+  --eva-red: var(--t8-danger);
+  --eva-red-deep: color-mix(in srgb, var(--t8-danger) 62%, #090000);
+  --eva-green: var(--t8-accent);
+  --eva-green-soft: color-mix(in srgb, var(--t8-accent) 18%, transparent);
+  --eva-green-line: color-mix(in srgb, var(--t8-accent) 40%, transparent);
+  --eva-amber: var(--t8-warning);
+  --eva-purple: var(--t8-secondary);
+  --eva-panel: var(--t8-bg-panel);
+  --eva-panel-2: var(--t8-bg-panel-elevated);
+  --eva-ink: var(--t8-text-main);
+  --eva-muted: var(--t8-text-muted);
+  --eva-dim: var(--t8-text-dim);
+  --eva-border: color-mix(in srgb, var(--t8-border-strong) 62%, #000);
+  --eva-thin-border: color-mix(in srgb, var(--t8-border) 64%, transparent);
+  --eva-title-font: Georgia, "Times New Roman", "Noto Serif SC", SimSun, serif;
+  --eva-mono-font: "JetBrains Mono", "Cascadia Mono", "Noto Sans Mono CJK SC", "Microsoft YaHei", monospace;
+  --eva-card-shape: polygon(12px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 4px 100%, 0 calc(100% - 4px), 0 12px);
+  --eva-button-shape: polygon(7px 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+  --eva-hazard: repeating-linear-gradient(135deg, var(--eva-red) 0 9px, #160708 9px 18px);
+  --eva-nerv-logo: url("../assets/theme-eva-nerv-wordmark.svg");
+  --eva-hex-grid:
+    linear-gradient(30deg, color-mix(in srgb, var(--eva-green) 10%, transparent) 12%, transparent 12.5%, transparent 87%, color-mix(in srgb, var(--eva-green) 10%, transparent) 87.5%, color-mix(in srgb, var(--eva-green) 10%, transparent)),
+    linear-gradient(150deg, color-mix(in srgb, var(--eva-green) 10%, transparent) 12%, transparent 12.5%, transparent 87%, color-mix(in srgb, var(--eva-green) 10%, transparent) 87.5%, color-mix(in srgb, var(--eva-green) 10%, transparent)),
+    linear-gradient(30deg, color-mix(in srgb, var(--eva-green) 10%, transparent) 12%, transparent 12.5%, transparent 87%, color-mix(in srgb, var(--eva-green) 10%, transparent) 87.5%, color-mix(in srgb, var(--eva-green) 10%, transparent)),
+    linear-gradient(150deg, color-mix(in srgb, var(--eva-green) 10%, transparent) 12%, transparent 12.5%, transparent 87%, color-mix(in srgb, var(--eva-green) 10%, transparent) 87.5%, color-mix(in srgb, var(--eva-green) 10%, transparent)),
+    linear-gradient(60deg, color-mix(in srgb, var(--eva-green) 9%, transparent) 25%, transparent 25.5%, transparent 75%, color-mix(in srgb, var(--eva-green) 9%, transparent) 75%, color-mix(in srgb, var(--eva-green) 9%, transparent));
+  --eva-knife-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M4 19 16.8 3.2c1.2-1.4 3.5-.1 2.8 1.7L14 18.2l-4.2 2.2-1.1-3.1-3.6 3.6L4 19Zm7.4-1.9 1.2.4 3.2-7.4-5.3 6.4.9.6Z'/></svg>");
+  --t8-cut-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 24 24' fill='%23ff2638' stroke='%238cff42' stroke-width='1.4' stroke-linejoin='round'><path d='M4 19 16.8 3.2c1.2-1.4 3.5-.1 2.8 1.7L14 18.2l-4.2 2.2-1.1-3.1-3.6 3.6L4 19Z'/><path d='m11.4 17.1 1.2.4 3.2-7.4-5.3 6.4.9.6Z' fill='%23ffb000'/></svg>") 14 14, crosshair;
+  --t8-cut-color: var(--eva-red);
+  --t8-cut-track: color-mix(in srgb, var(--eva-red) 88%, transparent);
+  --t8-cut-button-bg: var(--eva-panel-2);
+  --t8-cut-button-fg: var(--eva-red);
+  --t8-cut-button-mask: var(--eva-knife-mask);
+}
+
+html[data-theme-visual="eva"][data-theme-mode="light"] {
+  --eva-black: #d7ddd3;
+  --eva-black-2: #eef2e8;
+  --eva-steel: #aeb9b2;
+  --eva-steel-2: #f8faef;
+  --eva-panel: var(--t8-bg-panel);
+  --eva-panel-2: var(--t8-bg-panel-elevated);
+  --eva-thin-border: color-mix(in srgb, var(--t8-border) 70%, transparent);
+  --eva-green-soft: color-mix(in srgb, var(--t8-accent) 16%, transparent);
+  --eva-green-line: color-mix(in srgb, var(--t8-accent) 42%, transparent);
+}
+
+html[data-theme-visual="eva"] body,
+html[data-theme-visual="eva"] #root {
+  background: var(--t8-bg-app);
+  color: var(--t8-text-main);
+  font-family: var(--eva-mono-font);
+}
+
+html[data-theme-visual="eva"] .t8-app-shell {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #000 32%, transparent), transparent 24%),
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--eva-red) 14%, transparent), transparent 28%),
+    radial-gradient(circle at 78% 8%, color-mix(in srgb, var(--eva-green) 10%, transparent), transparent 32%),
+    var(--t8-bg-app) !important;
+}
+
+html[data-theme-visual="eva"] .t8-app-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.10;
+  mix-blend-mode: screen;
+  background: repeating-linear-gradient(180deg, transparent 0 4px, color-mix(in srgb, var(--eva-green) 20%, transparent) 4px 5px);
+}
+
+html[data-theme-visual="eva"] .t8-topbar {
+  position: relative;
+  min-height: 54px;
+  background:
+    linear-gradient(90deg, var(--eva-red-deep) 0 4px, transparent 4px 9px),
+    linear-gradient(180deg, color-mix(in srgb, var(--eva-panel) 78%, #000 22%), var(--eva-panel)) !important;
+  border-bottom: 2px solid var(--eva-red) !important;
+  box-shadow:
+    inset 0 -1px 0 color-mix(in srgb, var(--eva-amber) 35%, transparent),
+    0 12px 36px rgba(0, 0, 0, 0.44);
+  overflow: visible;
+}
+
+html[data-theme-visual="eva"] .t8-topbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -7px;
+  height: 6px;
+  background:
+    linear-gradient(90deg, var(--eva-red) 0 72px, transparent 72px),
+    var(--eva-hazard);
+  border-top: 1px solid color-mix(in srgb, var(--eva-amber) 42%, transparent);
+  pointer-events: none;
+}
+
+html[data-theme-visual="eva"] .t8-eva-brand {
+  position: relative;
+  padding-left: 5px;
+}
+
+html[data-theme-visual="eva"] .t8-eva-brand::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: -7px;
+  width: 3px;
+  height: 44px;
+  background: var(--eva-red);
+  box-shadow: 8px 0 0 color-mix(in srgb, var(--eva-red) 45%, transparent);
+}
+
+html[data-theme-visual="eva"] .t8-eva-brand__mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 30px;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  background:
+    linear-gradient(90deg, var(--eva-red) 0 46%, #0a0d0e 46% 100%);
+  border: 1px solid var(--eva-amber);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.68),
+    0 0 20px color-mix(in srgb, var(--eva-red) 32%, transparent);
+}
+
+html[data-theme-visual="eva"] .t8-eva-brand__mark::before {
+  content: "NERV";
+  position: absolute;
+  color: #f6f1de;
+  font-family: var(--eva-title-font);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+  transform: scaleX(0.88);
+}
+
+html[data-theme-visual="eva"] .t8-eva-brand__mark::after,
+html[data-theme-visual="eva"] .t8-eva-brand__core {
+  content: none;
+}
+
+html[data-theme-visual="eva"] .t8-eva-brand__title {
+  color: var(--eva-red);
+  font-family: var(--eva-title-font);
+  font-size: 18px !important;
+  font-weight: 950;
+  line-height: 0.92 !important;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--eva-red) 24%, transparent);
+}
+
+html[data-theme-visual="eva"] .t8-eva-brand__sub {
+  color: var(--eva-amber);
+  font-family: var(--eva-mono-font);
+  letter-spacing: 0;
+}
+
+html[data-theme-visual="eva"] .t8-eva-brand__sync {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--eva-green);
+  border-left: 5px solid var(--eva-red);
+  border-radius: 0;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--eva-green) 14%, transparent), color-mix(in srgb, #000 42%, transparent));
+  color: var(--eva-green);
+  font-family: var(--eva-mono-font);
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+html[data-theme-visual="eva"] .t8-topbar button,
+html[data-theme-visual="eva"] .t8-topbar .px-btn,
+html[data-theme-visual="eva"] .t8-topbar .t8-btn,
+html[data-theme-visual="eva"] .t8-topbar .px-chip,
+html[data-theme-visual="eva"] .t8-topbar-status-chip {
+  border: 1px solid color-mix(in srgb, var(--eva-green) 34%, var(--eva-red) 20%) !important;
+  border-radius: 0 !important;
+  clip-path: var(--eva-button-shape);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--eva-panel-2) 86%, var(--eva-green) 8%), var(--eva-panel)) !important;
+  color: var(--t8-text-main) !important;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--eva-green) 18%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .t8-topbar button:hover,
+html[data-theme-visual="eva"] .t8-topbar .t8-btn:hover {
+  border-color: var(--eva-red) !important;
+  color: var(--eva-red) !important;
+  box-shadow:
+    inset 0 -2px 0 var(--eva-red),
+    0 0 18px color-mix(in srgb, var(--eva-red) 24%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar {
+  position: relative;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--eva-red) 18%, transparent) 0 4px, transparent 4px),
+    linear-gradient(180deg, color-mix(in srgb, var(--eva-panel) 92%, #000 8%), var(--eva-panel)) !important;
+  border-right: 2px solid var(--eva-red) !important;
+  box-shadow: 10px 0 30px rgba(0, 0, 0, 0.34);
+  overflow: hidden !important;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar::before {
+  content: "MAGI";
+  position: absolute;
+  right: 12px;
+  top: 18px;
+  z-index: 0;
+  color: var(--eva-red);
+  font-family: var(--eva-title-font);
+  font-size: 38px;
+  font-weight: 950;
+  line-height: 1;
+  opacity: 0.10;
+  pointer-events: none;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    var(--eva-hex-grid),
+    linear-gradient(90deg, transparent 0 31px, var(--eva-green-line) 32px, transparent 33px),
+    linear-gradient(180deg, transparent 0 31px, var(--eva-green-line) 32px, transparent 33px);
+  background-size: 42px 72px, 42px 72px, 42px 72px, 42px 72px, 42px 72px, 32px 32px, 32px 32px;
+  background-position: 0 0, 0 0, 21px 36px, 21px 36px, 0 0, 0 0, 0 0;
+  opacity: 0.18;
+  mask-image: linear-gradient(180deg, #000, transparent 74%);
+}
+
+html[data-theme-visual="eva"] .t8-sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar input,
+html[data-theme-visual="eva"] .t8-sidebar .t8-sidebar-search-box {
+  background: color-mix(in srgb, var(--eva-panel-2) 88%, #000 12%) !important;
+  border: 1px solid var(--eva-green-line) !important;
+  border-radius: 0 !important;
+  color: var(--t8-text-main) !important;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--eva-red) 14%, transparent),
+    inset 0 -2px 0 color-mix(in srgb, var(--eva-green) 12%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar .t8-sidebar-search-box input {
+  min-width: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar .px-group-title {
+  padding: 6px 9px !important;
+  border-left: 5px solid var(--eva-red);
+  border-radius: 0 !important;
+  clip-path: var(--eva-button-shape);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--eva-red) 42%, var(--eva-panel)), color-mix(in srgb, var(--eva-panel) 88%, #000 12%)) !important;
+  color: var(--eva-amber) !important;
+  font-family: var(--eva-mono-font);
+  letter-spacing: 0;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar-node,
+html[data-theme-visual="eva"] .t8-sidebar .px-row {
+  border: 1px solid transparent !important;
+  border-radius: 0 !important;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar-node:hover,
+html[data-theme-visual="eva"] .t8-sidebar .px-row:hover,
+html[data-theme-visual="eva"] .t8-sidebar .px-row.is-active {
+  background: color-mix(in srgb, var(--eva-green) 11%, transparent) !important;
+  border-color: var(--eva-green-line) !important;
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-visual="eva"] .t8-sidebar .px-btn--icon {
+  border: 1px solid var(--eva-red) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--eva-red) 16%, var(--eva-panel)) !important;
+  color: var(--eva-red) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--eva-red) 16%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .t8-canvas-shell {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--eva-green) 7%, transparent), transparent 34%),
+    linear-gradient(90deg, transparent 0 59px, color-mix(in srgb, var(--eva-green) 12%, transparent) 60px 61px, transparent 62px),
+    linear-gradient(180deg, transparent 0 59px, color-mix(in srgb, var(--eva-green) 12%, transparent) 60px 61px, transparent 62px),
+    var(--t8-bg-canvas) !important;
+}
+
+html[data-theme-visual="eva"] .t8-canvas-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.28;
+  background-image:
+    var(--eva-hex-grid),
+    linear-gradient(90deg, transparent 0 19px, color-mix(in srgb, var(--eva-green) 16%, transparent) 20px 21px, transparent 22px),
+    linear-gradient(180deg, transparent 0 19px, color-mix(in srgb, var(--eva-green) 16%, transparent) 20px 21px, transparent 22px);
+  background-size: 56px 96px, 56px 96px, 56px 96px, 56px 96px, 56px 96px, 20px 20px, 20px 20px;
+  background-position: 0 0, 0 0, 28px 48px, 28px 48px, 0 0, 0 0, 0 0;
+}
+
+html[data-theme-visual="eva"] .t8-canvas-shell::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
+  transform: translate(-50%, -50%);
+  width: min(48vw, 680px);
+  aspect-ratio: 1200 / 520;
+  background: var(--eva-nerv-logo) center / contain no-repeat;
+  opacity: 0.075;
+  pointer-events: none;
+}
+
+html[data-theme-visual="eva"] .react-flow {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-visual="eva"] .react-flow__background {
+  background: transparent !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__background-pattern circle {
+  fill: var(--t8-grid-dot) !important;
+  opacity: 0.62;
+}
+
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child,
+html[data-theme-visual="eva"] .t8-node,
+html[data-theme-visual="eva"] .t8-card,
+html[data-theme-visual="eva"] .t8-panel {
+  position: relative;
+  clip-path: var(--eva-card-shape);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--eva-panel-2) 86%, #000 14%), var(--eva-panel)) !important;
+  border: 1px solid var(--eva-border) !important;
+  border-radius: var(--t8-radius-node) !important;
+  box-shadow: var(--t8-shadow-panel) !important;
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child::before,
+html[data-theme-visual="eva"] .t8-node::before,
+html[data-theme-visual="eva"] .t8-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 5px;
+  background:
+    linear-gradient(90deg, var(--eva-red) 0 82px, transparent 82px),
+    var(--eva-hazard);
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child::after,
+html[data-theme-visual="eva"] .t8-node::after {
+  content: "STATUS";
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  z-index: 1;
+  color: color-mix(in srgb, var(--eva-green) 72%, transparent);
+  font-family: var(--eva-mono-font);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+html[data-theme-visual="eva"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div:first-child {
+  outline: 1px solid var(--eva-red) !important;
+  outline-offset: 5px !important;
+  box-shadow:
+    var(--t8-shadow-panel),
+    0 0 0 5px color-mix(in srgb, var(--eva-red) 18%, transparent),
+    0 0 32px color-mix(in srgb, var(--eva-red) 26%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .t8-node-header,
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) [class*="border-b"] {
+  border-color: var(--eva-thin-border) !important;
+}
+
+html[data-theme-visual="eva"] .t8-node-header {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--eva-red) 14%, transparent), transparent) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) [class~="w-6"][class~="h-6"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) [class~="w-7"][class~="h-7"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) [class~="w-8"][class~="h-8"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) [class~="h-7"][class~="w-7"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) [class~="h-8"][class~="w-8"][class~="items-center"][class~="justify-center"]:not(button):not(.react-flow__handle),
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) [style*="width: 24px"][style*="height: 24px"][style*="justify-content: center"] {
+  background: color-mix(in srgb, var(--eva-red) 13%, var(--eva-panel-2)) !important;
+  color: var(--eva-red) !important;
+  border: 1px solid color-mix(in srgb, var(--eva-red) 38%, transparent) !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--eva-green) 18%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) button:not(.react-flow__controls-button):not([class*="text-red"]):not([class*="bg-red"]):not([title*="删除"]):not([aria-label*="删除"]) {
+  border: 1px solid var(--eva-green-line) !important;
+  border-radius: 0 !important;
+  clip-path: var(--eva-button-shape);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--eva-panel-2) 86%, var(--eva-green) 10%), var(--eva-panel-2)) !important;
+  color: var(--t8-text-main) !important;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--eva-green) 18%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__node:not(.react-flow__node-groupBox) button:not(.react-flow__controls-button):not([class*="text-red"]):not([class*="bg-red"]):not([title*="删除"]):not([aria-label*="删除"]):hover {
+  border-color: var(--eva-red) !important;
+  color: var(--eva-red) !important;
+}
+
+html[data-theme-visual="eva"] .t8-material-preview-header {
+  border: 1px solid var(--eva-green-line) !important;
+  border-left: 5px solid var(--eva-red) !important;
+  border-radius: 0 !important;
+  clip-path: var(--eva-button-shape);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--eva-red) 18%, var(--eva-panel)), color-mix(in srgb, var(--eva-green) 10%, var(--eva-panel))) !important;
+  color: var(--eva-green) !important;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--eva-green) 18%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .t8-material-preview-count {
+  border: 1px solid var(--eva-amber) !important;
+  border-radius: 0 !important;
+  background: var(--eva-amber) !important;
+  color: #111 !important;
+}
+
+html[data-theme-visual="eva"] .t8-material-preview-group-label {
+  color: var(--eva-green) !important;
+}
+
+html[data-theme-visual="eva"] .t8-material-preview-upload {
+  border: 1px dashed var(--eva-green-line) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--eva-green) 7%, transparent) !important;
+  color: var(--eva-green) !important;
+}
+
+html[data-theme-visual="eva"] .t8-btn,
+html[data-theme-visual="eva"] .t8-chip {
+  border: 1px solid var(--eva-green-line);
+  border-radius: 0;
+  clip-path: var(--eva-button-shape);
+}
+
+html[data-theme-visual="eva"] .t8-btn-primary {
+  background:
+    linear-gradient(90deg, var(--eva-red) 0 7px, transparent 7px),
+    linear-gradient(180deg, color-mix(in srgb, var(--eva-green) 84%, #fff 4%), color-mix(in srgb, var(--eva-green) 64%, #000 16%)) !important;
+  color: var(--t8-accent-text) !important;
+}
+
+/* Legacy node internals still carry dark Tailwind utility classes. In EVA light mode,
+   normalize those inner labels/cards back to theme tokens so every node remains readable. */
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class~="text-white"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-white/80"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-white/90"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-zinc-100"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-zinc-200"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-neutral-100"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-slate-100"] {
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-white/60"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-white/70"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-zinc-300"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-zinc-400"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-neutral-300"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-slate-300"] {
+  color: var(--t8-text-muted) !important;
+}
+
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-white/20"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-white/30"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-white/40"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-white/50"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-zinc-500"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-neutral-400"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-slate-400"] {
+  color: var(--t8-text-dim) !important;
+}
+
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-cyan-"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-emerald-"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-green-"] {
+  color: color-mix(in srgb, var(--eva-green) 74%, #0b1a0d) !important;
+}
+
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-violet-"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-purple-"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-red-"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="text-rose-"] {
+  color: var(--eva-red) !important;
+}
+
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="bg-white/5"]:not(input):not(textarea):not(select),
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="bg-white/10"]:not(input):not(textarea):not(select),
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="bg-cyan-500/5"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="bg-cyan-500/10"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="bg-violet-500/5"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="bg-violet-500/10"] {
+  background-color: color-mix(in srgb, var(--eva-panel-2) 84%, var(--eva-green) 5%) !important;
+}
+
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="border-white/"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="border-cyan-500/"],
+html[data-theme-visual="eva"][data-theme-mode="light"] .react-flow__node:not(.react-flow__node-groupBox) [class*="border-violet-500/"] {
+  border-color: var(--eva-thin-border) !important;
+}
+
+html[data-theme-visual="eva"] .t8-input,
+html[data-theme-visual="eva"] .t8-select,
+html[data-theme-visual="eva"] .t8-textarea,
+html[data-theme-visual="eva"] .react-flow__node input,
+html[data-theme-visual="eva"] .react-flow__node select,
+html[data-theme-visual="eva"] .react-flow__node textarea {
+  background: color-mix(in srgb, var(--eva-panel-2) 88%, #000 10%) !important;
+  border: 1px solid var(--eva-thin-border) !important;
+  border-radius: 0 !important;
+  color: var(--t8-text-main) !important;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--eva-green) 9%, transparent),
+    inset 0 -2px 0 color-mix(in srgb, var(--eva-red) 10%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__handle {
+  width: 16px !important;
+  height: 16px !important;
+  border: 2px solid var(--eva-black) !important;
+  border-radius: 2px !important;
+  background: var(--eva-green) !important;
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--eva-green) 18%, transparent),
+    0 0 18px color-mix(in srgb, var(--eva-green) 36%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__handle.target {
+  background: var(--t8-port-text) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__handle.source {
+  background: var(--eva-red) !important;
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--eva-red) 22%, transparent),
+    0 0 18px color-mix(in srgb, var(--eva-red) 42%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__edge-path {
+  stroke: color-mix(in srgb, var(--t8-edge) 72%, var(--eva-green)) !important;
+  stroke-width: 2.8px !important;
+  stroke-dasharray: 16 5 2 5 !important;
+  stroke-linecap: square !important;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--eva-green) 28%, transparent));
+}
+
+html[data-theme-visual="eva"] .react-flow__edge.selected .react-flow__edge-path,
+html[data-theme-visual="eva"] .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--eva-red) !important;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--eva-red) 58%, transparent));
+}
+
+html[data-theme-visual="eva"] .t8-edge-theme-marker {
+  display: block;
+  width: 24px;
+  height: 24px;
+  background:
+    radial-gradient(circle at 50% 50%, var(--eva-green) 0 3px, transparent 4px),
+    linear-gradient(90deg, transparent 42%, var(--eva-red) 42% 58%, transparent 58%),
+    linear-gradient(0deg, transparent 42%, var(--eva-red) 42% 58%, transparent 58%);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  opacity: 0.70;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--eva-red) 40%, transparent));
+}
+
+html[data-theme-visual="eva"] .react-flow__controls,
+html[data-theme-visual="eva"] .react-flow__minimap,
+html[data-theme-visual="eva"] .t8-toolbar-panel {
+  background: color-mix(in srgb, var(--eva-panel) 92%, #000 8%) !important;
+  border: 1px solid var(--eva-red) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--t8-shadow-panel) !important;
+  backdrop-filter: blur(12px);
+}
+
+html[data-theme-visual="eva"] .react-flow__controls {
+  left: 14px !important;
+  bottom: 12px !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__controls-button {
+  color: var(--eva-green) !important;
+  border-bottom: 1px solid var(--eva-thin-border) !important;
+  background: transparent !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__controls-button:hover {
+  background: color-mix(in srgb, var(--eva-red) 18%, transparent) !important;
+  color: var(--eva-red) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__minimap {
+  position: absolute !important;
+  left: auto !important;
+  top: auto !important;
+  right: 24px !important;
+  bottom: 24px !important;
+  width: 258px !important;
+  height: 172px !important;
+  border-radius: 8px !important;
+  background:
+    radial-gradient(circle at 11px 11px, var(--eva-amber) 0 2px, transparent 3px),
+    radial-gradient(circle at calc(100% - 11px) 11px, var(--eva-red) 0 2px, transparent 3px),
+    radial-gradient(circle at 11px calc(100% - 11px), var(--eva-green) 0 2px, transparent 3px),
+    radial-gradient(circle at calc(100% - 11px) calc(100% - 11px), var(--eva-amber) 0 2px, transparent 3px),
+    linear-gradient(135deg, var(--eva-steel) 0 18px, transparent 18px) top left / 42px 42px no-repeat,
+    linear-gradient(225deg, var(--eva-steel) 0 18px, transparent 18px) top right / 42px 42px no-repeat,
+    linear-gradient(45deg, var(--eva-steel) 0 18px, transparent 18px) bottom left / 42px 42px no-repeat,
+    linear-gradient(315deg, var(--eva-steel) 0 18px, transparent 18px) bottom right / 42px 42px no-repeat,
+    linear-gradient(90deg, transparent 0 176px, color-mix(in srgb, var(--eva-steel) 78%, #000) 176px 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--eva-red) 82%, #000) 0 4px, transparent 4px 100%),
+    radial-gradient(circle at 83% 72%, transparent 0 18px, color-mix(in srgb, var(--eva-red) 45%, transparent) 19px 20px, transparent 21px 34px, color-mix(in srgb, var(--eva-red) 36%, transparent) 35px 36px, transparent 37px),
+    linear-gradient(90deg, transparent 0 64px, color-mix(in srgb, var(--eva-green) 46%, transparent) 65px 66px, transparent 67px 118px, color-mix(in srgb, var(--eva-red) 42%, transparent) 119px 120px, transparent 121px),
+    linear-gradient(31deg, transparent 0 53%, color-mix(in srgb, var(--eva-green) 34%, transparent) 53.5% 54.5%, transparent 55%),
+    linear-gradient(-28deg, transparent 0 58%, color-mix(in srgb, var(--eva-red) 32%, transparent) 58.5% 59.5%, transparent 60%),
+    linear-gradient(90deg, transparent 0 23px, color-mix(in srgb, var(--eva-green) 16%, transparent) 24px 25px, transparent 26px),
+    linear-gradient(180deg, transparent 0 23px, color-mix(in srgb, var(--eva-green) 16%, transparent) 24px 25px, transparent 26px),
+    var(--eva-black-2) !important;
+  background-size: auto, auto, auto, auto, 42px 42px, 42px 42px, 42px 42px, 42px 42px, auto, auto, auto, auto, auto, 24px 24px, 24px 24px, auto;
+  box-shadow:
+    0 0 0 2px #050607,
+    0 0 0 5px color-mix(in srgb, var(--eva-steel) 88%, #000),
+    0 0 0 7px var(--eva-red),
+    0 0 0 10px color-mix(in srgb, var(--eva-amber) 26%, #050607),
+    0 18px 48px rgba(0, 0, 0, 0.62),
+    inset 0 0 0 1px color-mix(in srgb, var(--eva-green) 28%, transparent),
+    inset 0 0 36px rgba(0, 0, 0, 0.46) !important;
+  overflow: visible !important;
+  clip-path: polygon(14px 0, calc(100% - 26px) 0, 100% 26px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 26px 100%, 0 calc(100% - 26px), 0 14px);
+}
+
+html[data-theme-visual="eva"] .react-flow__minimap::before {
+  content: "NERV\A MAGI MAP\A SYNC 87.6%";
+  white-space: pre;
+  position: absolute;
+  right: 8px;
+  top: 9px;
+  z-index: 5;
+  width: 67px;
+  height: 48px;
+  padding: 8px 6px 0;
+  border: 1px solid color-mix(in srgb, var(--eva-amber) 44%, transparent);
+  border-top: 6px solid var(--eva-red);
+  color: var(--eva-green);
+  font-family: var(--eva-mono-font);
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1.22;
+  background:
+    var(--eva-hazard) top left / 100% 6px no-repeat,
+    linear-gradient(135deg, color-mix(in srgb, var(--eva-steel) 78%, #000), color-mix(in srgb, var(--eva-black) 82%, transparent));
+  box-shadow:
+    -7px 0 0 color-mix(in srgb, var(--eva-red) 55%, transparent),
+    0 0 18px color-mix(in srgb, var(--eva-red) 18%, transparent);
+  pointer-events: none;
+}
+
+html[data-theme-visual="eva"] .react-flow__minimap::after {
+  content: "SYSTEM STATUS: ONLINE\A VIEWPORT AREA";
+  white-space: pre;
+  position: absolute;
+  left: 9px;
+  top: 8px;
+  z-index: 5;
+  padding: 4px 6px;
+  border-left: 4px solid var(--eva-red);
+  color: var(--eva-green);
+  font-family: var(--eva-mono-font);
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1.25;
+  background: color-mix(in srgb, var(--eva-black) 72%, transparent);
+  box-shadow:
+    0 108px 0 -2px color-mix(in srgb, var(--eva-red) 72%, transparent),
+    58px 108px 0 -2px color-mix(in srgb, var(--eva-green) 72%, transparent),
+    116px 108px 0 -2px color-mix(in srgb, var(--eva-amber) 72%, transparent);
+  pointer-events: none;
+}
+
+html[data-theme-visual="eva"] .react-flow__minimap svg {
+  position: absolute;
+  left: 8px;
+  top: 28px;
+  z-index: 2;
+  width: 164px !important;
+  height: 132px !important;
+  background:
+    linear-gradient(90deg, transparent 0 31px, color-mix(in srgb, var(--eva-red) 24%, transparent) 32px 33px, transparent 34px),
+    linear-gradient(180deg, transparent 0 31px, color-mix(in srgb, var(--eva-red) 24%, transparent) 32px 33px, transparent 34px),
+    color-mix(in srgb, #000 34%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--eva-green) 32%, transparent);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.52);
+}
+
+html[data-theme-visual="eva"] .react-flow__minimap-mask {
+  fill: color-mix(in srgb, var(--eva-red) 10%, transparent) !important;
+  stroke: var(--eva-red) !important;
+  stroke-width: 5px !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__minimap-node {
+  fill: var(--eva-green) !important;
+  stroke: var(--eva-amber) !important;
+  stroke-width: 1.3px !important;
+  rx: 0;
+}
+
+html[data-theme-visual="eva"] .t8-canvas-toolbar {
+  right: 14px !important;
+  top: 14px !important;
+}
+
+html[data-theme-visual="eva"] .t8-toolbar-button {
+  color: var(--eva-green) !important;
+  background: transparent !important;
+}
+
+html[data-theme-visual="eva"] .t8-toolbar-button:hover,
+html[data-theme-visual="eva"] .t8-toolbar-button[class*="bg-"] {
+  background: color-mix(in srgb, var(--eva-red) 18%, transparent) !important;
+  color: var(--eva-red) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__selection,
+html[data-theme-visual="eva"] .react-flow__nodesselection-rect {
+  background: color-mix(in srgb, var(--eva-red) 11%, transparent) !important;
+  border: 1px dashed var(--eva-red) !important;
+}
+
+html[data-theme-visual="eva"] .react-flow__node-groupBox > div,
+html[data-theme-visual="eva"] [data-theme-visual="eva"].t8-group-box {
+  border: 1px solid var(--eva-red) !important;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--eva-green) 18%, transparent),
+    0 16px 42px rgba(0, 0, 0, 0.30) !important;
+}
+
+html[data-theme-visual="eva"] .t8-group-box::before {
+  background-image:
+    var(--eva-hex-grid),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--eva-red) 12%, transparent), transparent 42%) !important;
+  background-size: 56px 96px, 56px 96px, 56px 96px, 56px 96px, 56px 96px, auto !important;
+  opacity: 0.26 !important;
+}
+
+html[data-theme-visual="eva"] .t8-group-box::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  z-index: 0;
+  transform: translate(-50%, -50%);
+  width: min(68%, 480px);
+  aspect-ratio: 1200 / 520;
+  background: var(--eva-nerv-logo) center / contain no-repeat;
+  opacity: 0.10;
+  pointer-events: none;
+}
+
+html[data-theme-visual="eva"] .t8-group-box > :not(.react-flow__handle) {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-visual="eva"] .t8-group-box__header {
+  border-bottom: 1px solid var(--eva-red) !important;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--eva-red) 36%, var(--eva-panel)), var(--eva-panel)) !important;
+  color: var(--eva-amber) !important;
+}
+
+html[data-theme-visual="eva"] .t8-group-box__handle {
+  background: var(--eva-red) !important;
+  border: 2px solid var(--eva-black) !important;
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--eva-red) 22%, transparent),
+    0 0 18px color-mix(in srgb, var(--eva-red) 44%, transparent) !important;
+}
+
+html[data-theme-visual="eva"] .t8-theme-music-toggle {
+  left: 14px !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: 140px !important;
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+  padding: 0 !important;
+  border: 1px solid var(--eva-red) !important;
+  border-radius: 0 !important;
+  clip-path: var(--eva-button-shape);
+  background: color-mix(in srgb, var(--eva-panel) 90%, #000 10%) !important;
+  color: var(--eva-red) !important;
+  box-shadow: var(--t8-shadow-panel) !important;
+}
+
+html[data-theme-visual="eva"] .t8-theme-music-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+html[data-theme-visual="eva"] .t8-theme-music-toggle.is-playing {
+  background: linear-gradient(135deg, var(--eva-red), var(--eva-amber)) !important;
+  color: #111 !important;
+}
+
+html[data-theme-visual="eva"] .t8-mini-icon-button,
+html[data-theme-visual="eva"] .resource-card-action,
+html[data-theme-visual="eva"] .px-btn--icon {
+  inline-size: 32px !important;
+  block-size: 32px !important;
+  min-inline-size: 32px !important;
+  min-block-size: 32px !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+}
+
+html[data-theme-visual="eva"] .resource-library-drawer,
+html[data-theme-visual="eva"] .t8-modal,
+html[data-theme-visual="eva"] [data-canvas-floating-ui] {
+  color: var(--t8-text-main);
+}
+
+html[data-theme-visual="eva"] .resource-library-drawer {
+  border-left: 2px solid var(--eva-red) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--eva-panel) 92%, #000 8%), var(--eva-panel)) !important;
+}
+
+.t8-theme-preview[data-theme-visual="eva"] {
+  --eva-red: var(--t8-danger);
+  --eva-green: var(--t8-accent);
+  --eva-amber: var(--t8-warning);
+  --eva-panel: var(--t8-bg-panel);
+  background:
+    linear-gradient(90deg, transparent 0 31px, color-mix(in srgb, var(--eva-green) 13%, transparent) 32px 33px, transparent 34px),
+    linear-gradient(180deg, transparent 0 31px, color-mix(in srgb, var(--eva-green) 13%, transparent) 32px 33px, transparent 34px),
+    radial-gradient(circle at 72% 20%, color-mix(in srgb, var(--eva-red) 16%, transparent), transparent 30%),
+    var(--t8-bg-canvas) !important;
+}
+
+.t8-theme-preview[data-theme-visual="eva"] .t8-node {
+  clip-path: polygon(12px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 4px 100%, 0 calc(100% - 4px), 0 12px);
+  border: 1px solid var(--eva-red) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--eva-green) 20%, transparent) !important;
+}
+
+.t8-theme-preview[data-theme-visual="eva"] .t8-node::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 5px;
+  background: repeating-linear-gradient(135deg, var(--eva-red) 0 9px, #160708 9px 18px);
+}

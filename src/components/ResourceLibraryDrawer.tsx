@@ -207,7 +207,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
   };
 
   return (
-    <div className={`fixed top-0 right-0 z-50 h-screen w-[440px] max-w-[calc(100vw-18px)] shadow-2xl flex flex-col ${panelCls}`}>
+    <div className={`resource-library-drawer fixed top-0 right-0 z-50 h-screen w-[440px] max-w-[calc(100vw-18px)] shadow-2xl flex flex-col ${panelCls}`}>
       <div className={`h-[52px] px-4 py-3 flex items-center justify-between shrink-0 ${isPixel ? 'border-b-2 border-[var(--px-ink)] bg-[var(--px-muted)]' : isDark ? 'border-b border-white/10' : 'border-b border-black/10'}`}>
         <div className="flex items-center gap-2 min-w-0">
           <Library size={18} style={{ color: activeMeta.accent }} />
@@ -216,7 +216,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
             <div className={`text-[11px] mt-1 ${subtle}`}>{totalText}</div>
           </div>
         </div>
-        <button onClick={onClose} className={isPixel ? 'px-btn px-btn--icon px-btn--ghost' : `p-2 rounded-md ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="关闭">
+        <button onClick={onClose} className={isPixel ? 't8-mini-icon-button px-btn px-btn--icon px-btn--ghost' : `t8-mini-icon-button h-9 w-9 p-0 rounded-md ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`} title="关闭">
           <X size={16} />
         </button>
       </div>
@@ -252,7 +252,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
           </div>
           <button
             onClick={() => setFavoriteOnly((v) => !v)}
-            className={isPixel ? `px-btn px-btn--icon ${favoriteOnly ? 'px-btn--yellow' : 'px-btn--ghost'}` : `h-9 w-9 rounded-md border flex items-center justify-center ${favoriteOnly ? 'text-amber-300 border-amber-400/50 bg-amber-400/10' : isDark ? 'border-white/10 hover:bg-white/10' : 'border-black/10 hover:bg-black/5'}`}
+            className={isPixel ? `resource-library-favorite-filter t8-mini-icon-button px-btn px-btn--icon ${favoriteOnly ? 'px-btn--yellow' : 'px-btn--ghost'}` : `resource-library-favorite-filter t8-mini-icon-button h-9 w-9 p-0 rounded-md border flex items-center justify-center ${favoriteOnly ? 'text-amber-300 border-amber-400/50 bg-amber-400/10' : isDark ? 'border-white/10 hover:bg-white/10' : 'border-black/10 hover:bg-black/5'}`}
             title="收藏"
           >
             <Star size={15} fill={favoriteOnly ? 'currentColor' : 'none'} />
@@ -372,7 +372,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                   )}
                   <button
                     onClick={() => updateItem(item, { favorite: !item.favorite })}
-                    className="absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-black/55 text-amber-300 flex items-center justify-center"
+                    className="t8-mini-icon-button absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-black/55 text-amber-300 flex items-center justify-center"
                     title="收藏"
                   >
                     <Star size={13} fill={item.favorite ? 'currentColor' : 'none'} />
@@ -396,7 +396,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                   <div className="flex items-center justify-center gap-1.5 pt-0.5">
                     <button
                       onClick={() => insertItem(item)}
-                      className="nodrag nopan resource-card-action"
+                      className="nodrag nopan t8-mini-icon-button resource-card-action"
                       style={miniInsertStyle}
                       title="插入画布"
                       aria-label="插入画布"
@@ -405,7 +405,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                     </button>
                     <button
                       onClick={() => renameItem(item)}
-                      className="nodrag nopan resource-card-action"
+                      className="nodrag nopan t8-mini-icon-button resource-card-action"
                       style={miniActionBase}
                       title="重命名"
                     >
@@ -413,7 +413,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                     </button>
                     <button
                       onClick={() => deleteItem(item)}
-                      className="nodrag nopan resource-card-action"
+                      className="nodrag nopan t8-mini-icon-button resource-card-action"
                       style={miniDeleteStyle}
                       title="删除"
                     >

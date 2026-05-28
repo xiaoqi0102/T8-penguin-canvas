@@ -7,6 +7,7 @@ const opThemeMusicUrl = new URL('../assets/theme-music/op-battle-scars.mp3', imp
 export const rhThemeMusicUrl = new URL('../assets/theme-music/rh-tide.mp3', import.meta.url).href;
 export const rhHiddenThemeMusicUrl = new URL('../assets/theme-music/rh-hidden-saya.mp3', import.meta.url).href;
 export const narutoThemeMusicUrl = new URL('../assets/theme-music/naruto-shinsei-gyakuten.mp3', import.meta.url).href;
+export const evaThemeMusicUrl = new URL('../assets/theme-music/eva-decisive-battle.mp3', import.meta.url).href;
 
 export const DEFAULT_THEME_TEMPLATE_ID = 'pixel-candy';
 export const TECH_TEMPLATE_ID = 'tech-default';
@@ -14,6 +15,7 @@ export const PIXEL_TEMPLATE_ID = 'pixel-candy';
 export const OP_TEMPLATE_ID = 'op-style';
 export const RH_TEMPLATE_ID = 'rh-style';
 export const NARUTO_TEMPLATE_ID = 'naruto-style';
+export const EVA_TEMPLATE_ID = 'eva-style';
 
 const techDark: ThemeTokens = {
   appBg: '#09090b',
@@ -377,6 +379,80 @@ const narutoDark: ThemeTokens = {
   portAudio: '#b996ff',
 };
 
+const evaDark: ThemeTokens = {
+  appBg: '#030506',
+  canvasBg: '#050708',
+  panelBg: '#090d0f',
+  panelBgElevated: '#11171a',
+  panelBgMuted: '#171f21',
+  nodeBg: '#0b0f11',
+  nodeHeaderBg: '#16090b',
+  textMain: '#f3f3df',
+  textMuted: '#b5c1ae',
+  textDim: '#738275',
+  border: '#2b3436',
+  borderStrong: '#ff2638',
+  accent: '#8cff42',
+  accentHover: '#cfff58',
+  accentText: '#061006',
+  secondary: '#7b3ff2',
+  warning: '#ffb000',
+  danger: '#ff2638',
+  success: '#35ff78',
+  shadowPanel: '0 22px 64px rgba(0,0,0,0.68), 0 0 0 1px rgba(255,38,56,0.24)',
+  shadowButton: '0 0 18px rgba(140,255,66,0.22)',
+  shadowStrong: '0 30px 90px rgba(0,0,0,0.76), 0 0 44px rgba(255,38,56,0.20)',
+  radiusPanel: '4px',
+  radiusButton: '3px',
+  radiusNode: '8px',
+  gridDot: '#24402c',
+  edge: '#4d7a53',
+  edgeSelected: '#ff2638',
+  selectionBg: 'rgba(255,38,56,0.13)',
+  selectionBorder: '#ff2638',
+  portText: '#7cecff',
+  portImage: '#ffb000',
+  portVideo: '#ff2638',
+  portAudio: '#b38cff',
+  fontFamily: "'JetBrains Mono', 'Cascadia Mono', 'Noto Sans Mono CJK SC', 'Microsoft YaHei', monospace",
+  displayFont: "Georgia, 'Times New Roman', 'Noto Serif SC', SimSun, serif",
+};
+
+const evaLight: ThemeTokens = {
+  ...evaDark,
+  appBg: '#d7ddd3',
+  canvasBg: '#c7d1c8',
+  panelBg: '#eef2e8',
+  panelBgElevated: '#f8faef',
+  panelBgMuted: '#d6dfd2',
+  nodeBg: '#f3f5e8',
+  nodeHeaderBg: '#efe5ce',
+  textMain: '#121819',
+  textMuted: '#33433d',
+  textDim: '#62706a',
+  border: '#344243',
+  borderStrong: '#a61f2c',
+  accent: '#4fb000',
+  accentHover: '#69d500',
+  accentText: '#f7ffe9',
+  secondary: '#5630a8',
+  warning: '#b86d00',
+  danger: '#b51d2e',
+  success: '#087b3a',
+  shadowPanel: '4px 4px 0 #202526, 0 16px 40px rgba(20,28,28,0.16)',
+  shadowButton: '2px 2px 0 #202526',
+  shadowStrong: '6px 6px 0 #202526, 0 24px 62px rgba(20,28,28,0.20)',
+  gridDot: '#65766c',
+  edge: '#49694d',
+  edgeSelected: '#b51d2e',
+  selectionBg: 'rgba(181,29,46,0.14)',
+  selectionBorder: '#b51d2e',
+  portText: '#02798a',
+  portImage: '#b86d00',
+  portVideo: '#b51d2e',
+  portAudio: '#5630a8',
+};
+
 export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
   {
     schema: 't8-theme-template',
@@ -520,6 +596,34 @@ export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
       copyrightNote: '火影忍者风格默认音乐文件，可在主题模板中上传替换。',
     },
     modes: { dark: { tokens: narutoDark }, light: { tokens: narutoLight } },
+  },
+  {
+    schema: 't8-theme-template',
+    version: THEME_TEMPLATE_VERSION,
+    id: EVA_TEMPLATE_ID,
+    name: 'EVA风格',
+    description: 'EVA 指挥所作战视觉：初号机紫、荧光绿同步线、警戒橙红、MAGI 雷达和 AT Field 几何装甲面板。',
+    author: 'T8',
+    builtIn: true,
+    legacyStyle: 'tech',
+    visuals: {
+      style: 'eva',
+      intensity: 'strong',
+      iconPack: 'eva',
+      canvasPattern: 'eva-grid',
+      nodeFrame: 'eva-panel',
+      headerMark: 'EVA',
+    },
+    music: {
+      title: 'Decisive Battle',
+      preset: 'eva-sync',
+      source: 'url',
+      url: evaThemeMusicUrl,
+      volume: 0.16,
+      bpm: 152,
+      copyrightNote: 'EVA 风格默认音乐文件，可在主题模板中上传替换。公开分发前请确认音乐授权边界。',
+    },
+    modes: { dark: { tokens: evaDark }, light: { tokens: evaLight } },
   },
 ];
 

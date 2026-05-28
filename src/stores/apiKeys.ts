@@ -45,14 +45,11 @@ const DEFAULT: ApiSettings = {
   grokApiKey: '',
   seedanceApiKey: '',
   sunoApiKey: '',
-  // v1.2.10.2: 全局生成素材自动保存路径默认值
-  fileSavePath: 'D:\\zhenzhen',
-  // v1.3.1: 画布自动保存路径默认值
-  canvasAutoSavePath: 'D:\\zhenzhen',
-  // v1.3.4: 资源库路径默认值
-  resourceLibraryPath: 'D:\\zhenzhen\\resources',
-  // v1.3.6: 主题模板路径默认值
-  themeTemplatePath: 'D:\\zhenzhen\\theme-templates',
+  // 路径默认值由后端按平台计算并通过 /api/settings 返回，前端不硬编码 D 盘。
+  fileSavePath: '',
+  canvasAutoSavePath: '',
+  resourceLibraryPath: '',
+  themeTemplatePath: '',
   preferences: { theme: 'dark', language: 'zh-CN' },
 };
 

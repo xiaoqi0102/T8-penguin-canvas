@@ -6,12 +6,12 @@ const config = require('../config');
 const router = express.Router();
 const SCHEMA = 't8-theme-template';
 const VERSION = 2;
-const VISUAL_STYLES = new Set(['plain', 'tech', 'pixel', 'op', 'rh', 'naruto']);
+const VISUAL_STYLES = new Set(['plain', 'tech', 'pixel', 'op', 'rh', 'naruto', 'eva']);
 const INTENSITIES = new Set(['subtle', 'medium', 'strong']);
-const ICON_PACKS = new Set(['default', 'op', 'naruto']);
-const CANVAS_PATTERNS = new Set(['none', 'dots', 'map', 'circuit', 'confetti', 'hub', 'chakra']);
-const NODE_FRAMES = new Set(['plain', 'glass', 'sticker', 'wanted', 'hub-card', 'shinobi-scroll']);
-const MUSIC_PRESETS = new Set(['tech-pulse', 'pixel-pop', 'grand-line-adventure', 'rh-pulse', 'shinobi-flame']);
+const ICON_PACKS = new Set(['default', 'op', 'naruto', 'eva']);
+const CANVAS_PATTERNS = new Set(['none', 'dots', 'map', 'circuit', 'confetti', 'hub', 'chakra', 'eva-grid']);
+const NODE_FRAMES = new Set(['plain', 'glass', 'sticker', 'wanted', 'hub-card', 'shinobi-scroll', 'eva-panel']);
+const MUSIC_PRESETS = new Set(['tech-pulse', 'pixel-pop', 'grand-line-adventure', 'rh-pulse', 'shinobi-flame', 'eva-sync']);
 const MUSIC_SOURCES = new Set(['synth', 'url', 'upload']);
 
 function loadSettings() {
@@ -59,7 +59,15 @@ function normalizeVisuals(raw, legacyStyle) {
   return {
     style,
     intensity: INTENSITIES.has(source.intensity) ? source.intensity : 'medium',
-    iconPack: ICON_PACKS.has(source.iconPack) ? source.iconPack : 'default',
+    iconPack: ICON_PACKS.has(source.iconPack)
+      ? source.iconPack
+      : style === 'op'
+        ? 'op'
+        : style === 'naruto'
+          ? 'naruto'
+        : style === 'eva'
+          ? 'eva'
+          : 'default',
     canvasPattern: CANVAS_PATTERNS.has(source.canvasPattern)
       ? source.canvasPattern
       : style === 'op'
@@ -68,6 +76,8 @@ function normalizeVisuals(raw, legacyStyle) {
           ? 'hub'
         : style === 'naruto'
           ? 'chakra'
+        : style === 'eva'
+          ? 'eva-grid'
         : style === 'tech'
           ? 'circuit'
           : 'dots',
@@ -79,6 +89,8 @@ function normalizeVisuals(raw, legacyStyle) {
           ? 'hub-card'
         : style === 'naruto'
           ? 'shinobi-scroll'
+        : style === 'eva'
+          ? 'eva-panel'
         : style === 'tech'
           ? 'glass'
           : 'sticker',
@@ -116,6 +128,16 @@ function defaultMusicFor(legacyStyle, visuals) {
       volume: 0.16,
       bpm: 146,
       copyrightNote: '原创火焰查克拉氛围合成循环；可替换为已授权音频 URL。',
+    };
+  }
+  if (style === 'eva') {
+    return {
+      title: 'MAGI Sync Loop',
+      preset: 'eva-sync',
+      source: 'synth',
+      volume: 0.16,
+      bpm: 152,
+      copyrightNote: '原创同步警戒氛围合成循环；可替换为已授权音频 URL。',
     };
   }
   if (legacyStyle === 'tech' || style === 'tech') {

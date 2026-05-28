@@ -56,6 +56,15 @@ const PRESET_NOTES: Record<ThemeMusicPreset, Note[]> = {
     { freq: 587, at: 1.04, len: 0.12, type: 'sawtooth' },
     { freq: 784, at: 1.34, len: 0.16, type: 'triangle' },
   ],
+  'eva-sync': [
+    { freq: 110, at: 0, len: 0.08, type: 'sawtooth' },
+    { freq: 165, at: 0.18, len: 0.08, type: 'square' },
+    { freq: 220, at: 0.36, len: 0.1, type: 'sawtooth' },
+    { freq: 330, at: 0.58, len: 0.11, type: 'triangle' },
+    { freq: 247, at: 0.86, len: 0.08, type: 'square' },
+    { freq: 494, at: 1.08, len: 0.12, type: 'sawtooth' },
+    { freq: 659, at: 1.36, len: 0.18, type: 'triangle' },
+  ],
 };
 
 const PRESET_LOOP_SECONDS: Record<ThemeMusicPreset, number> = {
@@ -64,6 +73,7 @@ const PRESET_LOOP_SECONDS: Record<ThemeMusicPreset, number> = {
   'grand-line-adventure': 2.15,
   'rh-pulse': 1.72,
   'shinobi-flame': 1.7,
+  'eva-sync': 1.72,
 };
 
 function clampVolume(value?: number) {

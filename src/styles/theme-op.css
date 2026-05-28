@@ -558,6 +558,63 @@ html[data-theme-visual="op"] .t8-btn:hover {
   box-shadow: 4px 4px 0 var(--op-ink) !important;
 }
 
+html[data-theme-visual="op"] .t8-mini-icon-button,
+html[data-theme-visual="op"] .px-btn.px-btn--icon,
+html[data-theme-visual="op"] .resource-card-action,
+html[data-theme-visual="op"] .t8-theme-music-toggle {
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  line-height: 1 !important;
+  flex: 0 0 auto !important;
+  aspect-ratio: 1 / 1 !important;
+  transform: none !important;
+  box-shadow: 2px 2px 0 var(--op-ink) !important;
+}
+
+html[data-theme-visual="op"] .t8-mini-icon-button:hover,
+html[data-theme-visual="op"] .px-btn.px-btn--icon:hover,
+html[data-theme-visual="op"] .resource-card-action:hover,
+html[data-theme-visual="op"] .t8-theme-music-toggle:hover {
+  transform: translate(-1px, -1px) !important;
+  box-shadow: 3px 3px 0 var(--op-ink) !important;
+}
+
+html[data-theme-visual="op"] .t8-mini-icon-button svg,
+html[data-theme-visual="op"] .px-btn.px-btn--icon svg,
+html[data-theme-visual="op"] .resource-card-action svg,
+html[data-theme-visual="op"] .t8-theme-music-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+html[data-theme-visual="op"] .t8-image-compare-button,
+html[data-theme-visual="op"] .resource-card-action,
+html[data-theme-visual="op"] .resource-card .t8-mini-icon-button {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+}
+
+html[data-theme-visual="op"] .resource-library-drawer > div:first-child .t8-mini-icon-button,
+html[data-theme-visual="op"] .resource-library-drawer .resource-library-favorite-filter {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+}
+
+html[data-theme-visual="op"] .t8-sidebar .t8-mini-icon-button {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+}
+
 html[data-theme-visual="op"] .px-btn--mint,
 html[data-theme-visual="op"] .t8-btn-primary {
   background:

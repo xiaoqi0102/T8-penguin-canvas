@@ -182,7 +182,7 @@ export default function ImageCompareModal({ resultUrl, inputCandidates, onClose 
               输入图 {candidates.length || 0} 张 · 结果图 {filenameOf(resultUrl)}
             </div>
           </div>
-          <button className="t8-btn h-9 w-9 p-0" onClick={onClose} title="关闭" aria-label="关闭图像对比">
+          <button className="t8-btn t8-mini-icon-button h-9 w-9 p-0" onClick={onClose} title="关闭" aria-label="关闭图像对比">
             <X size={16} />
           </button>
         </div>

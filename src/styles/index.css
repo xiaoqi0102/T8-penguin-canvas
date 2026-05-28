@@ -5,6 +5,7 @@
 @import './theme-op.css';
 @import './theme-rh.css';
 @import './theme-naruto.css';
+@import './theme-eva.css';
 
 @tailwind base;
 @tailwind components;
@@ -560,6 +561,21 @@ html[data-theme-visual="op"] .t8-group-box__handle {
   to {
     transform: rotate(360deg);
   }
+}
+
+.t8-mini-icon-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex: 0 0 auto;
+  aspect-ratio: 1 / 1;
+}
+
+.t8-mini-icon-button svg {
+  flex: 0 0 auto;
+  pointer-events: none;
 }
 
 html[data-theme-style="pixel"] .t8-theme-music-toggle {

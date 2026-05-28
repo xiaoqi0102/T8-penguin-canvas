@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.5.9",
-  "lastUpdated": "2026-05-28-v1.5.9-qiniu-1k2k4k-fix-grsai-vip-ratio-resolution",
+  "version": "1.6.1",
+  "lastUpdated": "2026-05-28-v1.6.1-merge-upstream-v1.6.0-eva-with-fork-qiniu-grsai",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,10 +16,10 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.5.9",
-    "semverVersion": "1.5.9",
-    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.5.9 = v1.5.8 + 七牛 openai/gpt-image-2 图生图 size 修复及 1K/2K/4K 清晰度档（fork 内已落地的工作此次正式 bump 版本号）+ grsai gpt-image-2-vip 「比例 × 清晰度」双控件（按上游文档铺 14 比例 × 3 档完整预设表，1:3 / 3:1 在 2K 档由 computeVipSize 4MP 兜底）。本次为 fork 自增版本，便于追溯 upstream/HEAD 双线时间轴。",
-    "installer": "本次未打包 Electron；上次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
+    "version": "1.6.1",
+    "semverVersion": "1.6.1",
+    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.6.1 = 合并上游 upstream v1.5.8（主题图标按钮 / 火影悬浮控件 / 跨平台默认路径）+ upstream v1.5.9（EVA 官方主题）+ upstream v1.6.0（EVA 浅色 legacy internal-control adapter）+ fork 自有 v1.5.8（七牛 / Grsai 图像 provider 接入与比例化 size）+ fork 自有 v1.5.9（七牛 image-edits size 修复 + grsai gpt-image-2-vip 比例 × 清晰度双控件）。本次 fork 与 upstream phase77/78 编号撞车，fork 原 phase77 重命名为 phase80、原 phase78 重命名为 phase81，新增 phase82 = 合并 upstream v1.6.0 → fork v1.6.1。",
+    "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
       "backend/src/ 任何文件修改后必须重新 npm run encrypt 再打包",
@@ -40,11 +40,11 @@
     "canvasPanel": { "collapsible": true, "defaultOpen": true, "maxHeight": 224 }
   },
   "themes": {
-    "description": "主题模板体系：内置科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格五套模板 × 浅色/深色模式，由 zustand theme store 持久化，data-theme-style + data-theme-mode + data-theme-visual 注入 html 根；新增节点应使用 ThemeToken CSS 变量与通用 t8-* 样式，避免逐节点硬编码主题。",
+    "description": "主题模板体系：内置科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格 / EVA风格六套模板 × 浅色/深色模式，由 zustand theme store 持久化，data-theme-style + data-theme-mode + data-theme-visual 注入 html 根；新增节点应使用 ThemeToken CSS 变量与通用 t8-* 样式，避免逐节点硬编码主题。",
     "templateSystem": {
       "schema": "t8-theme-template",
       "version": 2,
-      "defaultPath": "D:\\zhenzhen\\theme-templates",
+      "defaultPath": "按平台由 backend/src/config.js 计算：Windows D:\\zhenzhen\\theme-templates，macOS/Linux ~/zhenzhen/theme-templates",
       "settingsKey": "themeTemplatePath",
       "backendRoute": "/api/themes/templates",
       "editable": true,
@@ -55,6 +55,9 @@
         "所有主题必须提供 light/dark 两套 ThemeTokens，禁止只改色不校验明暗可读性",
         "新增 UI 优先使用 --t8-* / --theme-* CSS 变量和 .t8-themed-* 规范类，节点外壳交给 nodeFrame 自动适配",
         "端口、MiniMap、控制条、顶部栏、侧边栏、GroupBox、弹窗、资源库等全局组件必须跟随模板视觉，不允许单独只适配某个节点",
+        "小型纯图标按钮必须使用 t8-mini-icon-button 或等价固定尺寸类，不能直接复用大号胶囊 t8-btn/px-btn，否则 OP、像素糖果等强风格主题会把按钮撑大变形",
+        "本地保存、资源库、主题模板等默认路径必须由 backend/src/config.js 统一按平台计算，前端不得再次硬编码 D:\\zhenzhen；非 Windows 旧默认值由 settings 路由迁移，用户自定义路径不得覆盖",
+        "官方主题浅色模式必须检查并覆盖老节点内部暗色工具类，如 text-white/*、bg-white/*、border-white/*、cyan/violet 标签和状态色，避免只改外壳导致字段、参数或实际发送文字不可读",
         "主题风格化元素使用 visuals.style / iconPack / canvasPattern / nodeFrame / headerMark 表达，避免把某个 IP 或图案写死在业务组件里",
         "自定义模板导入时必须通过 validateTheme/后端 normalizeTemplate，过滤未知枚举、过长字段和非法音乐 URL"
       ],
@@ -70,7 +73,8 @@
           "op-style": "op-battle-scars.mp3",
           "rh-style": "rh-tide.mp3",
           "rh-hidden": "rh-hidden-saya.mp3",
-          "naruto-style": "naruto-shinsei-gyakuten.mp3"
+          "naruto-style": "naruto-shinsei-gyakuten.mp3",
+          "eva-style": "eva-decisive-battle.mp3"
         },
         "rule": "主题音乐默认静音，通常只在用户主动点击播放按钮后播放；RH 主题隐藏模式是唯一例外，会自动切换隐藏音乐并解除静音。模板编辑器支持上传替换，导出模板可携带 data:audio/*。"
       }
@@ -145,6 +149,19 @@
           "headerMark": "KONOHA"
         },
         "music": "naruto-shinsei-gyakuten.mp3"
+      },
+      "eva": {
+        "label": "EVA风格",
+        "description": "新世纪福音战士指挥所视觉模板：初号机紫、荧光同步绿、警戒橙红、MAGI 雷达、AT Field 几何纹理和装甲面板；MiniMap、SHIFT 剪线和主题音乐均需有独立识别。",
+        "default": false,
+        "visuals": {
+          "style": "eva",
+          "iconPack": "eva",
+          "canvasPattern": "eva-grid",
+          "nodeFrame": "eva-panel",
+          "headerMark": "EVA"
+        },
+        "music": "eva-decisive-battle.mp3"
       }
     },
     "defaultStyle": "pixel",
@@ -233,8 +250,12 @@
     "phase74": { "label": "RH 主题音乐与隐藏模式自动播放 (v1.5.5)", "status": "complete", "items": ["RH 风格默认音乐正式替换为 src/assets/theme-music/rh-tide.mp3，对应用户提供的潮鸣音频；隐藏模式音乐新增 src/assets/theme-music/rh-hidden-saya.mp3，对应用户提供的沙耶之歌主题音频。", "ThemeMusic 类型新增 hiddenTitle / hiddenUrl / hiddenVolume，defaultTemplates 内置 RH 模板改为 URL 音频源并声明隐藏模式备用曲目。", "ThemeMusicToggle 监听 hiddenFeatures.rhDuckUploadIds：RH 隐藏模式开启时自动切换隐藏音乐并解除静音播放；关闭隐藏模式时，如果不是用户手动播放，则自动停止，避免普通 RH 主题意外继续响。", "ThemeTemplateManager 与 backend/src/routes/themes.js 保留隐藏音乐字段，主题模板编辑、保存、导入、导出不会丢失 hiddenTitle / hiddenUrl / hiddenVolume。", "_post_build.cjs 校验五首内置主题音乐 mp3，包含 classic-one-summer-day、pixel-theme-of-sss、op-battle-scars、rh-tide、rh-hidden-saya，防止 Electron 用户包漏带音频资源。", "公开版本同步到 1.5.5：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
     "phase75": { "label": "火影忍者官方主题 (v1.5.6)", "status": "complete", "items": ["新增第五套内置官方主题「火影忍者风格」，提供 light/dark 两套 ThemeTokens，整体使用热血橙红、卷轴纸、查克拉蓝和焦黑暗色，不走胶囊糖果风。", "主题模板协议扩展 visuals.style=naruto、iconPack=naruto、canvasPattern=chakra、nodeFrame=shinobi-scroll，并在前端类型、后端导入校验、主题编辑器和内置模板中同步白名单。", "新增 theme-naruto.css 全局视觉层，覆盖顶部栏木叶护额品牌、侧边栏卷轴纸、画布 chakra 纹理、节点卷轴卡片、端口、手里剑连线、MiniMap、Controls、音乐按钮、GroupBox 和主题预览。", "Sidebar 图标包新增 naruto 映射，为上传、输出、图像、视频、音频、RunningHub、工具箱、素材集等节点提供更接近忍者战斗主题的图标语义。", "火影主题默认音乐改为 src/assets/theme-music/naruto-shinsei-gyakuten.mp3，主题音乐按钮默认静音，用户可在主题模板编辑器中上传替换。", "SHIFT 划线断连和连线中点断开按钮接入主题化切断标志：科技风能量刃、像素风像素剑、OP 风格弯刀、RH 风格断链、火影风格手里剑。", "公开版本同步到 1.5.6：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 与 docs/theme-design-guide.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
     "phase76": { "label": "文本分割段落语义与素材集图像工具兼容 (v1.5.7)", "status": "complete", "items": ["宫格剪裁的上游合集批量拆分继续兼容上传素材多图，同时新增资源库素材集子素材解析：后端 /api/image/* 的图像源解析支持 /api/resources/file/:id 与 /api/resources/set-file/:id/:index，资源库整套插入的素材集也可直接逐张宫格切分。", "图像源解析增加同应用 URL pathname 归一化和资源库路径边界校验，只允许解析资源库数据库声明的 fileRel，避免浏览器可预览但 sharp 后端无法读取的路径断层。", "文本分割按段落模式语义修正：只有至少一个空行才切为新段落，普通换行会保留在同一段里；按行模式继续逐行切分，二者行为重新区分。", "TextSplitNode 的按段落帮助文案同步更新，并将 TEXT_SPLIT_ALGO_VERSION 升到 5，使旧节点缓存的 segmentsOverride 在算法变化后自动失效。", "README 功能亮点同步说明宫格剪裁兼容资源库素材集，以及文本分割按段落 / 按行的边界；公开版本同步到 1.5.7：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
-    "phase77": { "label": "七牛云 / Grsai 图像 provider 接入与比例化 size 选择（fork 自有 · v1.5.8）", "status": "complete", "items": ["fork 自有特性，原以 v1.5.6 编号本地开发；合并上游 v1.5.7 后整体上行到 v1.5.8 对外。", "新增七牛云图像 provider：独立 qiniuApiKey + qiniuBaseUrl（与贞贞工坊完全解耦），走 OpenAI 兼容协议（POST /v1/images/generations 文生图，POST /v1/images/edits 图生图，GET /v1/images/tasks/:tid 异步轮询），子模型 gemini-3.1-flash-image-preview（默认）与 openai/gpt-image-2；前端 src/integrations/qiniu/ 独立 runner 与参数面板，后端 /api/proxy/qiniu/image[/submit|/status/:tid] 三条代理路由（pollMaxRetries=1800/2s = 60 分钟上限）。", "新增 Grsai 中转站图像 provider：独立 grsaiApiKey + grsaiBaseUrl，自有协议（非 OpenAI 兼容）POST /v1/api/generate → GET /v1/api/result，11 个子模型（9 个 nano-banana 系列 + 2 个 gpt-image-2 系列），前端 src/integrations/grsai/ 独立 runner 与参数面板，后端 /api/proxy/grsai/image[/submit|/status/:tid] 三条代理路由。", "Grsai 默认子模型从 nano-banana-2 改为 gpt-image-2，apiModelOptions 标签同步加 (默认) 标记。", "size / 比例下拉统一改为比例显示（auto + 14 个），不再向用户暴露像素串；新增 integrations/qiniu/sizeMap.ts 与 integrations/grsai/sizeMap.ts 各自维护按 apiModel 分组的比例集合 + 比例 → 像素串映射器。", "七牛云比例集合按子模型分组：gemini-3.1-flash-image-preview 全 14 个 + auto；openai/gpt-image-2 仅 10 个 ≤3:1 比例 + auto（文档约束「长边/短边 ≤ 3:1」，排除 1:4 / 4:1 / 1:8 / 8:1）。", "Grsai 比例集合按子模型分组：nano-banana / nano-banana-pro 系列 11 通用比例；nano-banana-2 系列 11 + 4 极端（1:4 / 4:1 / 1:8 / 8:1）；gpt-image-2 / gpt-image-2-vip 11 通用比例（gpt-image-2-vip 上游强制像素串，runner 提交前完成 ratio → 像素串转换）。", "比例 → 像素串转换规则：5 个文档「常用 size」直接映射（1:1 → 1024x1024，3:2 → 1536x1024，2:3 → 1024x1536，16:9 → 2048x1152，9:16 → 1152x2048），其它比例按 1MP 目标 + 16px 对齐 + 长边 ≤3840 计算；'auto' 透传；旧画布的像素串值兼容直通；vip 路径下 'auto' 退化到 1024x1024。", "ImageNode 子模型 onChange 与 switchModel 同时按新 apiModel 的允许集合校验已存比例值，越界则迁移到 DEFAULT_QINIU_RATIO / DEFAULT_GRSAI_RATIO，避免跨子模型残留非法选项触发上游报错。", "七牛 / Grsai 参数面板 UI 与 GPT2 面板对齐：去掉外层 sky / violet 颜色边框，使用 grid grid-cols-2 简洁布局；标签全部中文化（Quality → 质量，Size → 比例，AspectRatio → 比例，ImageSize → 尺寸）。", "fork 公开版本对外统一到 1.5.8：package.json、package-lock.json、vite.config.ts、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/CLAUDE.md、src/integrations/README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
-    "phase78": { "label": "七牛 image-edits size 修复 + Grsai gpt-image-2-vip 双控件 (v1.5.9)", "status": "complete", "items": ["修复七牛 openai/gpt-image-2 图生图 size 字段被守卫过滤的问题（backend/src/routes/proxy.js 的 callQiniuImageUpstream 历史实现 if (!hasRefs) body.size = ... 把图生图分支的 size 显式拦下了），改为无条件 body.size = size || 'auto'；日志占位符 body.size || '(edit)' 换为直接打印 body.size。", "新增七牛 openai/gpt-image-2 的 1K/2K/4K 清晰度档：QiniuImageTab 在该 apiModel 下显示第三列下拉，sizeMap 三档独立 DOC_PRESETS_BY_RES 预设表，未命中按目标像素 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29MP 兜底；旧画布无 qiniuResolution 默认 1K。", "新增 Grsai gpt-image-2-vip 的「比例 × 清晰度」双控件：sizeMap 新增 GrsaiResolution / RES_TO_TARGET_PIXELS / DOC_PRESETS_BY_RES（按上游文档铺 14 比例 × 3 档完整预设表，1:3 / 3:1 在 2K 档由 computeVipSize 4MP 兜底）；vip 比例列表新增 1:3 / 3:1 / 2:1 / 1:2 共 4 个 vip 独有比例并去掉 auto（旧画布残留 'auto' → 1024x1024）；GrsaiImageTab 触发条件改为 nano-banana 系列 + isGptImage2VipModel；runGrsaiImage 把 imageSize 透传给 resolveGrsaiAspectRatio，日志同时打印 ratio 与 imageSize。", "公开版本对外统一到 1.5.9：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/integrations/README.md、src/integrations/grsai/README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] }
+    "phase77": { "label": "主题图标按钮、火影悬浮控件与跨平台默认路径 (v1.5.8)", "status": "complete", "items": ["新增通用 t8-mini-icon-button 小图标按钮语义类，固定 inline-flex、方形比例、line-height 和 SVG 收束，给后续主题区分纯图标按钮与普通文字按钮。", "OutputNode 图像对比入口、ImageCompareModal 关闭按钮、ResourceLibraryDrawer 关闭/收藏/资源卡片操作按钮、CanvasManager 新建画布加号统一接入 t8-mini-icon-button。", "OP 主题新增图标按钮适配层：px-btn--icon、resource-card-action、t8-theme-music-toggle 和 t8-mini-icon-button 在深色/浅色模式下保持小圆按钮，不再被通用 t8-btn/px-btn 悬赏令胶囊样式撑大。", "火影 MiniMap 修正为 absolute 并重置 top/left，避免护额雷达跑到左上角；Controls、ThemeMusicToggle 与 MiniMap 下移并按 RH 风格的底部悬浮位置对齐。", "默认本地保存、画布自动保存、资源库与主题模板路径改由 backend/src/config.js 按平台统一计算：Windows 保持 D:\\zhenzhen，macOS/Linux 使用 ~/zhenzhen。", "settings 路由新增非 Windows 旧默认路径迁移，只迁移精确等于 D:\\zhenzhen / resources / theme-templates 的历史硬编码默认值，用户自定义路径不覆盖。", "前端 apiKeys 默认路径清空，由 /api/settings 回填后端平台默认值；设置弹窗提示同步说明跨平台默认路径策略。", "README 与 features.json 同步补充主题悬浮控件和跨平台路径规范；公开版本同步到 1.5.8：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase78": { "label": "EVA 官方主题 (v1.5.9)", "status": "complete", "items": ["新增第六套内置官方主题「EVA风格」，提供 light/dark 两套 ThemeTokens，核心视觉为初号机紫、荧光同步绿、警戒橙红、MAGI 指挥所面板和 AT Field 几何纹理。", "主题模板协议扩展 visuals.style=eva、iconPack=eva、canvasPattern=eva-grid、nodeFrame=eva-panel，并在前端类型、后端导入校验、主题编辑器和内置模板中同步白名单。", "新增 theme-eva.css 全局视觉层，覆盖顶部栏 EVA/MAGI 品牌、侧边栏、画布 AT Field 水印、节点装甲卡片、端口、同步连线、MAGI RADAR 小地图、Controls、GroupBox、主题音乐按钮和主题预览。", "Sidebar 图标包新增 eva 映射，为上传、输出、图像、视频、音频、RunningHub、工具箱、素材集等节点提供更接近指挥所/监控台的图标语义。", "SHIFT 划线断连接入 EVA Prog Knife 风格：定义 --t8-cut-cursor、--t8-cut-button-mask、--t8-cut-color、--t8-cut-track，并让连线中点标记呈现同步菱形。", "EVA 主题默认音乐复制到 src/assets/theme-music/eva-decisive-battle.mp3，ThemeMusicToggle 增加 eva-sync 合成兜底，_post_build.cjs 校验 Electron 包会打入该 mp3。", "公开版本同步到 1.5.9：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 与 docs/theme-design-guide.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase79": { "label": "EVA 浅色可读性修复 (v1.6.0)", "status": "complete", "items": ["theme-eva.css 增加 EVA light legacy internal-control adapter，统一覆盖老节点内部遗留的 text-white/*、bg-white/*、border-white/*、cyan/violet 标签和状态色。", "RH钱包应用、RunningHub、图像、视频、LLM 等仍使用暗色 Tailwind 工具类的节点，在 EVA 浅色模式下会映射到主题主文字、弱文字、同步绿/警戒红和浅面板背景。", "主题设计规范补充：官方主题不能只检查外壳、端口和背景，也必须检查节点内部标题条、参数标签、实际发送、错误提示、表单与按钮在 light/dark 两种模式下的可读性。", "浏览器验证：切换到 EVA + light 后，RH钱包应用字段标题、Webapp ID、参数与实际发送不再白字漂浮；npm run build 通过。", "公开版本同步到 1.6.0：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 与 docs/theme-design-guide.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase80": { "label": "七牛云 / Grsai 图像 provider 接入与比例化 size 选择（fork 自有 · 原 phase77 · v1.5.8 fork 自增 / 注：与 upstream v1.5.8 phase77 主题图标按钮 同号不同事）", "status": "complete", "items": ["fork 自有特性，原以 v1.5.6 编号本地开发；合并上游 v1.5.7 后整体上行到 v1.5.8 对外。v1.6.1 merge upstream 时本 phase 从 phase77 重命名为 phase80，避免与 upstream phase77 撞 JSON key。", "新增七牛云图像 provider：独立 qiniuApiKey + qiniuBaseUrl（与贞贞工坊完全解耦），走 OpenAI 兼容协议（POST /v1/images/generations 文生图，POST /v1/images/edits 图生图，GET /v1/images/tasks/:tid 异步轮询），子模型 gemini-3.1-flash-image-preview（默认）与 openai/gpt-image-2；前端 src/integrations/qiniu/ 独立 runner 与参数面板，后端 /api/proxy/qiniu/image[/submit|/status/:tid] 三条代理路由（pollMaxRetries=1800/2s = 60 分钟上限）。", "新增 Grsai 中转站图像 provider：独立 grsaiApiKey + grsaiBaseUrl，自有协议（非 OpenAI 兼容）POST /v1/api/generate → GET /v1/api/result，11 个子模型（9 个 nano-banana 系列 + 2 个 gpt-image-2 系列），前端 src/integrations/grsai/ 独立 runner 与参数面板，后端 /api/proxy/grsai/image[/submit|/status/:tid] 三条代理路由。", "Grsai 默认子模型从 nano-banana-2 改为 gpt-image-2，apiModelOptions 标签同步加 (默认) 标记。", "size / 比例下拉统一改为比例显示（auto + 14 个），不再向用户暴露像素串；新增 integrations/qiniu/sizeMap.ts 与 integrations/grsai/sizeMap.ts 各自维护按 apiModel 分组的比例集合 + 比例 → 像素串映射器。", "七牛云比例集合按子模型分组：gemini-3.1-flash-image-preview 全 14 个 + auto；openai/gpt-image-2 仅 10 个 ≤3:1 比例 + auto（文档约束「长边/短边 ≤ 3:1」，排除 1:4 / 4:1 / 1:8 / 8:1）。", "Grsai 比例集合按子模型分组：nano-banana / nano-banana-pro 系列 11 通用比例；nano-banana-2 系列 11 + 4 极端（1:4 / 4:1 / 1:8 / 8:1）；gpt-image-2 / gpt-image-2-vip 11 通用比例（gpt-image-2-vip 上游强制像素串，runner 提交前完成 ratio → 像素串转换）。", "比例 → 像素串转换规则：5 个文档「常用 size」直接映射（1:1 → 1024x1024，3:2 → 1536x1024，2:3 → 1024x1536，16:9 → 2048x1152，9:16 → 1152x2048），其它比例按 1MP 目标 + 16px 对齐 + 长边 ≤3840 计算；'auto' 透传；旧画布的像素串值兼容直通；vip 路径下 'auto' 退化到 1024x1024。", "ImageNode 子模型 onChange 与 switchModel 同时按新 apiModel 的允许集合校验已存比例值，越界则迁移到 DEFAULT_QINIU_RATIO / DEFAULT_GRSAI_RATIO，避免跨子模型残留非法选项触发上游报错。", "七牛 / Grsai 参数面板 UI 与 GPT2 面板对齐：去掉外层 sky / violet 颜色边框，使用 grid grid-cols-2 简洁布局；标签全部中文化（Quality → 质量，Size → 比例，AspectRatio → 比例，ImageSize → 尺寸）。", "fork 公开版本对外统一到 1.5.8：package.json、package-lock.json、vite.config.ts、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/CLAUDE.md、src/integrations/README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase81": { "label": "七牛 image-edits size 修复 + Grsai gpt-image-2-vip 双控件（fork 自有 · 原 phase78 · v1.5.9 fork 自增 / 注：与 upstream v1.5.9 phase78 EVA 主题 同号不同事）", "status": "complete", "items": ["v1.6.1 merge upstream 时本 phase 从 phase78 重命名为 phase81，避免与 upstream phase78 撞 JSON key。", "修复七牛 openai/gpt-image-2 图生图 size 字段被守卫过滤的问题（backend/src/routes/proxy.js 的 callQiniuImageUpstream 历史实现 if (!hasRefs) body.size = ... 把图生图分支的 size 显式拦下了），改为无条件 body.size = size || 'auto'；日志占位符 body.size || '(edit)' 换为直接打印 body.size。", "新增七牛 openai/gpt-image-2 的 1K/2K/4K 清晰度档：QiniuImageTab 在该 apiModel 下显示第三列下拉，sizeMap 三档独立 DOC_PRESETS_BY_RES 预设表，未命中按目标像素 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29MP 兜底；旧画布无 qiniuResolution 默认 1K。", "新增 Grsai gpt-image-2-vip 的「比例 × 清晰度」双控件：sizeMap 新增 GrsaiResolution / RES_TO_TARGET_PIXELS / DOC_PRESETS_BY_RES（按上游文档铺 14 比例 × 3 档完整预设表，1:3 / 3:1 在 2K 档由 computeVipSize 4MP 兜底）；vip 比例列表新增 1:3 / 3:1 / 2:1 / 1:2 共 4 个 vip 独有比例并去掉 auto（旧画布残留 'auto' → 1024x1024）；GrsaiImageTab 触发条件改为 nano-banana 系列 + isGptImage2VipModel；runGrsaiImage 把 imageSize 透传给 resolveGrsaiAspectRatio，日志同时打印 ratio 与 imageSize。", "fork 公开版本对外统一到 1.5.9（fork 自增）：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/integrations/README.md、src/integrations/grsai/README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] },
+    "phase82": { "label": "合并 upstream v1.6.0 → fork v1.6.1（EVA 主题三合一 + fork 七牛/grsai 自有）", "status": "complete", "items": ["fetch upstream T8mars/T8-penguin-canvas，pull 上游 2 个新 commit：3c23dcd v1.5.8 主题图标按钮 / 跨平台默认路径 / 火影悬浮控件，bd29a27 v1.6.0 EVA 浅色对比度修复；含 upstream v1.5.9 EVA 官方主题首发。", "merge upstream/main → 出 8 个冲突文件（package.json / package-lock.json / vite.config.ts/js / electron/main.cjs / backend/src/config.js / features.json / README.md），其它业务文件 100% auto-merge 成功。", "版本号决策 v1.6.1：fork 自增模式（与 v1.5.7→v1.5.8 一致），fork 永远高 upstream 半档便于追溯。", "phase JSON key 撞号修复：fork 原 phase77（七牛/Grsai 接入 v1.5.8）重命名为 phase80；fork 原 phase78（七牛 size 修复 + grsai 双控件 v1.5.9）重命名为 phase81；新增本 phase82 作为合并 anchor。", "fork 自有目录 100% 保留：src/integrations/qiniu/ + src/integrations/grsai/ + 中转站/ + CLAUDE.md 根/子目录 + 七牛/grsai 子 README 完全未触及。", "公开版本对外统一到 1.6.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"] }
   },
   "categories": {
     "input": {

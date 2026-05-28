@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-label="NERV wordmark">
+  <defs>
+    <linearGradient id="redInk" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#d51c2d"/>
+      <stop offset="0.55" stop-color="#a40f1d"/>
+      <stop offset="1" stop-color="#6f0711"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(104 92)">
+    <text
+      x="0"
+      y="250"
+      fill="url(#redInk)"
+      font-family="Georgia, 'Times New Roman', serif"
+      font-size="250"
+      font-weight="800"
+      letter-spacing="-18"
+    >NERV</text>
+    <path d="M22 286 H890" stroke="#9f111f" stroke-width="10" stroke-linecap="square"/>
+    <path d="M22 306 H226" stroke="#d51c2d" stroke-width="4" stroke-linecap="square"/>
+    <path d="M636 306 H890" stroke="#d51c2d" stroke-width="4" stroke-linecap="square"/>
+    <g fill="#a40f1d">
+      <path d="M111 294 C128 329 127 356 111 373 C95 356 94 328 111 294 Z"/>
+      <path d="M378 294 C394 326 393 350 378 366 C363 350 362 326 378 294 Z"/>
+      <path d="M712 294 C729 330 727 358 711 376 C695 357 696 330 712 294 Z"/>
+    </g>
+    <g fill="#d51c2d">
+      <circle cx="111" cy="388" r="8"/>
+      <circle cx="378" cy="380" r="7"/>
+      <circle cx="712" cy="392" r="9"/>
+    </g>
+  </g>
+</svg>

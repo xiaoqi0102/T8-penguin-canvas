@@ -49,27 +49,71 @@ const DEFAULT_SETTINGS = {
   },
 };
 
+const CURRENT_DEFAULT_PATHS = {
+  fileSavePath: config.DEFAULT_LOCAL_SAVE_DIR,
+  canvasAutoSavePath: config.DEFAULT_CANVAS_AUTO_SAVE_DIR,
+  resourceLibraryPath: config.DEFAULT_RESOURCE_LIBRARY_DIR,
+  themeTemplatePath: config.DEFAULT_THEME_TEMPLATE_DIR,
+};
+
+const LEGACY_DEFAULT_PATHS = {
+  fileSavePath: config.LEGACY_WINDOWS_DEFAULT_ROOT,
+  canvasAutoSavePath: config.LEGACY_WINDOWS_DEFAULT_ROOT,
+  resourceLibraryPath: `${config.LEGACY_WINDOWS_DEFAULT_ROOT}\\resources`,
+  themeTemplatePath: `${config.LEGACY_WINDOWS_DEFAULT_ROOT}\\theme-templates`,
+};
+
 // 分类 key 字段列表（供 GET 脱敏与 POST 合并使用）
 const CLASSIFIED_KEY_FIELDS = [
   'gptImageApiKey', 'nanoBananaApiKey', 'mjApiKey', 'veoApiKey',
   'grokApiKey', 'seedanceApiKey', 'sunoApiKey',
 ];
 
+function normalizePathForCompare(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[\\/]+$/, '')
+    .replace(/\\/g, '/')
+    .toLowerCase();
+}
+
+function migrateLegacyDefaultPaths(settings) {
+  if (process.platform === 'win32') {
+    return { settings, changed: false };
+  }
+  let changed = false;
+  const next = { ...settings };
+  for (const field of Object.keys(CURRENT_DEFAULT_PATHS)) {
+    const current = String(next[field] || '').trim();
+    if (!current) continue;
+    if (normalizePathForCompare(current) === normalizePathForCompare(LEGACY_DEFAULT_PATHS[field])) {
+      next[field] = CURRENT_DEFAULT_PATHS[field];
+      changed = true;
+    }
+  }
+  return { settings: next, changed };
+}
+
 function maskKey(k) {
   return k ? '****' + String(k).slice(-4) : '';
 }
 
-function loadSettings() {
+function loadSettings({ persistMigrations = true } = {}) {
   if (!fs.existsSync(config.SETTINGS_FILE)) return { ...DEFAULT_SETTINGS };
   try {
     const data = JSON.parse(fs.readFileSync(config.SETTINGS_FILE, 'utf-8'));
     // 强制 base URL 与配置一致(防篡改)
-    return {
+    const merged = {
       ...DEFAULT_SETTINGS,
       ...data,
       zhenzhenBaseUrl: config.ZHENZHEN_BASE_URL,
       llmBaseUrl: config.ZHENZHEN_BASE_URL,
     };
+    const migrated = migrateLegacyDefaultPaths(merged);
+    if (persistMigrations && migrated.changed) {
+      saveSettings(migrated.settings);
+    }
+    return migrated.settings;
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

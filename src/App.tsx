@@ -253,6 +253,7 @@ function App() {
   const isOp = currentTemplate.visuals?.style === 'op';
   const isRh = currentTemplate.visuals?.style === 'rh';
   const isNaruto = currentTemplate.visuals?.style === 'naruto';
+  const isEva = currentTemplate.visuals?.style === 'eva';
 
   const handleAddNode = (type: NodeType) => {
     addNodeRef.current?.(type);
@@ -289,7 +290,7 @@ function App() {
     <div
       className={`t8-app-shell h-screen flex flex-col overflow-hidden ${
         isPixel ? '' : isDark ? 'bg-zinc-950 text-white' : 'bg-zinc-50 text-zinc-900'
-      } ${isOp ? 't8-app-shell--op' : ''} ${isRh ? 't8-app-shell--rh' : ''} ${isNaruto ? 't8-app-shell--naruto' : ''}`}
+      } ${isOp ? 't8-app-shell--op' : ''} ${isRh ? 't8-app-shell--rh' : ''} ${isNaruto ? 't8-app-shell--naruto' : ''} ${isEva ? 't8-app-shell--eva' : ''}`}
       style={{ background: 'var(--t8-bg-app)', color: 'var(--t8-text-main)' }}
     >
       {/* 头部状态栏 */}
@@ -345,6 +346,21 @@ function App() {
                   SHINOBI CHAKRA CANVAS
                 </div>
               </div>
+            </div>
+          ) : isEva ? (
+            <div className="t8-eva-brand flex items-center gap-2">
+              <span className="t8-eva-brand__mark" aria-hidden="true">
+                <span className="t8-eva-brand__core" />
+              </span>
+              <div className="min-w-0">
+                <h1 className="t8-eva-brand__title text-[14px] font-black leading-none">
+                  EVA · 贞贞的无限画布
+                </h1>
+                <div className="t8-eva-brand__sub text-[9px] font-bold tracking-wide leading-none mt-0.5">
+                  NERV HQ - TOKYO-3 / MAGI SYSTEM ONLINE
+                </div>
+              </div>
+              <span className="t8-eva-brand__sync" aria-hidden="true">SYSTEM STATUS: ONLINE</span>
             </div>
           ) : isPixel ? (
             <>
