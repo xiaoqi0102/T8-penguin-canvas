@@ -2,7 +2,7 @@
 
 > 目的：把每个第三方 provider 的改动**集中**到独立子目录，让上游主项目（fork 来源）更新时合并冲突最小化。
 >
-> 工作流：fork → 加 provider → 上游更新 → `git merge upstream/main` → 几乎零冲突（已在 v1.5.5、v1.5.8 两次合并实战验证；v1.5.8 时上游 v1.5.7 与 fork 的 Qiniu/Grsai 仅在 8 个版本号文件冲突，业务源码零冲突）。
+> 工作流：fork → 加 provider → 上游更新 → `git merge upstream/main` → 几乎零冲突（已在 v1.5.5、v1.5.8 两次合并实战验证；v1.5.8 时上游 v1.5.7 与 fork 的 Qiniu/Grsai 仅在 8 个版本号文件冲突，业务源码零冲突）。v1.5.9 起在 fork 自有的七牛 / grsai 双 provider 上同时落地了「比例 × 清晰度」双控件（七牛 openai/gpt-image-2 + grsai gpt-image-2-vip）。
 
 ---
 
@@ -282,7 +282,7 @@ UI 一律只显示比例（与其他子模型一致），由 `grsai/sizeMap.ts` 
 - runner 层：`runQiniuImage.ts` 读 `d.qiniuResolution`（缺省补 `'1K'`），调 `ratioToQiniuSize(ratio, resolution)` 转上游可识别的像素串；日志同时打印 `ratio` 与 `resolution` 便于排错。
 - sizeMap 层：三档目标像素 `1K = 1 MP / 2K = 4 MP / 4K = 8.29 MP`；每档独立 `DOC_PRESETS_BY_RES` 文档预设表（命中文档值直接用），未命中按目标像素计算 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29 MP 兜底。
 - 兼容性：旧画布无 `qiniuResolution` 字段 → 默认 `'1K'` + 1K 档预设保留 v1.5.6 全部 5 项映射，**完全不影响 v1.5.6/v1.5.8 旧画布的输出**。
-- 接其它 provider 时是否要复制这套机制：只有上游同时支持多个清晰度档（且文档列出对应像素串）的子模型才有意义；如 grsai `gpt-image-2-vip` 上游协议本质相同，但本次范围未同步处理（v1.5.9 仅修七牛）。
+- 接其它 provider 时是否要复制这套机制：只有上游同时支持多个清晰度档（且文档列出对应像素串）的子模型才有意义；grsai `gpt-image-2-vip` 上游协议本质相同，v1.5.9 已同步落地（详见 `grsai/README.md` §五、§六）。
 
 **Q12：v1.5.8 之前的「七牛图生图 size 不生效」是什么坑？怎么修的？**
 `backend/src/routes/proxy.js` 的 `callQiniuImageUpstream` 在历史实现里写了 `if (!hasRefs) body.size = size || 'auto';`，**显式过滤掉了图生图分支的 size 字段**——本意是按「OpenAI 兼容协议下 `/v1/images/edits` 不带 size」的猜测做的安全过滤，但七牛 `openai/gpt-image-2` 上游实际接受 size。v1.5.9 去掉该守卫，改成无条件 `body.size = size || 'auto'`；同时把日志里 `body.size || '(edit)'` 的占位符换成直接打印 `body.size`，运维能从日志直接核对透传值。`sizeMap.ts` 顶部「`/v1/images/edits` 不接受 size 参数」的旧注释同步删除。**这是 v1.5.9 的核心修复**，旧画布只要重新生图即可生效。

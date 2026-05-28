@@ -190,6 +190,7 @@ graph TD
 | 日期 | 变更 |
 |---|---|
 | 2026-05-27 | 初次生成 CLAUDE.md（根 + src + backend + electron）；扫描覆盖率 ~100%（所有源码模块） |
+| 2026-05-28 | v1.5.9：七牛 `openai/gpt-image-2` image-edits size 修复 + 1K/2K/4K 清晰度档；grsai `gpt-image-2-vip` 「比例 × 清晰度」双控件（`sizeMap` 按上游文档铺 14 比例 × 3 档预设表，1:3/3:1 在 2K 档由 `computeVipSize` 4MP 兜底；vip 比例列表去 auto + 加 1:3/3:1/2:1/1:2 共 4 项 vip 独有比例） |
 
 ---
 

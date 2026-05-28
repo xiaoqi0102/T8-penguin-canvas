@@ -7,12 +7,12 @@
  *   - 上游路径统一 POST /v1/api/generate（不分文/图生图，靠 images[] 区分）
  *   - 字段驼峰：aspectRatio / imageSize / replyType
  *   - 状态枚举：succeeded / running / failed / violation
- *   - imageSize 仅 nano-banana 系列读取（gpt-image-2 系列后端会忽略）
- *   - gpt-image-2-vip 必须传像素串，不接受比例字符串
+ *   - imageSize 仅 nano-banana 系列上送给上游（gpt-image-2 系列后端会忽略）
+ *   - gpt-image-2-vip 必须传像素串，由 resolveGrsaiAspectRatio(ratio, model, imageSize) 本地查表 / 计算
  */
 import { submitGrsaiImage, queryGrsaiImageStatus, type GrsaiImageSubmitRequest } from '../../services/generation';
 import { logBus } from '../../stores/logs';
-import { resolveGrsaiAspectRatio } from './sizeMap';
+import { resolveGrsaiAspectRatio, isGptImage2VipModel, type GrsaiResolution } from './sizeMap';
 
 export interface RunGrsaiImageParams {
   /** 节点 id，仅用于日志 src 命名空间 */
@@ -29,7 +29,7 @@ export interface RunGrsaiImageParams {
   update: (patch: any) => void;
 }
 
-/** 判断 model 是否属于 nano-banana 系列（这些 model 才会读 imageSize） */
+/** 判断 model 是否属于 nano-banana 系列（这些 model 才会把 imageSize 上送上游） */
 function isNanoBananaSeries(model: string): boolean {
   return /^nano-banana/i.test(String(model || ''));
 }
@@ -37,9 +37,9 @@ function isNanoBananaSeries(model: string): boolean {
 export async function runGrsaiImage({ id, apiModel, finalPrompt, allRefs, d, update }: RunGrsaiImageParams) {
   const src = `image:${id.slice(0, 6)}`;
   const rawRatio = String(d?.grsaiAspectRatio || 'auto');
-  // UI 存比例字符串；gpt-image-2-vip 上游强制像素串，由 resolveGrsaiAspectRatio 转换
-  const aspectRatio = resolveGrsaiAspectRatio(rawRatio, apiModel);
-  const imageSize = (d?.grsaiImageSize || '1K') as '1K' | '2K' | '4K';
+  const imageSize = (d?.grsaiImageSize || '1K') as GrsaiResolution;
+  // UI 存比例字符串；gpt-image-2-vip 上游强制像素串，由 resolveGrsaiAspectRatio 按 imageSize 档转换
+  const aspectRatio = resolveGrsaiAspectRatio(rawRatio, apiModel, imageSize);
 
   const req: GrsaiImageSubmitRequest = {
     model: apiModel,
@@ -50,8 +50,10 @@ export async function runGrsaiImage({ id, apiModel, finalPrompt, allRefs, d, upd
   // gpt-image-2 系列上游会忽略 imageSize；仅 nano-banana 系列透传，避免误传
   if (isNanoBananaSeries(apiModel)) req.imageSize = imageSize;
 
+  // 日志：nano-banana 与 vip 都打印 imageSize 便于排错；普通 gpt-image-2 不打印（无意义）
+  const logSize = isNanoBananaSeries(apiModel) || isGptImage2VipModel(apiModel) ? ` imageSize=${imageSize}` : '';
   logBus.info(
-    `Grsai提交: model=${apiModel} ratio=${rawRatio} aspectRatio=${aspectRatio}${req.imageSize ? ' imageSize=' + req.imageSize : ''} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
+    `Grsai提交: model=${apiModel} ratio=${rawRatio} aspectRatio=${aspectRatio}${logSize} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
     src,
   );
 
