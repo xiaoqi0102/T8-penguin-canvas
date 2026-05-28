@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -21,7 +21,7 @@ import {
   type EdgeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Play, Copy, CopyPlus, Trash2, FolderPlus, PackagePlus, Library } from 'lucide-react';
+import { Play, Copy, CopyPlus, Trash2, FolderPlus, PackagePlus, Library, Download } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useCanvasStore } from '../stores/canvas';
 import { useThemeStore } from '../stores/theme';
@@ -38,7 +38,7 @@ import {
   rectOf,
   type Rect as PlacementRect,
 } from '../utils/nodePlacement';
-import { createUploadDataFromItems, type MediaItem, type MediaKind } from '../utils/mediaCollection';
+import { createUploadDataFromItems, fileNameFromUrl, getMediaItemsFromData, type MediaItem, type MediaKind } from '../utils/mediaCollection';
 import {
   collectMaterialSetBucketsFromData,
   isMaterialSetKind,
@@ -49,6 +49,7 @@ import {
   type MaterialSetKind,
 } from '../utils/materialSet';
 import * as api from '../services/api';
+import { logBus } from '../stores/logs';
 import CanvasToolbar from './CanvasToolbar';
 import TerminalPanel from './TerminalPanel';
 import NodeActionBar from './NodeActionBar';
@@ -250,6 +251,7 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
   // 从合集获取: 默认 image + 第 1 个
   'pick-from-set': { pickKind: 'image', pickIndex: 1 },
   'image-compare': { mode: 'slider', align: 'contain', split: 50, opacity: 50, threshold: 24 },
+  'drawing-board': { boardRatio: '16:9', boardWidth: 960, boardHeight: 540, boardElements: [], boardColor: '#111827', boardStrokeSize: 5 },
   'grid-crop': { rows: 3, cols: 3, gap: 0 },
 };
 
@@ -261,7 +263,7 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   'video', 'seedance', 'audio', 'llm', 'runninghub', 'runninghub-wallet',
   // v1.2.10.1: rh-tools 与 RunningHub 同质，同样可被批量运行调起
   'rh-tools',
-  'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine', 'image-compare',
+  'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine', 'image-compare', 'drawing-board',
   'frame-extractor', 'frame-pair',
   'upload',
   // v1.2.8 工具节点 (循环器 / 从合集获取)
@@ -745,6 +747,86 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
       setNodes((prev) => [...prev.map((node) => ({ ...node, selected: false })), newNode]);
     },
     [getMaterialSetMergeCandidate, screenToFlowPosition],
+  );
+
+  const getDownloadableItemsFromNodes = useCallback((ids: string[]): MediaItem[] => {
+    const out: MediaItem[] = [];
+    const seen = new Set<string>();
+    const push = (item: MediaItem) => {
+      const url = typeof item.url === 'string' ? item.url.trim() : '';
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      out.push({
+        ...item,
+        url,
+        name: item.name || fileNameFromUrl(url),
+      });
+    };
+
+    for (const node of nodesRef.current) {
+      if (!ids.includes(node.id) || node.type === 'groupBox') continue;
+      for (const kind of ['image', 'video', 'audio'] as MediaKind[]) {
+        getMediaItemsFromData(node.data, kind).forEach(push);
+      }
+      const buckets = collectMaterialSetBucketsFromData(node.data);
+      for (const kind of ['image', 'video', 'audio'] as MediaKind[]) {
+        buckets[kind].forEach((item) => {
+          if (!item.url) return;
+          push({
+            kind,
+            url: item.url,
+            name: item.name,
+            size: item.size,
+            mime: item.mime,
+          });
+        });
+      }
+    }
+
+    return out;
+  }, []);
+
+  const downloadMaterialItem = useCallback(async (item: MediaItem, index: number) => {
+    const fallbackName = `${item.kind}-${index + 1}`;
+    const fileName = item.name || fileNameFromUrl(item.url) || fallbackName;
+    try {
+      const res = await fetch(item.url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+    } catch {
+      const a = document.createElement('a');
+      a.href = item.url;
+      a.download = fileName;
+      a.target = '_blank';
+      a.rel = 'noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }, []);
+
+  const handleBatchDownloadSelected = useCallback(
+    async (ids: string[]) => {
+      const items = getDownloadableItemsFromNodes(ids);
+      if (items.length === 0) {
+        logBus.warn('所选节点没有可下载素材', '批量下载');
+        return;
+      }
+      for (let i = 0; i < items.length; i += 1) {
+        await downloadMaterialItem(items[i], i);
+        await new Promise((resolve) => window.setTimeout(resolve, 80));
+      }
+      logBus.success(`已触发 ${items.length} 个素材下载`, '批量下载');
+    },
+    [downloadMaterialItem, getDownloadableItemsFromNodes],
   );
 
   const handleCanvasPointerMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -3023,21 +3105,21 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
             </svg>
           </ViewportPortal>
         )}
-        <ThemeMusicToggle template={currentTemplate} />
-        <Controls
-          style={{
-            background: isOp
-              ? themeTokens.panelBg
-              : isDark ? 'rgba(20,20,22,.9)' : 'rgba(255,255,255,.9)',
-            border: isOp
-              ? `3px solid ${themeTokens.textMain}`
-              : `1px solid ${isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.08)'}`,
-            borderRadius: isOp ? '16px 16px 8px 8px' : 8,
-            left: isOp ? 18 : undefined,
-            bottom: isOp ? 34 : undefined,
-            boxShadow: isOp ? `4px 4px 0 ${themeTokens.textMain}` : undefined,
-          }}
-        />
+        <div className="t8-control-rail nodrag nopan" data-canvas-floating-ui="control-rail">
+          <ThemeMusicToggle template={currentTemplate} />
+          <Controls
+            style={{
+              background: isOp
+                ? themeTokens.panelBg
+                : isDark ? 'rgba(20,20,22,.9)' : 'rgba(255,255,255,.9)',
+              border: isOp
+                ? `3px solid ${themeTokens.textMain}`
+                : `1px solid ${isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.08)'}`,
+              borderRadius: isOp ? '16px 16px 8px 8px' : 8,
+              boxShadow: isOp ? `4px 4px 0 ${themeTokens.textMain}` : undefined,
+            }}
+          />
+        </div>
         <MiniMap
           pannable
           zoomable
@@ -3101,53 +3183,28 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
           />
           <div
             data-canvas-floating-ui="picker-menu"
-            className="fixed z-40 rounded-xl overflow-hidden"
+            className="fixed z-40 overflow-hidden t8-context-menu t8-context-menu--picker"
             style={{
               // 使用 fixed + clientX/clientY (视口坐标) 让菜单精确跟随鼠标释放位置
               left: Math.min(picker.screenPos.x, window.innerWidth - 280),
               top: Math.min(picker.screenPos.y, window.innerHeight - 360),
               width: 260,
               maxHeight: 360,
-              background: isPixel
-                ? '#FFFFFF'
-                : isDark
-                  ? 'rgba(20,20,22,.96)'
-                  : 'rgba(255,255,255,.98)',
-              border: isPixel
-                ? '2px solid #1A1410'
-                : `1px solid ${isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)'}`,
-              boxShadow: isPixel
-                ? '4px 4px 0 #1A1410'
-                : '0 12px 40px rgba(0,0,0,.35)',
-              backdropFilter: 'blur(10px)',
             }}
           >
             <div
-              className="px-3 py-2 text-[11px] font-semibold flex items-center justify-between"
-              style={{
-                color: isPixel ? '#1A1410' : isDark ? '#fff' : '#18181b',
-                borderBottom: isPixel
-                  ? '2px solid #1A1410'
-                  : `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)'}`,
-                background: isPixel ? '#A8E6C9' : 'transparent',
-              }}
+              className="t8-context-menu__header"
             >
               <span>
                 {picker.fromHandleType === 'source' ? '连接到…' : '从…输入'}
               </span>
-              <span
-                className="text-[10px] font-normal opacity-60"
-                style={{ color: isPixel ? '#1A1410' : undefined }}
-              >
+              <span className="text-[10px] font-normal opacity-60">
                 {pickerCandidates.length} 个候选
               </span>
             </div>
             <div className="overflow-y-auto" style={{ maxHeight: 320 }}>
               {pickerCandidates.length === 0 && (
-                <div
-                  className="px-3 py-4 text-[11px] text-center"
-                  style={{ color: isDark ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.4)' }}
-                >
+                <div className="t8-context-menu__empty">
                   没有可连接的节点
                 </div>
               )}
@@ -3158,21 +3215,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
                   <button
                     key={cand.type}
                     onClick={() => handlePickCandidate(cand)}
-                    className="w-full text-left px-3 py-2 flex items-center gap-2 transition-colors"
-                    style={{
-                      background: 'transparent',
-                      color: isPixel ? '#1A1410' : isDark ? '#e4e4e7' : '#27272a',
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = isPixel
-                        ? '#FFE08A'
-                        : isDark
-                          ? 'rgba(255,255,255,.06)'
-                          : 'rgba(0,0,0,.04)';
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = 'transparent';
-                    }}
+                    className="t8-context-menu__item t8-context-menu__item--candidate"
                   >
                     <span
                       className="w-2 h-2 rounded-full flex-shrink-0"
@@ -3231,13 +3274,8 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         const materialSetItems = materialSetKind
           ? normalizeMaterialSetItems((materialSetNode?.data as any)?.materialSetItems, materialSetKind)
           : [];
-        const menuItemCls = isPixel
-          ? 'w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 hover:bg-[var(--px-yellow)] disabled:opacity-40 disabled:hover:bg-transparent'
-          : `w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 disabled:opacity-40 ${
-              isDark
-                ? 'text-zinc-100 hover:bg-white/10 disabled:hover:bg-transparent'
-                : 'text-zinc-800 hover:bg-black/5 disabled:hover:bg-transparent'
-            }`;
+        const downloadableCount = getDownloadableItemsFromNodes(ids).length;
+        const menuItemCls = 't8-context-menu__item';
         return (
           <>
             {/* 遮罩层 */}
@@ -3252,35 +3290,15 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
             />
             <div
               data-canvas-floating-ui="node-menu"
-              className="fixed z-40 overflow-hidden"
+              className="fixed z-40 overflow-hidden t8-context-menu t8-context-menu--selection"
               style={{
                 left: Math.min(contextMenu.x, window.innerWidth - 220),
                 top: Math.min(contextMenu.y, window.innerHeight - 220),
                 width: 200,
-                background: isPixel
-                  ? '#FFFFFF'
-                  : isDark
-                    ? 'rgba(20,20,22,.96)'
-                    : 'rgba(255,255,255,.98)',
-                border: isPixel
-                  ? '2px solid #1A1410'
-                  : `1px solid ${isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)'}`,
-                borderRadius: isPixel ? 12 : 8,
-                boxShadow: isPixel
-                  ? '4px 4px 0 #1A1410'
-                  : '0 12px 40px rgba(0,0,0,.35)',
-                backdropFilter: 'blur(10px)',
               }}
             >
               <div
-                className="px-3 py-2 text-[11px] font-semibold flex items-center justify-between"
-                style={{
-                  color: isPixel ? '#1A1410' : isDark ? '#fff' : '#18181b',
-                  borderBottom: isPixel
-                    ? '2px solid #1A1410'
-                    : `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)'}`,
-                  background: isPixel ? '#A8E6C9' : 'transparent',
-                }}
+                className="t8-context-menu__header"
               >
                 <span>已选 {ids.length} 个节点</span>
                 <span className="text-[10px] font-normal opacity-60">
@@ -3353,6 +3371,18 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
               )}
               <button
                 className={menuItemCls}
+                disabled={downloadableCount === 0}
+                title={downloadableCount > 0 ? `下载所选节点中的 ${downloadableCount} 个素材` : '所选节点没有可下载素材'}
+                onClick={() => {
+                  closeContextMenu();
+                  void handleBatchDownloadSelected(ids);
+                }}
+              >
+                <Download size={13} />
+                <span>批量下载 ({downloadableCount})</span>
+              </button>
+              <button
+                className={menuItemCls}
                 onClick={() => {
                   closeContextMenu();
                   handleCopy();
@@ -3372,12 +3402,11 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
                 <span>快速复制 (Ctrl+D)</span>
               </button>
               <button
-                className={menuItemCls}
+                className={`${menuItemCls} t8-context-menu__item--danger`}
                 onClick={() => {
                   closeContextMenu();
                   handleDeleteSelected();
                 }}
-                style={{ color: isPixel ? '#B91C1C' : '#f87171' }}
               >
                 <Trash2 size={13} />
                 <span>删除 (Delete)</span>
@@ -3397,11 +3426,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
           violet: '#c4b5fd', emerald: '#6ee7b7', cyan: '#67e8f9', indigo: '#a5b4fc',
           orange: '#fdba74', pink: '#f9a8d4', slate: '#cbd5e1', teal: '#5eead4',
         };
-        const itemCls = isPixel
-          ? 'w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 hover:bg-[var(--px-yellow)]'
-          : `w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 ${
-              isDark ? 'text-zinc-100 hover:bg-white/10' : 'text-zinc-800 hover:bg-black/5'
-            }`;
+        const itemCls = 't8-context-menu__item';
         return (
           <>
             {/* 遮罩层 */}
@@ -3416,32 +3441,14 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
             />
             <div
               data-canvas-floating-ui="pane-menu"
-              className="fixed z-40 overflow-hidden"
+              className="fixed z-40 overflow-hidden t8-context-menu t8-context-menu--quick-add"
               style={{
                 left: Math.min(paneMenu.x, window.innerWidth - 220),
                 top: Math.min(paneMenu.y, window.innerHeight - 360),
                 width: 200,
-                background: isPixel
-                  ? '#FFFFFF'
-                  : isDark ? 'rgba(20,20,22,.96)' : 'rgba(255,255,255,.98)',
-                border: isPixel
-                  ? '2px solid #1A1410'
-                  : `1px solid ${isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)'}`,
-                borderRadius: isPixel ? 12 : 8,
-                boxShadow: isPixel ? '4px 4px 0 #1A1410' : '0 12px 40px rgba(0,0,0,.35)',
-                backdropFilter: 'blur(10px)',
               }}
             >
-              <div
-                className="px-3 py-2 text-[11px] font-semibold"
-                style={{
-                  color: isPixel ? '#1A1410' : isDark ? '#fff' : '#18181b',
-                  borderBottom: isPixel
-                    ? '2px solid #1A1410'
-                    : `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)'}`,
-                  background: isPixel ? '#A8E6C9' : 'transparent',
-                }}
-              >
+              <div className="t8-context-menu__header">
                 快速添加节点
               </div>
               {QUICK_NODES.map((meta) => {
@@ -3458,15 +3465,8 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
                     }}
                   >
                     <span
-                      className="flex items-center justify-center"
-                      style={{
-                        width: 22, height: 22,
-                        borderRadius: isPixel ? 5 : 6,
-                        background: isPixel ? color : `${color}33`,
-                        color: isPixel ? '#1A1410' : color,
-                        border: isPixel ? '2px solid #1A1410' : 'none',
-                        flexShrink: 0,
-                      }}
+                      className="t8-context-menu__node-icon"
+                      style={{ '--t8-menu-icon-color': color } as CSSProperties}
                     >
                       <Icon size={13} />
                     </span>

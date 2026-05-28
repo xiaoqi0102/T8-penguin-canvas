@@ -315,6 +315,11 @@ html[data-theme-visual="eva"] .t8-sidebar .px-btn--icon {
 }
 
 html[data-theme-visual="eva"] .t8-canvas-shell {
+  --t8-floating-control-left: 14px;
+  --t8-floating-control-bottom: 12px;
+  --t8-flow-controls-height: 132px;
+  --t8-floating-control-gap: 10px;
+  --t8-theme-music-size: 30px;
   position: relative;
   overflow: hidden;
   background:
@@ -353,9 +358,17 @@ html[data-theme-visual="eva"] .t8-canvas-shell::after {
   pointer-events: none;
 }
 
+html[data-theme-visual="eva"][data-theme-mode="dark"] .t8-canvas-shell::after {
+  opacity: 0.62;
+  mix-blend-mode: normal;
+  filter:
+    drop-shadow(0 0 10px color-mix(in srgb, var(--eva-red) 26%, transparent))
+    drop-shadow(0 0 24px color-mix(in srgb, var(--eva-red) 14%, transparent));
+}
+
 html[data-theme-visual="eva"] .react-flow {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 html[data-theme-visual="eva"] .react-flow__background {
@@ -841,14 +854,6 @@ html[data-theme-visual="eva"] .t8-group-box__handle {
 }
 
 html[data-theme-visual="eva"] .t8-theme-music-toggle {
-  left: 14px !important;
-  right: auto !important;
-  top: auto !important;
-  bottom: 140px !important;
-  width: 30px !important;
-  height: 30px !important;
-  min-width: 30px !important;
-  min-height: 30px !important;
   padding: 0 !important;
   border: 1px solid var(--eva-red) !important;
   border-radius: 0 !important;
@@ -918,4 +923,22 @@ html[data-theme-visual="eva"] .resource-library-drawer {
   top: 0;
   height: 5px;
   background: repeating-linear-gradient(135deg, var(--eva-red) 0 9px, #160708 9px 18px);
+}
+
+html[data-theme-visual="eva"] .t8-context-menu {
+  --t8-context-menu-bg: color-mix(in srgb, var(--eva-panel-2, #0a1110) 96%, transparent);
+  --t8-context-menu-border: 1px solid var(--eva-red, #ff3046);
+  --t8-context-menu-radius: 4px;
+  --t8-context-menu-shadow: 0 0 0 1px color-mix(in srgb, var(--eva-green, #78ff4d) 24%, transparent), 0 18px 46px rgba(0, 0, 0, 0.5);
+  --t8-context-menu-header-bg: repeating-linear-gradient(135deg, var(--eva-red, #ff3046) 0 12px, #160708 12px 24px);
+  --t8-context-menu-header-text: #fff3e0;
+  --t8-context-menu-item-text: var(--t8-text-main, #ecffe8);
+  --t8-context-menu-item-hover: color-mix(in srgb, var(--eva-green, #78ff4d) 16%, transparent);
+  --t8-context-menu-divider: 1px solid color-mix(in srgb, var(--eva-red, #ff3046) 48%, transparent);
+}
+
+html[data-theme-visual="eva"] .t8-node-action-bar {
+  --t8-actionbar-bg: color-mix(in srgb, var(--eva-panel-2, #0a1110) 94%, transparent);
+  --t8-actionbar-border: 1px solid var(--eva-red, #ff3046);
+  --t8-actionbar-shadow: 0 0 0 1px color-mix(in srgb, var(--eva-green, #78ff4d) 22%, transparent), 0 10px 30px rgba(0, 0, 0, 0.42);
 }

@@ -55,6 +55,117 @@ body,
   height: 100%;
 }
 
+/* Theme canvas contract:
+   - theme watermarks live on the shell background layer, never above nodes
+   - theme music and ReactFlow controls share one left rail and vertical stack */
+.t8-canvas-shell {
+  --t8-floating-control-left: 14px;
+  --t8-floating-control-bottom: 12px;
+  --t8-flow-controls-height: 132px;
+  --t8-floating-control-gap: 10px;
+  --t8-theme-music-size: 32px;
+  --t8-theme-music-left-offset: 0px;
+  position: relative;
+  isolation: isolate;
+}
+
+.t8-canvas-shell::before,
+.t8-canvas-shell::after {
+  pointer-events: none;
+  z-index: 0;
+}
+
+html[data-theme-visual] .t8-canvas-shell::before,
+html[data-theme-visual] .t8-canvas-shell::after,
+.t8-canvas-shell[data-theme-visual]::before,
+.t8-canvas-shell[data-theme-visual]::after {
+  z-index: 0 !important;
+  pointer-events: none !important;
+}
+
+.t8-canvas-shell > .react-flow {
+  position: relative;
+  z-index: 2 !important;
+}
+
+.t8-canvas-shell .react-flow__background {
+  z-index: 0 !important;
+}
+
+.t8-canvas-shell .react-flow__edges {
+  z-index: 2 !important;
+}
+
+.t8-canvas-shell .react-flow__nodes {
+  z-index: 3 !important;
+}
+
+.t8-canvas-shell .react-flow__node {
+  isolation: isolate;
+}
+
+html[data-theme-visual] .t8-canvas-shell .react-flow__controls,
+.t8-canvas-shell[data-theme-visual] .react-flow__controls {
+  left: var(--t8-floating-control-left, 14px) !important;
+  bottom: var(--t8-floating-control-bottom, 12px) !important;
+}
+
+html[data-theme-visual] .t8-canvas-shell .t8-theme-music-toggle,
+.t8-canvas-shell[data-theme-visual] .t8-theme-music-toggle {
+  left: calc(var(--t8-floating-control-left, 14px) + var(--t8-theme-music-left-offset, 0px)) !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: calc(
+    var(--t8-floating-control-bottom, 12px) +
+    var(--t8-flow-controls-height, 132px) +
+    var(--t8-floating-control-gap, 10px)
+  ) !important;
+  width: var(--t8-theme-music-size, 32px) !important;
+  height: var(--t8-theme-music-size, 32px) !important;
+  min-width: var(--t8-theme-music-size, 32px) !important;
+  min-height: var(--t8-theme-music-size, 32px) !important;
+}
+
+.t8-control-rail {
+  position: absolute;
+  left: var(--t8-floating-control-left, 14px);
+  bottom: var(--t8-floating-control-bottom, 12px);
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--t8-floating-control-gap, 10px);
+  pointer-events: all;
+}
+
+html[data-theme-visual] .t8-canvas-shell .t8-control-rail,
+.t8-canvas-shell[data-theme-visual] .t8-control-rail {
+  left: var(--t8-floating-control-left, 14px) !important;
+  bottom: var(--t8-floating-control-bottom, 12px) !important;
+}
+
+html[data-theme-visual] .t8-canvas-shell .t8-control-rail .t8-theme-music-toggle,
+.t8-canvas-shell[data-theme-visual] .t8-control-rail .t8-theme-music-toggle {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  flex: 0 0 auto !important;
+}
+
+html[data-theme-visual] .t8-canvas-shell .t8-control-rail .react-flow__controls,
+.t8-canvas-shell[data-theme-visual] .t8-control-rail .react-flow__controls {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  transform: none !important;
+  flex: 0 0 auto !important;
+}
+
 /* === xyflow 内置保留 type 名防御 ===
    xyflow 在 style.css 中会对 .react-flow__node-input / -output / -default / -group
    这几个“内置节点类型”自动套上默认样式:
@@ -105,6 +216,85 @@ body,
 }
 .resource-card:hover {
   transform: translateY(-1px);
+}
+
+.resource-card-preview-trigger {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 6;
+  inline-size: 28px !important;
+  block-size: 28px !important;
+  min-inline-size: 28px !important;
+  min-block-size: 28px !important;
+  padding: 0 !important;
+  border: 1px solid var(--t8-border-strong, rgba(255, 255, 255, 0.32));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--t8-bg-panel, #111827) 72%, transparent);
+  color: var(--t8-text-main, #f8fafc);
+  box-shadow: var(--t8-shadow-button, 0 8px 20px rgba(0, 0, 0, 0.26));
+  opacity: 0;
+  transform: translateY(-3px) scale(0.92);
+  transition: opacity 160ms ease, transform 160ms ease, background 160ms ease, color 160ms ease;
+  backdrop-filter: blur(8px);
+}
+
+.resource-library-drawer .resource-card .resource-card-preview-trigger {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  inline-size: 28px !important;
+  block-size: 28px !important;
+  min-inline-size: 28px !important;
+  min-block-size: 28px !important;
+}
+
+.resource-card:hover .resource-card-preview-trigger,
+.resource-card-preview-trigger:hover,
+.resource-card-preview-trigger:focus-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.resource-card-preview-trigger:hover,
+.resource-card-preview-trigger:focus-visible {
+  background: var(--t8-accent, #38bdf8);
+  color: var(--t8-accent-text, #031522);
+}
+
+.resource-card-image-hover-preview {
+  position: fixed;
+  z-index: 80;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(380px, calc(100vh - 24px));
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid var(--t8-border-strong, rgba(255, 255, 255, 0.18));
+  border-radius: 10px;
+  background: var(--t8-bg-panel-elevated, var(--t8-bg-panel, #111827));
+  color: var(--t8-text-main, #f8fafc);
+  box-shadow: var(--t8-shadow-panel, 0 18px 50px rgba(0, 0, 0, 0.38));
+  pointer-events: none;
+}
+
+.resource-card-image-hover-preview img {
+  display: block;
+  width: 100%;
+  max-height: 324px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #050505;
+}
+
+.resource-card-image-hover-preview__title {
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--t8-text-muted, rgba(248, 250, 252, 0.72));
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 极细无感滚动条(科技风) */
@@ -508,11 +698,15 @@ html[data-theme-visual="op"] .t8-group-box__handle {
 /* 主题模板默认音乐按钮：默认静音，用户点击后才播放。 */
 .t8-theme-music-toggle {
   position: absolute;
-  left: 13px;
-  bottom: 132px;
+  left: calc(var(--t8-floating-control-left, 14px) + var(--t8-theme-music-left-offset, 0px));
+  bottom: calc(
+    var(--t8-floating-control-bottom, 12px) +
+    var(--t8-flow-controls-height, 132px) +
+    var(--t8-floating-control-gap, 10px)
+  );
   z-index: 12;
-  width: 32px;
-  height: 32px;
+  width: var(--t8-theme-music-size, 32px);
+  height: var(--t8-theme-music-size, 32px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -578,11 +772,143 @@ html[data-theme-visual="op"] .t8-group-box__handle {
   pointer-events: none;
 }
 
+.t8-context-menu {
+  background: var(--t8-context-menu-bg, color-mix(in srgb, var(--t8-bg-panel-elevated, #111827) 96%, transparent));
+  color: var(--t8-text-main, #f8fafc);
+  border: var(--t8-context-menu-border, 1.5px solid var(--t8-border-strong, rgba(255, 255, 255, 0.16)));
+  border-radius: var(--t8-context-menu-radius, 10px);
+  box-shadow: var(--t8-context-menu-shadow, var(--t8-shadow-panel, 0 18px 50px rgba(0, 0, 0, 0.36)));
+  backdrop-filter: var(--t8-context-menu-backdrop, blur(10px));
+}
+
+.t8-context-menu__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--t8-context-menu-header-text, var(--t8-text-main, #f8fafc));
+  background: var(--t8-context-menu-header-bg, color-mix(in srgb, var(--t8-accent, #38bdf8) 18%, var(--t8-bg-panel, #111827)));
+  border-bottom: var(--t8-context-menu-divider, 1px solid var(--t8-border, rgba(255, 255, 255, 0.12)));
+}
+
+.t8-context-menu__item {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--t8-context-menu-item-text, var(--t8-text-main, #f8fafc));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+
+.t8-context-menu__item:hover:not(:disabled),
+.t8-context-menu__item:focus-visible:not(:disabled) {
+  outline: none;
+  background: var(--t8-context-menu-item-hover, color-mix(in srgb, var(--t8-accent, #38bdf8) 18%, transparent));
+}
+
+.t8-context-menu__item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.t8-context-menu__item--danger {
+  color: var(--t8-danger, #ef4444) !important;
+}
+
+.t8-context-menu__empty {
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--t8-text-dim, rgba(148, 163, 184, 0.75));
+}
+
+.t8-context-menu__node-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: var(--t8-menu-icon-color, var(--t8-accent, #38bdf8));
+  background: color-mix(in srgb, var(--t8-menu-icon-color, var(--t8-accent, #38bdf8)) 20%, var(--t8-bg-panel, #111827));
+  border: 1px solid color-mix(in srgb, var(--t8-menu-icon-color, var(--t8-accent, #38bdf8)) 48%, transparent);
+}
+
+.t8-node-action-bar {
+  --t8-actionbar-bg: color-mix(in srgb, var(--t8-bg-panel-elevated, #111827) 94%, transparent);
+  --t8-actionbar-border: 1px solid var(--t8-border-strong, rgba(255, 255, 255, 0.18));
+  --t8-actionbar-shadow: var(--t8-shadow-button, 0 8px 24px rgba(0, 0, 0, 0.34));
+}
+
+.llm-chat-message {
+  min-height: 28px;
+}
+
+.llm-chat-action-button {
+  position: absolute;
+  top: 4px;
+  width: 23px;
+  min-width: 23px;
+  height: 23px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--t8-border-strong, rgba(255, 255, 255, 0.22));
+  background: color-mix(in srgb, var(--t8-bg-panel-elevated, #111827) 88%, transparent);
+  color: var(--t8-accent, #38bdf8);
+  box-shadow: var(--t8-shadow-button, 0 8px 18px rgba(0, 0, 0, 0.24));
+  opacity: 0.78;
+  cursor: pointer;
+}
+
+.llm-chat-action-button--single {
+  right: 31px;
+}
+
+.llm-chat-action-button--smart {
+  right: 4px;
+}
+
+.llm-chat-action-button:hover,
+.llm-chat-action-button:focus-visible {
+  opacity: 1;
+  outline: none;
+  background: var(--t8-accent, #38bdf8);
+  color: var(--t8-accent-text, #031522);
+}
+
+html[data-theme-visual="pixel"] .t8-context-menu {
+  --t8-context-menu-bg: #ffffff;
+  --t8-context-menu-border: 2px solid var(--px-ink, #1A1410);
+  --t8-context-menu-radius: 12px;
+  --t8-context-menu-shadow: 4px 4px 0 var(--px-ink, #1A1410);
+  --t8-context-menu-backdrop: none;
+  --t8-context-menu-header-bg: var(--px-candy-mint, #A8E6C9);
+  --t8-context-menu-header-text: var(--px-ink, #1A1410);
+  --t8-context-menu-item-text: var(--px-ink, #1A1410);
+  --t8-context-menu-item-hover: var(--px-yellow, #FFE08A);
+  --t8-context-menu-divider: 2px solid var(--px-ink, #1A1410);
+}
+
+html[data-theme-visual="pixel"] .t8-context-menu__node-icon {
+  border: 2px solid var(--px-ink, #1A1410);
+  color: var(--px-ink, #1A1410);
+  background: var(--t8-menu-icon-color, var(--px-candy-mint, #A8E6C9));
+}
+
 html[data-theme-style="pixel"] .t8-theme-music-toggle {
-  left: 14px;
-  bottom: 136px;
-  width: 34px;
-  height: 34px;
+  --t8-theme-music-size: 34px;
   border: var(--px-border-w, 2px) solid var(--px-ink, #1A1410);
   border-radius: 999px;
   background: var(--px-yellow, #FFE08A);
@@ -602,10 +928,7 @@ html[data-theme-style="pixel"] .t8-theme-music-toggle.is-playing {
 }
 
 html[data-theme-visual="op"] .t8-theme-music-toggle {
-  left: 32px;
-  bottom: 171px;
-  width: 34px;
-  height: 34px;
+  --t8-theme-music-size: 34px;
   border: 3px solid var(--op-ink, #2b1b10);
   border-radius: 999px;
   background:

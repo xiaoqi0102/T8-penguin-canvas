@@ -1,12 +1,14 @@
 import { memo, useCallback, useMemo, useRef, useState, useLayoutEffect } from 'react';
-import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
+import { Handle, Position, useReactFlow, type Node, type NodeProps } from '@xyflow/react';
 import {
   AlertCircle,
   Brain,
+  FileText,
   Image as ImageIcon,
   Loader2,
   Plus,
   Save,
+  Scissors,
   Send,
   Square,
   Trash2,
@@ -32,6 +34,8 @@ import MaterialPreviewSection from './MaterialPreviewSection';
 import { useThemeStore } from '../../stores/theme';
 import MentionPromptInput from './MentionPromptInput';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
+import { splitText } from '../../utils/textSplit';
+import { defaultSizeOf, placeBatchNodes, type Rect as PlacementRect } from '../../utils/nodePlacement';
 
 /**
  * LLM / Vision 节点 —— 完全对齐 gpt-image-2-web Chat (index.html L1600 / L8128~L8400)
@@ -93,9 +97,44 @@ function attachWheelBlock(el: HTMLElement | null) {
   );
 }
 
+const LLM_REPLY_BLOCK_RE = /^\s*(?:#{1,6}\s+|[-*]\s+|>\s*)?(?:\*\*)?(?:宫格|镜头|分镜|场景|画面|提示词|方案|Scene|Shot)\s*(?:第\s*)?(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]+)?\s*(?:[:：、.)）\-—]\s*)?/i;
+const LLM_REPLY_NUMBER_RE = /^\s*(?:\d{1,4}|[一二三四五六七八九十百千万零〇两]+)\s*[.、)）:：\-—]\s+\S/;
+
+function splitAssistantReplyForScatter(input: string): string[] {
+  const text = String(input || '').replace(/\r\n?/g, '\n').replace(/[\u2028\u2029]/g, '\n').trim();
+  if (!text) return [];
+
+  const lines = text.split('\n');
+  const blocks: string[] = [];
+  let current: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const probe = trimmed.replace(/^\*\*/, '').replace(/\*\*:?$/, '');
+    const startsBlock =
+      LLM_REPLY_BLOCK_RE.test(probe) ||
+      LLM_REPLY_NUMBER_RE.test(probe) ||
+      /^[-*]\s+\S/.test(trimmed);
+    if (startsBlock && current.length > 0) {
+      blocks.push(current.join('\n').trim());
+      current = [];
+    }
+    current.push(line);
+  }
+  if (current.length > 0) blocks.push(current.join('\n').trim());
+  const structured = blocks.filter(Boolean);
+  if (structured.length > 1) return structured;
+
+  const fallbacks = [
+    splitText(text, { mode: 'storyboard', removeEmpty: true, trim: true }),
+    splitText(text, { mode: 'paragraph', removeEmpty: true, trim: true }),
+    splitText(text, { mode: 'line', removeEmpty: true, trim: true }),
+  ];
+  return fallbacks.find((parts) => parts.length > 1) || [text];
+}
+
 const LLMNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
-  const { getEdges, getNodes } = useReactFlow();
+  const { getEdges, getNodes, getNode, addNodes } = useReactFlow();
   const [error, setError] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState('');
   const [presetMap, setPresetMap] = useState<Record<string, string>>(() => loadPresets());
@@ -367,6 +406,45 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
       setEditingIdx(null);
     }
   };
+
+  const scatterAssistantText = useCallback((text: string, mode: 'smart' | 'single' = 'smart') => {
+    const normalized = String(text || '').trim();
+    const segments = mode === 'single' ? (normalized ? [normalized] : []) : splitAssistantReplyForScatter(text);
+    if (segments.length === 0) return;
+    const current = getNode(id);
+    const size = defaultSizeOf('text');
+    const baseX = (current?.position.x || 0) + ((current as any)?.measured?.width || (current as any)?.width || 580) + 80;
+    const baseY = (current?.position.y || 0) + 40;
+    const desired: PlacementRect[] = segments.map((_, index) => ({
+      x: baseX + (index % 2) * (size.w + 36),
+      y: baseY + Math.floor(index / 2) * (size.h + 36),
+      w: size.w,
+      h: size.h,
+    }));
+    const offset = placeBatchNodes(desired, getNodes(), {
+      excludeIds: new Set([id]),
+      source: `placement:llm-reply-scatter:${id}`,
+    });
+    const stamp = Date.now();
+    const textNodes: Node[] = segments.map((segment, index) => ({
+      id: `text-llm-${id}-${stamp}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+      type: 'text',
+      position: {
+        x: desired[index].x + offset.dx,
+        y: desired[index].y + offset.dy,
+      },
+      selected: false,
+      data: {
+        prompt: segment,
+        text: segment,
+      },
+    }));
+    addNodes(textNodes);
+    logBus.success(
+      mode === 'single' ? '已生成 1 个完整助手回复文本节点' : `已智能打散 ${segments.length} 段助手回复`,
+      src,
+    );
+  }, [addNodes, getNode, getNodes, id, src]);
 
   // 接入运行总线
   useRunTrigger(id, handleSend);
@@ -690,10 +768,48 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
             </div>
             <div
               onDoubleClick={() => handleDoubleClickMsg(i)}
-              className={`whitespace-pre-wrap text-white/80 bg-white/[0.03] rounded p-1.5 ${
-                t.role === 'assistant' ? 'cursor-pointer hover:bg-white/[0.06] transition-colors' : ''
+              className={`llm-chat-message relative whitespace-pre-wrap text-white/80 bg-white/[0.03] rounded p-1.5 ${
+                t.role === 'assistant' ? 'cursor-pointer hover:bg-white/[0.06] transition-colors pr-14' : ''
               }`}
             >
+              {t.role === 'assistant' && t.text.trim() && (
+                <>
+                  <button
+                    type="button"
+                    className="llm-chat-action-button llm-chat-action-button--single t8-mini-icon-button nodrag nopan"
+                    title="完整生成一个文本节点"
+                    aria-label="完整生成一个助手回复文本节点"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      scatterAssistantText(t.text, 'single');
+                    }}
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
+                    <FileText size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className="llm-chat-action-button llm-chat-action-button--smart t8-mini-icon-button nodrag nopan"
+                    title="智能打散为多个文本节点"
+                    aria-label="智能打散助手回复为多个文本节点"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      scatterAssistantText(t.text, 'smart');
+                    }}
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
+                    <Scissors size={13} />
+                  </button>
+                </>
+              )}
               {t.text || '[空]'}
             </div>
             {t.images && t.images.length > 0 && (

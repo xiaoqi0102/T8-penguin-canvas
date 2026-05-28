@@ -653,3 +653,21 @@ html[data-theme-visual="rh"] .react-flow__edge.rh-duck-edge:hover .react-flow__e
   stroke: var(--rh-duck-red) !important;
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--rh-duck-red) 62%, transparent)) !important;
 }
+
+html[data-theme-visual="rh"] .t8-context-menu {
+  --t8-context-menu-bg: color-mix(in srgb, var(--rh-card, #102310) 96%, transparent);
+  --t8-context-menu-border: 1px solid color-mix(in srgb, var(--rh-lime, #9cff4d) 32%, transparent);
+  --t8-context-menu-radius: 14px;
+  --t8-context-menu-shadow: 0 16px 42px rgba(0, 0, 0, 0.48), 0 0 22px color-mix(in srgb, var(--rh-lime, #9cff4d) 10%, transparent);
+  --t8-context-menu-header-bg: color-mix(in srgb, var(--rh-lime, #9cff4d) 16%, var(--rh-card, #102310));
+  --t8-context-menu-header-text: var(--t8-text-main, #f4ffe8);
+  --t8-context-menu-item-text: var(--t8-text-main, #f4ffe8);
+  --t8-context-menu-item-hover: color-mix(in srgb, var(--rh-lime, #9cff4d) 16%, transparent);
+  --t8-context-menu-divider: 1px solid color-mix(in srgb, var(--rh-lime, #9cff4d) 18%, transparent);
+}
+
+html[data-theme-visual="rh"] .t8-node-action-bar {
+  --t8-actionbar-bg: color-mix(in srgb, var(--rh-card, #102310) 94%, transparent);
+  --t8-actionbar-border: 1px solid color-mix(in srgb, var(--rh-lime, #9cff4d) 40%, transparent);
+  --t8-actionbar-shadow: 0 10px 28px rgba(0, 0, 0, 0.42), 0 0 18px color-mix(in srgb, var(--rh-lime, #9cff4d) 14%, transparent);
+}

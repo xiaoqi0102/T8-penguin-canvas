@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useRunBusStore } from '../stores/runBus';
 
+const activeRunNodeIds = new Set<string>();
+
 /**
  * 节点运行总线监听器
  * 节点在内部调用:`useRunTrigger(id, async () => { await handleGenerate(); })`
@@ -22,25 +24,33 @@ export function useRunTrigger(nodeId: string, runFn: () => Promise<void> | void)
   const runFnRef = useRef(runFn);
   runFnRef.current = runFn;
   const startedRef = useRef(false);
+  const runSeqRef = useRef(0);
 
   useEffect(() => {
     if (!isMyTurn) {
       startedRef.current = false;
+      runSeqRef.current += 1;
+      activeRunNodeIds.delete(nodeId);
       return;
     }
     if (startedRef.current) return;
+    if (activeRunNodeIds.has(nodeId)) return;
+    activeRunNodeIds.add(nodeId);
     startedRef.current = true;
-    let cancelled = false;
+    const seq = ++runSeqRef.current;
+    const isStillRequested = () => {
+      const state = useRunBusStore.getState();
+      return state.currentRunId === nodeId || state.runningIds.includes(nodeId);
+    };
     (async () => {
       try {
         await runFnRef.current();
-        if (!cancelled) markDone(nodeId, true);
+        if (seq === runSeqRef.current && isStillRequested()) markDone(nodeId, true);
       } catch (e: any) {
-        if (!cancelled) markDone(nodeId, false, e?.message);
+        if (seq === runSeqRef.current && isStillRequested()) markDone(nodeId, false, e?.message);
+      } finally {
+        if (seq === runSeqRef.current) activeRunNodeIds.delete(nodeId);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [isMyTurn, nodeId, markDone]);
 }

@@ -907,3 +907,27 @@ html[data-theme-visual="op"] .t8-theme-preview[data-theme-visual="op"] {
   box-shadow: 2px 2px 0 var(--op-ink);
   pointer-events: none;
 }
+
+html[data-theme-visual="op"] .t8-context-menu {
+  --t8-context-menu-bg: color-mix(in srgb, var(--op-paper, #fff3d2) 94%, transparent);
+  --t8-context-menu-border: 2px solid var(--op-ink, #2b1b10);
+  --t8-context-menu-radius: 10px;
+  --t8-context-menu-shadow: 4px 4px 0 var(--op-ink, #2b1b10);
+  --t8-context-menu-backdrop: none;
+  --t8-context-menu-header-bg: linear-gradient(90deg, var(--op-red, #b92828), color-mix(in srgb, var(--op-gold, #d99b16) 72%, var(--op-red, #b92828)));
+  --t8-context-menu-header-text: #fff7dc;
+  --t8-context-menu-item-text: var(--op-ink, #2b1b10);
+  --t8-context-menu-item-hover: color-mix(in srgb, var(--op-gold, #d99b16) 28%, transparent);
+  --t8-context-menu-divider: 2px solid var(--op-ink, #2b1b10);
+}
+
+html[data-theme-visual="op"][data-theme-mode="dark"] .t8-context-menu {
+  --t8-context-menu-bg: color-mix(in srgb, #101820 92%, transparent);
+  --t8-context-menu-item-text: #fff4d0;
+}
+
+html[data-theme-visual="op"] .t8-node-action-bar {
+  --t8-actionbar-bg: color-mix(in srgb, var(--op-paper, #fff3d2) 92%, transparent);
+  --t8-actionbar-border: 2px solid var(--op-ink, #2b1b10);
+  --t8-actionbar-shadow: 3px 3px 0 var(--op-ink, #2b1b10);
+}

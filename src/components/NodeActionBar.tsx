@@ -28,7 +28,7 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   'video', 'seedance', 'audio', 'llm', 'runninghub', 'runninghub-wallet',
     // v1.2.10.1: RH 工具节点
     'rh-tools',
-  'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine', 'image-compare',
+  'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine', 'image-compare', 'drawing-board',
   'frame-extractor', 'frame-pair',
   'upload',
   // v1.2.8 循环器 / 从合集获取
@@ -39,20 +39,31 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
 
 const BAR_GAP_PX = 8; // 与节点顶部的世界坐标系间距
 
+const ACTION_COLORS: Record<string, { run: string; stop: string; close: string }> = {
+  tech: { run: '#22c55e', stop: '#f97316', close: '#ef4444' },
+  pixel: { run: '#4ECDC4', stop: '#FF8F3D', close: '#FF4F6D' },
+  op: { run: '#d99b16', stop: '#ff9d42', close: '#cf2f2f' },
+  rh: { run: '#9cff4d', stop: '#ff9f43', close: '#ff345f' },
+  naruto: { run: '#f4511e', stop: '#f59e0b', close: '#d11d1d' },
+  eva: { run: '#78ff4d', stop: '#ff9d00', close: '#ff3046' },
+};
+
 const NodeActionBar = () => {
   const nodes = useNodes();
   const { x: vx, y: vy, zoom } = useViewport();
   const { setNodes } = useReactFlow();
   const { theme, style, templateId, customTemplates } = useThemeStore();
   const isDark = theme === 'dark';
-  const isPixel = style === 'pixel';
   const activeTemplate = useMemo(
     () => resolveThemeTemplate(templateId, customTemplates),
     [templateId, customTemplates],
   );
+  const visualStyle = activeTemplate.visuals?.style || style;
+  const isPixel = visualStyle === 'pixel';
+  const actionColors = ACTION_COLORS[visualStyle] || ACTION_COLORS.tech;
   const isRhDomVisual =
     typeof document !== 'undefined' && document.documentElement.dataset.themeVisual === 'rh';
-  const isRhVisual = activeTemplate.visuals?.style === 'rh' || isRhDomVisual;
+  const isRhVisual = visualStyle === 'rh' || isRhDomVisual;
 
   const currentRunId = useRunBusStore((s) => s.currentRunId);
   const triggerRun = useRunBusStore((s) => s.triggerRun);
@@ -124,18 +135,14 @@ const NodeActionBar = () => {
   // 科技风: 深色玻璃面板 + 圆角  /  像素风: 硬边 + 硬阴影
   const barBg = isPixel
     ? '#FFFFFF'
-    : isDark
-      ? 'rgba(28,28,32,0.92)'
-      : 'rgba(255,255,255,0.95)';
+    : 'var(--t8-actionbar-bg, rgba(28,28,32,0.92))';
   const barBorder = isPixel
     ? '2px solid #1A1410'
-    : `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`;
+    : 'var(--t8-actionbar-border, 1px solid rgba(255,255,255,0.1))';
   const barRadius = isPixel ? 8 : 10;
   const barShadow = isPixel
     ? '3px 3px 0 #1A1410'
-    : isDark
-      ? '0 6px 24px rgba(0,0,0,0.4)'
-      : '0 6px 24px rgba(0,0,0,0.12)';
+    : 'var(--t8-actionbar-shadow, 0 6px 24px rgba(0,0,0,0.4))';
 
   const onRun = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -185,7 +192,7 @@ const NodeActionBar = () => {
     ? '#ff345f'
     : holdArmed
       ? '#fb7185'
-      : '#22c55e';
+      : actionColors.run;
 
   // 按钮通用样式生成器
   const mkBtn = (kind: 'run' | 'stop' | 'close'): React.CSSProperties => {
@@ -193,8 +200,8 @@ const NodeActionBar = () => {
       kind === 'run'
         ? runColor
         : kind === 'stop'
-          ? '#f97316' // orange-500
-          : '#ef4444'; // red-500
+          ? actionColors.stop
+          : actionColors.close;
     if (isPixel) {
       return {
         display: 'inline-flex',
@@ -238,14 +245,14 @@ const NodeActionBar = () => {
   // hover 增强
   const onEnter = (e: React.MouseEvent, kind: 'run' | 'stop' | 'close') => {
     const color =
-      kind === 'run' ? runColor : kind === 'stop' ? '#f97316' : '#ef4444';
+      kind === 'run' ? runColor : kind === 'stop' ? actionColors.stop : actionColors.close;
     if (isPixel) return;
     (e.currentTarget as HTMLElement).style.background = `${color}33`;
     (e.currentTarget as HTMLElement).style.borderColor = color;
   };
   const onLeave = (e: React.MouseEvent, kind: 'run' | 'stop' | 'close') => {
     const color =
-      kind === 'run' ? runColor : kind === 'stop' ? '#f97316' : '#ef4444';
+      kind === 'run' ? runColor : kind === 'stop' ? actionColors.stop : actionColors.close;
     if (isPixel) return;
     (e.currentTarget as HTMLElement).style.background =
       kind === 'run'
@@ -270,7 +277,8 @@ const NodeActionBar = () => {
       <div
         // 真正的浮动条
         data-node-action-bar
-        className="nodrag nopan"
+        data-theme-visual={visualStyle}
+        className={`nodrag nopan t8-node-action-bar t8-node-action-bar--${visualStyle}`}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}

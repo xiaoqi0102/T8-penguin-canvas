@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Eye,
   FolderPlus,
   FileText,
   Image as ImageIcon,
@@ -62,6 +63,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
   const [items, setItems] = useState<ResourceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
+  const [hoverPreview, setHoverPreview] = useState<{ src: string; title: string; left: number; top: number } | null>(null);
 
   const load = useCallback(async () => {
     if (!open) return;
@@ -163,6 +165,35 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
     await api.updateResourceItem(item.id, { touch: true });
     setMsg('已插入画布');
   };
+
+  const showImagePreview = useCallback((target: HTMLButtonElement, item: ResourceItem) => {
+    const src = item.fileUrl || item.thumbUrl;
+    if (!src) return;
+    const rect = target.getBoundingClientRect();
+    const viewportWidth = window.innerWidth || 1200;
+    const viewportHeight = window.innerHeight || 800;
+    const previewWidth = Math.min(320, Math.max(240, viewportWidth - 24));
+    const previewHeight = 380;
+    const gap = 10;
+    let left = rect.left - previewWidth - gap;
+    if (left < 12) {
+      left = Math.min(rect.right + gap, viewportWidth - previewWidth - 12);
+    }
+    let top = rect.top - 4;
+    if (top + previewHeight > viewportHeight - 12) {
+      top = Math.max(12, viewportHeight - previewHeight - 12);
+    }
+    setHoverPreview({
+      src,
+      title: item.title || '图像预览',
+      left,
+      top,
+    });
+  }, []);
+
+  const hideImagePreview = useCallback(() => {
+    setHoverPreview(null);
+  }, []);
 
   if (!open) return null;
 
@@ -323,7 +354,28 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
               >
                 <div className="relative h-28 overflow-hidden bg-black/80">
                   {item.kind === 'image' && (
-                    <img src={item.thumbUrl || item.fileUrl} className="resource-media w-full h-full object-cover transition-transform duration-200" draggable={false} />
+                    <>
+                      <img
+                        src={item.thumbUrl || item.fileUrl}
+                        alt={item.title}
+                        className="resource-media w-full h-full object-cover transition-transform duration-200"
+                        draggable={false}
+                      />
+                      <button
+                        type="button"
+                        className="nodrag nopan t8-mini-icon-button resource-card-preview-trigger"
+                        title="悬停预览大图"
+                        aria-label="悬停预览大图"
+                        onMouseEnter={(event) => showImagePreview(event.currentTarget, item)}
+                        onMouseLeave={hideImagePreview}
+                        onFocus={(event) => showImagePreview(event.currentTarget, item)}
+                        onBlur={hideImagePreview}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Eye size={13} />
+                      </button>
+                    </>
                   )}
                   {item.kind === 'video' && (
                     <video
@@ -426,6 +478,16 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
           </div>
         </main>
       </div>
+      {hoverPreview && (
+        <div
+          className="resource-card-image-hover-preview"
+          style={{ left: hoverPreview.left, top: hoverPreview.top }}
+          role="presentation"
+        >
+          <img src={hoverPreview.src} alt={hoverPreview.title} draggable={false} />
+          <div className="resource-card-image-hover-preview__title">{hoverPreview.title}</div>
+        </div>
+      )}
     </div>
   );
 }

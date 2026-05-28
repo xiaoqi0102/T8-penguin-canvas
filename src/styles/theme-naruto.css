@@ -301,6 +301,12 @@ html[data-theme-visual="naruto"] .t8-sidebar-node > span:first-child {
 }
 
 html[data-theme-visual="naruto"] .t8-canvas-shell {
+  --t8-floating-control-left: 14px;
+  --t8-floating-control-bottom: 12px;
+  --t8-flow-controls-height: 132px;
+  --t8-floating-control-gap: 10px;
+  --t8-theme-music-size: 30px;
+  --t8-theme-music-left-offset: 24px;
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -342,7 +348,12 @@ html[data-theme-visual="naruto"] .t8-canvas-shell::after {
 
 html[data-theme-visual="naruto"] .react-flow {
   position: relative;
-  z-index: 1;
+  z-index: 3;
+}
+
+html[data-theme-visual="naruto"] .t8-canvas-shell > .react-flow {
+  position: relative;
+  z-index: 3;
 }
 
 html[data-theme-visual="naruto"] .react-flow__renderer,
@@ -371,6 +382,7 @@ html[data-theme-visual="naruto"] .t8-node,
 html[data-theme-visual="naruto"] .t8-card,
 html[data-theme-visual="naruto"] .t8-panel {
   position: relative;
+  isolation: isolate;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--nt-paper) 92%, #fff 8%), var(--nt-paper)) !important;
   border: 3px solid var(--nt-ink) !important;
@@ -392,6 +404,25 @@ html[data-theme-visual="naruto"] .t8-card::before {
   background: linear-gradient(90deg, transparent, var(--nt-fire), var(--nt-chakra), var(--nt-fire), transparent);
   opacity: 0.88;
   pointer-events: none;
+  z-index: 0;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child > :not(.react-flow__handle):not(.react-flow__resize-control):not(.t8-resize-handle),
+html[data-theme-visual="naruto"] .t8-node > :not(.react-flow__handle):not(.react-flow__resize-control):not(.t8-resize-handle),
+html[data-theme-visual="naruto"] .t8-card > :not(.react-flow__handle):not(.react-flow__resize-control):not(.t8-resize-handle),
+html[data-theme-visual="naruto"] .t8-panel > :not(.react-flow__handle):not(.react-flow__resize-control):not(.t8-resize-handle) {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) .react-flow__handle {
+  z-index: 40 !important;
+}
+
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) .react-flow__resize-control,
+html[data-theme-visual="naruto"] .react-flow__node:not(.react-flow__node-groupBox) .t8-resize-handle {
+  position: absolute !important;
+  z-index: 60 !important;
 }
 
 html[data-theme-visual="naruto"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div:first-child {
@@ -702,14 +733,6 @@ html[data-theme-visual="naruto"] .t8-group-box__handle {
 }
 
 html[data-theme-visual="naruto"] .t8-theme-music-toggle {
-  left: 14px !important;
-  right: auto !important;
-  top: auto !important;
-  bottom: 140px !important;
-  width: 30px !important;
-  height: 30px !important;
-  min-width: 30px !important;
-  min-height: 30px !important;
   padding: 0 !important;
   border: 3px solid var(--nt-ink) !important;
   border-radius: 8px !important;
@@ -765,4 +788,28 @@ html[data-theme-visual="naruto"] .resource-library-drawer {
   right: 14px;
   height: 4px;
   background: linear-gradient(90deg, transparent, var(--nt-fire), var(--nt-chakra), transparent);
+}
+
+html[data-theme-visual="naruto"] .t8-context-menu {
+  --t8-context-menu-bg: color-mix(in srgb, var(--nt-paper, #ffe7b0) 96%, transparent);
+  --t8-context-menu-border: 2px solid var(--nt-ink, #241506);
+  --t8-context-menu-radius: 8px;
+  --t8-context-menu-shadow: 4px 4px 0 var(--nt-ink, #241506);
+  --t8-context-menu-backdrop: none;
+  --t8-context-menu-header-bg: linear-gradient(135deg, var(--nt-fire, #f4511e), color-mix(in srgb, var(--nt-fire-hot, #ff8a1f) 80%, var(--nt-fire, #f4511e)));
+  --t8-context-menu-header-text: var(--t8-accent-text, #fff6dc);
+  --t8-context-menu-item-text: var(--nt-ink, #241506);
+  --t8-context-menu-item-hover: color-mix(in srgb, var(--nt-fire, #f4511e) 24%, transparent);
+  --t8-context-menu-divider: 2px solid var(--nt-ink, #241506);
+}
+
+html[data-theme-visual="naruto"][data-theme-mode="dark"] .t8-context-menu {
+  --t8-context-menu-bg: color-mix(in srgb, var(--t8-bg-panel, #2b130a) 96%, transparent);
+  --t8-context-menu-item-text: var(--t8-text-main, #fff1c4);
+}
+
+html[data-theme-visual="naruto"] .t8-node-action-bar {
+  --t8-actionbar-bg: color-mix(in srgb, var(--nt-paper, #ffe7b0) 92%, transparent);
+  --t8-actionbar-border: 2px solid var(--nt-ink, #241506);
+  --t8-actionbar-shadow: 3px 3px 0 var(--nt-ink, #241506);
 }

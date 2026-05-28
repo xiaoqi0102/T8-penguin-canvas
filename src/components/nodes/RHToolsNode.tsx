@@ -22,7 +22,7 @@
  * 主题：useThemeStore（theme=dark/light + style=pixel/tech）
  */
 import { memo, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { Handle, Position, useNodeConnections, useNodesData, type NodeProps } from '@xyflow/react';
+import { Handle, Position, useNodeConnections, useNodesData, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import {
   Sparkles, Search, Plus, Pencil, AlertCircle, Loader2,
   Square, RefreshCw, ArrowLeft, Download, Upload,
@@ -109,8 +109,17 @@ function extractDefaultValue(it: any): string {
 
 const paramKey = (nodeId: any, fieldName: any) => `${nodeId}::${fieldName}`;
 
+type RHToolsPollEntry = {
+  timer: number;
+  promise: Promise<void>;
+};
+
+const activeRHToolsPolls = new Map<string, RHToolsPollEntry>();
+const rhToolsPollKey = (nodeId: string, taskId: string) => `${nodeId}::${taskId}`;
+
 const RHToolsNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
+  const updateNodeInternals = useUpdateNodeInternals();
   const { theme, style: themeStyle } = useThemeStore();
   const isLight = theme === 'light';
   const isPixel = themeStyle === 'pixel';
@@ -169,16 +178,34 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
   // ===================== 运行器侧 hooks (始终调用以保证 hooks 顺序稳定) =====================
   const hasAutoOutput = useHasAutoOutput(id);
   const [error, setError] = useState<string | null>(null);
-  const pollTimer = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+  const currentPollKeyRef = useRef<string | null>(taskId ? rhToolsPollKey(id, taskId) : null);
   const [fetchingInfo, setFetchingInfo] = useState(false);
 
-  const stopPoll = () => {
-    if (pollTimer.current) {
-      window.clearInterval(pollTimer.current);
-      pollTimer.current = null;
+  const setVisibleError = (message: string | null) => {
+    if (mountedRef.current) setError(message);
+  };
+
+  const stopPoll = (tid?: string) => {
+    const key = tid
+      ? rhToolsPollKey(id, tid)
+      : currentPollKeyRef.current || (taskId ? rhToolsPollKey(id, taskId) : null);
+    if (!key) return;
+    const entry = activeRHToolsPolls.get(key);
+    if (entry) {
+      window.clearInterval(entry.timer);
+      activeRHToolsPolls.delete(key);
+    }
+    if (currentPollKeyRef.current === key) {
+      currentPollKeyRef.current = null;
     }
   };
-  useEffect(() => () => stopPoll(), []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // 上游连接（响应式）
   const conns = useNodeConnections({ id, handleType: 'target' });
@@ -440,18 +467,38 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
 
   // Promise 化轮询（让 useRunTrigger 等到任务真正完成才 markDone）
   const startPolling = (tid: string): Promise<void> => {
+    const key = rhToolsPollKey(id, tid);
+    const existing = activeRHToolsPolls.get(key);
+    if (existing) {
+      currentPollKeyRef.current = key;
+      return existing.promise;
+    }
     stopPoll();
-    return new Promise<void>((resolve, reject) => {
+    currentPollKeyRef.current = key;
+    let timer: number | null = null;
+    const promise = new Promise<void>((resolve, reject) => {
       let elapsed = 0;
       const POLL_INT = 5000;
       const MAX = 480;
-      pollTimer.current = window.setInterval(async () => {
+      const finish = (ok: boolean, error?: Error) => {
+        if (timer != null) {
+          window.clearInterval(timer);
+        }
+        if (activeRHToolsPolls.get(key)?.timer === timer) {
+          activeRHToolsPolls.delete(key);
+        }
+        if (currentPollKeyRef.current === key) {
+          currentPollKeyRef.current = null;
+        }
+        if (ok) resolve();
+        else reject(error || new Error('RH 轮询失败'));
+      };
+      timer = window.setInterval(async () => {
         elapsed += 1;
         if (elapsed > MAX) {
-          stopPoll();
           update({ status: 'error', error: '轮询超时' });
-          setError('轮询超时');
-          reject(new Error('轮询超时'));
+          setVisibleError('轮询超时');
+          finish(false, new Error('轮询超时'));
           return;
         }
         try {
@@ -460,7 +507,6 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
             logBus.debug(`[${elapsed * 5}s] status=${r.status} code=${r.code} urls=${r.urls?.length || 0}`, src);
           }
           if (r.status === 'SUCCESS') {
-            stopPoll();
             const list: string[] = Array.isArray(r.urls) ? r.urls : [];
             const isImg = (u: string) => /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(u);
             const isVid = (u: string) => /\.(mp4|webm|mov|m4v|mkv)$/i.test(u);
@@ -475,9 +521,8 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
             if (!firstImg && !firstVid && !firstAud && list[0]) patch.imageUrl = list[0];
             logBus.success(`任务完成 · ${list.length} 个输出 → ${list[0] || ''}`, src);
             update(patch);
-            resolve();
+            finish(true);
           } else if (r.status === 'FAILED') {
-            stopPoll();
             let reason: string;
             if (r.failReason == null) {
               reason = `RH 失败 code=${r.code}`;
@@ -492,9 +537,9 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
               }
             }
             update({ status: 'error', error: reason });
-            setError(reason);
+            setVisibleError(reason);
             logBus.error(`生成失败: ${reason}`, src);
-            reject(new Error(reason));
+            finish(false, new Error(reason));
           } else {
             update({ status: 'polling', rhCode: r.code });
           }
@@ -503,15 +548,19 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
         }
       }, POLL_INT);
     });
+    if (timer != null) {
+      activeRHToolsPolls.set(key, { timer, promise });
+    }
+    return promise;
   };
 
   const handleFetchInfo = async (): Promise<{
     list: any[];
     paramValues: Record<string, { value: string; sourceFromUpstream?: boolean }>;
   } | null> => {
-    setError(null);
+    setVisibleError(null);
     if (!webappId) {
-      setError('请先选择应用');
+      setVisibleError('请先选择应用');
       return null;
     }
     setFetchingInfo(true);
@@ -534,7 +583,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
       update({ appInfo: info, paramValues: next });
       return { list, paramValues: next };
     } catch (e: any) {
-      setError(e?.message || '查询失败');
+      setVisibleError(e?.message || '查询失败');
       logBus.error(`拉取应用信息失败: ${e?.message || e}`, src);
       return null;
     } finally {
@@ -560,10 +609,17 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAppId, webappId]);
 
+  useEffect(() => {
+    if (status !== 'polling' || !taskId || !activeAppId || !webappId) return;
+    void startPolling(taskId).catch(() => undefined);
+    // startPolling 本身由节点当前 data 派生，内部有全局去重；这里故意只跟随持久化运行态恢复轮询。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, taskId, activeAppId, webappId]);
+
   const handleRun = async () => {
-    setError(null);
+    setVisibleError(null);
     if (!webappId) {
-      setError('请先选择应用');
+      setVisibleError('请先选择应用');
       return;
     }
     let freshList: any[] | null = null;
@@ -597,7 +653,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
       await startPolling(r.taskId);
     } catch (e: any) {
       logBus.error(`提交失败: ${e?.message || e}`, src);
-      setError(e?.message || '提交失败');
+      setVisibleError(e?.message || '提交失败');
       update({ status: 'error', error: e?.message });
     }
   };
@@ -644,6 +700,12 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
     update({ size: { w: p.width, h: p.height } });
   };
 
+  const appInfoFieldCount = Array.isArray(appInfo?.nodeInfoList) ? appInfo.nodeInfoList.length : 0;
+  useEffect(() => {
+    const raf = window.requestAnimationFrame(() => updateNodeInternals(id));
+    return () => window.cancelAnimationFrame(raf);
+  }, [id, updateNodeInternals, activeAppId, size.w, size.h, selected, status, searchVisible, appInfoFieldCount]);
+
   // ===================== 渲染 =====================
   // Handle 双侧（始终渲染，z-index 提升），通过绝对定位放在容器边缘，避免被内部 UI 遮挡。
   const handleStyle = { zIndex: 10 } as const;
@@ -652,7 +714,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
   if (activeApp) {
     return (
       <div
-        className="relative rounded-xl shadow-lg flex flex-col"
+        className="t8-rh-tools-node relative rounded-xl shadow-lg flex flex-col"
         style={{
           background: bg,
           color: text,
@@ -660,6 +722,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
           height: size.h,
           minWidth: 280,
           minHeight: 360,
+          boxSizing: 'border-box',
           border: `2px solid ${selected ? accent : ringColor}`,
           // 允许 Handle 浮出容器边缘
           overflow: 'visible',
@@ -959,7 +1022,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
   // ===== 启动器视图 =====
   return (
     <div
-      className="relative rounded-xl flex flex-col shadow-lg"
+      className="t8-rh-tools-node relative rounded-xl flex flex-col shadow-lg"
       style={{
         background: bg,
         color: text,
@@ -967,6 +1030,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
         height: size.h,
         minWidth: 280,
         minHeight: 320,
+        boxSizing: 'border-box',
         border: `2px solid ${selected ? accent : ringColor}`,
         // overflow visible 让 Handle 悬浮于边缘之外
         overflow: 'visible',

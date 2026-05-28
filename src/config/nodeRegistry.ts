@@ -37,8 +37,8 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'storyboard-grid', label: '分镜网格', category: 'special', description: '分镜九宫格布局', icon: 'LayoutGrid', color: 'indigo', hidden: true },
 
   // ========== Utility 工具节点(13) ==========
-  // 其中 5 个暂时隐藏: drawing-board / browser / frame-extractor / remove-bg / upscale
-  { type: 'drawing-board', label: '画板', category: 'utility', description: '手绘 / 涂抹', icon: 'Pencil', color: 'orange', hidden: true },
+  // 其中 4 个暂时隐藏: browser / frame-extractor / remove-bg / upscale
+  { type: 'drawing-board', label: '画板', category: 'utility', description: '图层画板：接上游图片后手绘、标注、组合并输出图像', icon: 'Pencil', color: 'orange' },
   { type: 'browser', label: '浏览器', category: 'utility', description: '网页内嵌', icon: 'Globe2', color: 'orange', hidden: true },
   { type: 'image-compare', label: '图像对比', category: 'utility', description: '双图滑杆 / 并排 / 叠加 / 热力 / 聚焦对比', icon: 'GitCompare', color: 'orange' },
   { type: 'frame-extractor', label: '抽帧', category: 'utility', description: '视频抽帧', icon: 'Scissors', color: 'orange', hidden: true },
