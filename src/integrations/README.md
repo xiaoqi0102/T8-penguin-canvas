@@ -10,11 +10,11 @@
 
 ```
 src/integrations/
-├── qiniu/                          # 七牛云 AI 图像（v1.5.6 首个示例，OpenAI 兼容协议）
+├── qiniu/                          # 七牛云 AI 图像（v1.5.6 首个示例，OpenAI 兼容协议；v1.5.9 加图生图 size 修复 + 1K/2K/4K 清晰度档）
 │   ├── QiniuSettingsSection.tsx    # API 设置弹窗中独立的 Key + baseUrl 块
-│   ├── QiniuImageTab.tsx           # ImageNode 内的 质量 + 比例 专属面板（与 GPT2 同款 grid 布局）
-│   ├── runQiniuImage.ts            # 提交 + 轮询的纯函数；submit 前用 sizeMap 把比例转像素串
-│   └── sizeMap.ts                  # 按 apiModel 的比例集合 + ratio→像素串 映射（v1.5.6 ratio-only）
+│   ├── QiniuImageTab.tsx           # ImageNode 内的 质量 + 比例 (+ openai/gpt-image-2 的清晰度) 面板，动态 2/3 列
+│   ├── runQiniuImage.ts            # 提交 + 轮询的纯函数；submit 前用 sizeMap 按 (ratio, resolution) 转像素串
+│   └── sizeMap.ts                  # 按 apiModel 的比例集合 + ratio→像素串 映射；openai/gpt-image-2 支持 1K/2K/4K 三档（v1.5.6 ratio-only · v1.5.9 加清晰度档）
 └── grsai/                          # Grsai 中转站（v1.5.6 第二个验证案例，自有协议）
     ├── GrsaiSettingsSection.tsx    # API 设置弹窗中独立的 Key + baseUrl 块
     ├── GrsaiImageTab.tsx           # ImageNode 内的 比例 + 尺寸 面板（与 GPT2 同款 grid 布局）
@@ -40,7 +40,7 @@ src/integrations/
 | 端点切换 | 国内 `openai.qiniu.com` / 海外 `openai.sufy.com` | 国内 `grsai.dakka.com.cn` / 全球 `grsaiapi.com` |
 | 默认提交模式 | 上游 `?async=true` 直接异步 | 后端代理默认 `replyType=async` |
 | 认证 Header | `Authorization: Bearer sk-xxx` | `Authorization: Bearer sk-xxx` |
-| UI size 表达 | 显示比例（auto+14 个），runner 内 sizeMap 转像素串送上游 | 显示比例（auto+14 个），gpt-image-2-vip 由 sizeMap 转像素串，其它子模型透传比例 |
+| UI size 表达 | 显示比例（auto+14 个），runner 内 sizeMap 转像素串送上游；openai/gpt-image-2 v1.5.9 额外暴露 1K/2K/4K 清晰度档（独立第三列下拉），按 (ratio, resolution) 转像素串 | 显示比例（auto+14 个），gpt-image-2-vip 由 sizeMap 转像素串，其它子模型透传比例 |
 | 子模型默认 | gemini-3.1-flash-image-preview | gpt-image-2（v1.5.6 起，原 nano-banana-2） |
 
 **接入新 provider 时务必填一行进表**，让后续接入者能快速对比。
@@ -63,6 +63,14 @@ src/integrations/
 - 其它比例按 `1 MP 目标 + 16px 对齐 + 长边 ≤3840` 计算
 - `'auto'` 透传；旧画布的像素串值兼容直通（不做强制改写）
 - 文档约束「长边/短边 ≤ 3:1」的子模型仅保留 11 个 ≤3:1 比例（排除 `1:4` / `4:1` / `1:8` / `8:1`）
+
+**清晰度分档**（v1.5.9 起，目前仅 qiniu `openai/gpt-image-2`）：
+- 节点 data 新增 `qiniuResolution: '1K' | '2K' | '4K'`，默认 `'1K'`；旧画布无该字段时 runner 自动补 `'1K'`，行为与 v1.5.6 完全一致
+- 三档目标像素：1K ≈ 1 MP、2K ≈ 4 MP（≈2048²）、4K = 8.29 MP（文档上限 3840×2160）
+- 各档维护独立的 `DOC_PRESETS_BY_RES[res]` 文档预设表（命中直接用文档像素值），未命中则按 `computeSize(w, h, RES_TO_TARGET_PIXELS[res])` 计算 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29MP 兜底
+- 1K 档预设保留 v1.5.6 全部 5 项映射（含 16:9 → 2048x1152），确保旧画布默认行为不变
+- UI：`QiniuImageTab` 在 `apiModel === 'openai/gpt-image-2'` 时动态切到 `grid-cols-3` 显示「清晰度」第三列；gemini 子模型保持原两列
+- API：`ratioToQiniuSize(ratio, resolution = '1K')` 第二参数控制档位，向后兼容（既有调用方不传第二参也工作）
 
 **ImageNode 配套**：
 - 子模型 `<select>` onChange 与 `switchModel` 都按新 apiModel 的允许集合校验已存比例值，越界则迁移到默认，避免跨子模型残留非法选项
@@ -268,3 +276,13 @@ UI 一律只显示比例（与其他子模型一致），由 `grsai/sizeMap.ts` 
 
 **Q10：旧画布存的是像素串（如 `qiniuSize: '1024x1024'`），新版本只显示比例会不会显示空？**
 不会。`<Name>ImageTab` 渲染时若 `d.xxxSize` 不在当前 apiModel 的允许列表中，会回退到默认（`DEFAULT_<NAME>_RATIO`）显示。runner 中 `ratioToXxxSize` 也会原样透传已是像素串的旧值给上游，不影响生成。但只要用户重新选一次下拉，数据就会迁移为新版比例字符串。
+
+**Q11：v1.5.9 七牛 `openai/gpt-image-2` 的 1K / 2K / 4K 清晰度档是怎么工作的？**
+- UI 层：`QiniuImageTab` 仅在 `apiModel === 'openai/gpt-image-2'` 时显示「清晰度」第三列下拉（gemini-3.1-flash-image-preview 保持原两列布局）；下拉值写回 `d.qiniuResolution`，类型 `'1K' | '2K' | '4K'`，默认 `'1K'`。
+- runner 层：`runQiniuImage.ts` 读 `d.qiniuResolution`（缺省补 `'1K'`），调 `ratioToQiniuSize(ratio, resolution)` 转上游可识别的像素串；日志同时打印 `ratio` 与 `resolution` 便于排错。
+- sizeMap 层：三档目标像素 `1K = 1 MP / 2K = 4 MP / 4K = 8.29 MP`；每档独立 `DOC_PRESETS_BY_RES` 文档预设表（命中文档值直接用），未命中按目标像素计算 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29 MP 兜底。
+- 兼容性：旧画布无 `qiniuResolution` 字段 → 默认 `'1K'` + 1K 档预设保留 v1.5.6 全部 5 项映射，**完全不影响 v1.5.6/v1.5.8 旧画布的输出**。
+- 接其它 provider 时是否要复制这套机制：只有上游同时支持多个清晰度档（且文档列出对应像素串）的子模型才有意义；如 grsai `gpt-image-2-vip` 上游协议本质相同，但本次范围未同步处理（v1.5.9 仅修七牛）。
+
+**Q12：v1.5.8 之前的「七牛图生图 size 不生效」是什么坑？怎么修的？**
+`backend/src/routes/proxy.js` 的 `callQiniuImageUpstream` 在历史实现里写了 `if (!hasRefs) body.size = size || 'auto';`，**显式过滤掉了图生图分支的 size 字段**——本意是按「OpenAI 兼容协议下 `/v1/images/edits` 不带 size」的猜测做的安全过滤，但七牛 `openai/gpt-image-2` 上游实际接受 size。v1.5.9 去掉该守卫，改成无条件 `body.size = size || 'auto'`；同时把日志里 `body.size || '(edit)'` 的占位符换成直接打印 `body.size`，运维能从日志直接核对透传值。`sizeMap.ts` 顶部「`/v1/images/edits` 不接受 size 参数」的旧注释同步删除。**这是 v1.5.9 的核心修复**，旧画布只要重新生图即可生效。
