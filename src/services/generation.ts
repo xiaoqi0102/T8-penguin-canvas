@@ -87,18 +87,25 @@ export async function queryImageStatus(taskId: string, apiModel?: string): Promi
 }
 
 // ========================================================================
-// 七牛云 AI 图像生成 (v1.5.6)
+// 七牛云 AI 图像生成 (v1.5.6 · v1.6.2 gemini image_config 分流)
 //   独立 provider，走 /api/proxy/qiniu/image[/submit|/status/:tid]
-//   仅支持 OpenAI 兼容的 size + quality 两个调参，参考图自动走 /v1/images/edits
+//   字段分流：
+//     openai/gpt-image-2 ：用 quality + size（OpenAI 兼容协议）
+//     gemini-3.1-flash-image-preview ：用 aspectRatio + imageSize（后端转为 image_config 嵌套）
+//   两个子模型都支持参考图（非空走 /v1/images/edits），后端透传到 body.image[]
 // ========================================================================
 export interface QiniuImageSubmitRequest {
   /** 上游真实模型名，例如 'gemini-3.1-flash-image-preview' / 'openai/gpt-image-2' */
   model: string;
   prompt: string;
-  /** 'auto' / 'low' / 'medium' / 'high' */
+  /** 'auto' / 'low' / 'medium' / 'high'（仅 openai/gpt-image-2 子模型上送上游） */
   quality?: 'auto' | 'low' | 'medium' | 'high';
-  /** 'auto' / '1024x1024' / '1536x1024' / '1024x1536' / '2048x2048' ... */
+  /** 'auto' / '1024x1024' / '1536x1024' / '1024x1536' / '2048x2048' ...（仅 openai/gpt-image-2 子模型用） */
   size?: string;
+  /** gemini 子模型的比例字符串（如 '16:9' / '1:1' / '21:9'）；不送时上游用默认 */
+  aspectRatio?: string;
+  /** gemini 子模型的清晰度档位；当前 fork 仅暴露 1K/2K/4K（上游也支持 '512'，UI 暂未开放） */
+  imageSize?: '512' | '1K' | '2K' | '4K';
   /** 参考图 URL（http(s):// / /files/* / data:image/...;base64,*）；非空走 edits 接口 */
   images?: string[];
 }

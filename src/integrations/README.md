@@ -278,18 +278,19 @@ UI 一律只显示比例 + 清晰度档，由 `grsai/sizeMap.ts` 的 `resolveGrs
 **Q10：旧画布存的是像素串（如 `qiniuSize: '1024x1024'`），新版本只显示比例会不会显示空？**
 不会。`<Name>ImageTab` 渲染时若 `d.xxxSize` 不在当前 apiModel 的允许列表中，会回退到默认（`DEFAULT_<NAME>_RATIO`）显示。runner 中 `ratioToXxxSize` 也会原样透传已是像素串的旧值给上游，不影响生成。但只要用户重新选一次下拉，数据就会迁移为新版比例字符串。
 
-**Q11：v1.5.9 七牛 / grsai 的 1K / 2K / 4K 清晰度档是怎么工作的？**
-两个 provider 走**完全同款架构**，只是字段名 / 触发条件 / API 签名细节有差异：
+**Q11：v1.5.9 七牛 / grsai 的 1K / 2K / 4K 清晰度档是怎么工作的？**（v1.6.2 起扩到七牛 gemini）
+三个子模型走**同款 UI 架构**，但**上游协议有显著差异**——qiniu `openai/gpt-image-2` 与 grsai `gpt-image-2-vip` 走「ratio → 像素串」本地查表，而 qiniu `gemini-3.1-flash-image-preview` 走「上游嵌套对象」直接送比例字符串 + 清晰度档名：
 
-| 维度 | qiniu `openai/gpt-image-2` | grsai `gpt-image-2-vip` |
-|---|---|---|
-| 节点 data 字段 | `qiniuResolution: '1K'\|'2K'\|'4K'` | `grsaiImageSize: '1K'\|'2K'\|'4K'`（与 nano-banana 共用同字段） |
-| UI 触发条件 | `apiModel === 'openai/gpt-image-2'`（其他子模型隐藏） | `isNanoBananaSeries(apiModel) \|\| isGptImage2VipModel(apiModel)` |
-| UI 列数 | `grid-cols-3`（质量 + 比例 + 清晰度） | `grid-cols-2`（比例 + 清晰度） |
-| 比例列表 | 11 通用比例（含 auto） | 14 项 vip 专属（去 auto + 加 1:3 / 3:1 / 2:1 / 1:2） |
-| 转换 API | `ratioToQiniuSize(ratio, resolution)` | `resolveGrsaiAspectRatio(ratio, apiModel, resolution)` |
-| 路径分流 | 文/图生图分两个端点（generations / edits），双端共用 size | 单端点 `/v1/api/generate`，靠 images[] 区分 |
-| 关联修复 | v1.5.9 同时去掉 `if (!hasRefs)` 守卫，使图生图也送 size（详见 Q12） | v1.5.6 起就无此问题（vip 一直走 sizeMap 转换） |
+| 维度 | qiniu `openai/gpt-image-2` | qiniu `gemini-3.1-flash-image-preview`（v1.6.2 新增） | grsai `gpt-image-2-vip` |
+|---|---|---|---|
+| 节点 data 字段 | `qiniuResolution: '1K'\|'2K'\|'4K'` | `qiniuResolution`（与 openai/gpt-image-2 共用同字段） | `grsaiImageSize: '1K'\|'2K'\|'4K'`（与 nano-banana 共用同字段） |
+| UI 触发条件 | `apiModel === 'openai/gpt-image-2'`（v1.5.9 起单条件） | `apiModel === 'gemini-3.1-flash-image-preview'`（v1.6.2 起加入 `supportsResolution`） | `isNanoBananaSeries(apiModel) \|\| isGptImage2VipModel(apiModel)` |
+| UI 列数 | `grid-cols-3`（质量 + 比例 + 清晰度） | `grid-cols-3`（同 openai；quality 控件保留但上游忽略，仅 UI 一致性） | `grid-cols-2`（比例 + 清晰度） |
+| 比例列表 | 11 通用比例（含 auto） | 14 项 gemini 文档枚举（保留 auto 作为"上游默认"语义） | 14 项 vip 专属（去 auto + 加 1:3 / 3:1 / 2:1 / 1:2） |
+| **上游协议** | OpenAI 兼容：顶层 `size`（像素串）+ `quality` | **Gemini 嵌套**：`image_config.{aspect_ratio, image_size}`，**不发顶层 size / quality** | 自有协议：顶层 `aspectRatio`（像素串）|
+| 转换 API | `ratioToQiniuSize(ratio, resolution)`（runner 内查表转像素串送 `body.size`） | **不走 sizeMap**：runner 直接送原始比例字符串 + 档名给后端 → 后端构造 `image_config` 嵌套对象 | `resolveGrsaiAspectRatio(ratio, apiModel, resolution)` |
+| 路径分流 | 文/图生图分两个端点（generations / edits），双端共用 size | 文/图生图同端点分流，双端共用 image_config | 单端点 `/v1/api/generate`，靠 images[] 区分 |
+| 关联修复 | v1.5.9 去掉 `if (!hasRefs)` 守卫，使图生图也送 size（详见 Q12） | v1.6.2 修复：根因是 `callQiniuImageUpstream` 把两子模型按同一份 OpenAI body 发，gemini 上游静默忽略顶层 size（详见 Q14） | v1.5.6 起就无此问题（vip 一直走 sizeMap 转换） |
 
 **共同点**（接入新 provider 复用这套模式时的核心约定）：
 - 三档目标像素：`1K = 1 MP / 2K = 4 MP / 4K = 8.29 MP`；每档独立 `DOC_PRESETS_BY_RES[res]` 文档预设表（命中文档值直接用），未命中按 `computeSize(w, h, RES_TO_TARGET_PIXELS[res])` 计算 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29 MP 兜底
@@ -315,3 +316,29 @@ UI 一律只显示比例 + 清晰度档，由 `grsai/sizeMap.ts` 的 `resolveGrs
 4. 节点 data 类型在 `src/types/canvas.ts` 加 `<name>Resolution?: '1K' | '2K' | '4K'`
 5. `features.json` provider 注册项的 `params` 描述加上新字段
 6. 子目录 `README.md` 加「比例 × 清晰度双控件」章节，附完整预设表方便日后调试
+
+**Q14：v1.6.2 修复的「七牛 gemini-3.1-flash-image-preview 比例参数不生效」是什么坑？**
+v1.5.6 ~ v1.6.1 之间 `backend/src/routes/proxy.js` 的 `callQiniuImageUpstream` 把两个子模型按**同一份 OpenAI body** 发出：
+
+```js
+const body = { model, prompt, quality: quality || 'auto', size: size || 'auto' };
+```
+
+而 gemini-3.1-flash-image-preview 上游协议**完全不接受顶层 `size` / `quality`**，比例和清晰度必须通过嵌套对象 `image_config: { aspect_ratio, image_size }` 表达。gemini 上游收到 fork 发的 OpenAI body 后**静默忽略 `size` 字段**，导致结果默认 1:1。phase81 的 `if (!hasRefs)` 守卫修复（v1.5.9 / Q12）只让 openai/gpt-image-2 受益，对 gemini 无效。
+
+**v1.6.2 修复方案**（4 处协同改动）：
+1. **`backend/src/routes/proxy.js`** `callQiniuImageUpstream` 按 `model` 分流构造 body：
+   - `model === 'gemini-3.1-flash-image-preview'` → 写入 `body.image_config.{aspect_ratio?, image_size?}`，两字段均可选（'auto' / 缺省时不发对应键，让上游默认）
+   - 其它子模型（openai/gpt-image-2）→ 维持现状 `body.size` + `body.quality`
+2. **`src/services/generation.ts`** `QiniuImageSubmitRequest` 接口新增可选字段：`aspectRatio?: string` + `imageSize?: '512' | '1K' | '2K' | '4K'`
+3. **`src/integrations/qiniu/runQiniuImage.ts`** 按 `apiModel` 分流：
+   - gemini 路径直接送原始比例字符串到 `req.aspectRatio`，**不调** `ratioToQiniuSize`；'auto' 与像素串残留（`/^\d+x\d+$/`）都不送，让上游默认
+   - openai 路径维持现状（quality + ratioToQiniuSize 转像素串）
+4. **`src/integrations/qiniu/QiniuImageTab.tsx`** `supportsResolution` 扩展到 gemini，UI 同步显示 1K/2K/4K 清晰度档（quality 控件保留以保持与 openai/gpt-image-2 一致，gemini 上游忽略不影响功能）
+
+**关键边界**：
+- **'auto' 语义**：gemini 上游文档不列 auto，UI 选 auto → runner 不送 `body.image_config.aspect_ratio`（仅送 `image_size` 或不送 `image_config`），让上游默认比例兜底
+- **像素串 vs 比例字符串**：用正则 `/^\d+x\d+$/` 判别，避免把比例串误当像素串处理
+- **旧画布兼容**：旧 gemini 节点 `qiniuSize: '1024x1024'`（v1.5.6 早期允许的像素串）→ runner 检测到不送 `aspect_ratio`，让上游默认；旧 gemini 节点无 `qiniuResolution` → runner 默认 `'1K'`
+- **gemini 不需要 quality**：UI 保留控件以保持与 openai/gpt-image-2 一致；`d.qiniuQuality` 仅 runner 在 openai 分支读取，gemini 分支彻底丢弃
+

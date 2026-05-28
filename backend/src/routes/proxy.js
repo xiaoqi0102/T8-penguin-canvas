@@ -2164,19 +2164,22 @@ router.get('/runninghub/app-info', async (req, res) => {
 });
 
 // ============================================================================
-// 七牛云 AI 大模型推理服务 — 图像生成 (v1.5.6)
+// 七牛云 AI 大模型推理服务 — 图像生成 (v1.5.6 · v1.6.2 gemini image_config 分流)
 //   provider 与贞贞工坊完全解耦：独立 qiniuApiKey + 可配置 qiniuBaseUrl。
-//   仅支持 OpenAI 兼容的图像协议，不复用 ZHENZHEN_BASE_URL / pickApiKey 链路。
 //
-//   上游协议:
-//     POST {base}/v1/images/generations   body: {model, prompt, quality, size}
-//     POST {base}/v1/images/edits         body: {model, prompt, image[], quality}
-//     GET  {base}/v1/images/tasks/{tid}   → {status:'processing|succeed|failed', data:[{url}]}
+//   上游协议（按子模型分流，详见 callQiniuImageUpstream）:
+//     openai/gpt-image-2 ：OpenAI 兼容
+//       POST {base}/v1/images/generations   body: {model, prompt, quality, size}
+//       POST {base}/v1/images/edits         body: {model, prompt, image[], quality, size}
+//     gemini-3.1-flash-image-preview ：image_config 嵌套（v1.6.2 起）
+//       POST {base}/v1/images/generations   body: {model, prompt, image_config:{aspect_ratio,image_size}}
+//       POST {base}/v1/images/edits         body: {model, prompt, image[], image_config:{...}}
+//     共用：GET  {base}/v1/images/tasks/{tid}   → {status:'processing|succeed|failed', data:[{url}]}
 //
 //   认证: Authorization: Bearer ${qiniuApiKey}
 //
 //   暴露给前端的代理路由:
-//     POST /api/proxy/qiniu/image/submit     body: {model, prompt, quality?, size?, images?[]}
+//     POST /api/proxy/qiniu/image/submit     body: {model, prompt, quality?, size?, aspectRatio?, imageSize?, images?[]}
 //     GET  /api/proxy/qiniu/image/status/:tid
 //     POST /api/proxy/qiniu/image            (同步包装: 提交 + 内部轮询)
 // ============================================================================
@@ -2213,11 +2216,25 @@ async function refToQiniuImage(ref) {
   return null;
 }
 
-async function callQiniuImageUpstream({ apiKey, baseUrl, model, prompt, quality, size, refs }) {
+async function callQiniuImageUpstream({ apiKey, baseUrl, model, prompt, quality, size, aspectRatio, imageSize, refs }) {
   const auth = `Bearer ${apiKey}`;
   const hasRefs = Array.isArray(refs) && refs.length > 0;
   const url = `${baseUrl}/v1/images/${hasRefs ? 'edits' : 'generations'}`;
-  const body = { model, prompt, quality: quality || 'auto', size: size || 'auto' };
+  const isGemini = model === 'gemini-3.1-flash-image-preview';
+  const body = { model, prompt };
+  if (isGemini) {
+    // gemini-3.1-flash-image-preview 走 image_config 嵌套协议，上游不接受顶层 size/quality
+    // aspect_ratio: 14 项 enum（不含 auto；缺省时让上游默认）
+    // image_size: '512'|'1K'|'2K'|'4K'
+    const cfg = {};
+    if (aspectRatio && aspectRatio !== 'auto') cfg.aspect_ratio = aspectRatio;
+    if (imageSize) cfg.image_size = imageSize;
+    if (Object.keys(cfg).length) body.image_config = cfg;
+  } else {
+    // 其他 OpenAI 兼容子模型（如 openai/gpt-image-2）：维持 size 像素串 + quality
+    body.quality = quality || 'auto';
+    body.size = size || 'auto';
+  }
   if (hasRefs) {
     const images = [];
     for (const ref of refs) {
@@ -2227,7 +2244,10 @@ async function callQiniuImageUpstream({ apiKey, baseUrl, model, prompt, quality,
     if (!images.length) throw new Error('参考图全部转换失败');
     body.image = images;
   }
-  console.log('[upstream] Qiniu →', hasRefs ? '/edits' : '/generations', 'model:', model, 'quality:', body.quality, 'size:', body.size, 'refs:', refs?.length || 0);
+  const logTail = isGemini
+    ? `aspect_ratio: ${body.image_config?.aspect_ratio || '(default)'} image_size: ${body.image_config?.image_size || '(default)'}`
+    : `quality: ${body.quality} size: ${body.size}`;
+  console.log('[upstream] Qiniu →', hasRefs ? '/edits' : '/generations', 'model:', model, logTail, 'refs:', refs?.length || 0);
   return await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: auth },
@@ -2285,13 +2305,13 @@ async function normalizeQiniuResponse(data) {
 router.post('/qiniu/image', async (req, res) => {
   const ctx = loadQiniuSettings(res);
   if (!ctx) return;
-  const { model, prompt, quality, size, images, image } = req.body || {};
+  const { model, prompt, quality, size, aspectRatio, imageSize, images, image } = req.body || {};
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
   if (!model) return res.status(400).json({ success: false, error: 'model 必填' });
   const refs = Array.isArray(images) ? images.filter(Boolean) : [];
   if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
   try {
-    const r = await callQiniuImageUpstream({ apiKey: ctx.apiKey, baseUrl: ctx.baseUrl, model, prompt, quality, size, refs });
+    const r = await callQiniuImageUpstream({ apiKey: ctx.apiKey, baseUrl: ctx.baseUrl, model, prompt, quality, size, aspectRatio, imageSize, refs });
     const text = await r.text();
     let data; try { data = JSON.parse(text); } catch {
       return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 300) });
@@ -2322,13 +2342,13 @@ router.post('/qiniu/image', async (req, res) => {
 router.post('/qiniu/image/submit', async (req, res) => {
   const ctx = loadQiniuSettings(res);
   if (!ctx) return;
-  const { model, prompt, quality, size, images, image } = req.body || {};
+  const { model, prompt, quality, size, aspectRatio, imageSize, images, image } = req.body || {};
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
   if (!model) return res.status(400).json({ success: false, error: 'model 必填' });
   const refs = Array.isArray(images) ? images.filter(Boolean) : [];
   if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
   try {
-    const r = await callQiniuImageUpstream({ apiKey: ctx.apiKey, baseUrl: ctx.baseUrl, model, prompt, quality, size, refs });
+    const r = await callQiniuImageUpstream({ apiKey: ctx.apiKey, baseUrl: ctx.baseUrl, model, prompt, quality, size, aspectRatio, imageSize, refs });
     const text = await r.text();
     let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
     if (!r.ok) {

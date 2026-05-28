@@ -2,8 +2,14 @@
  * 七牛云 AI 图像生成 — 运行逻辑（从 ImageNode.handleGenerate 抽出）
  * 这层只负责：submit → 轮询 → 写回 node data。
  * UI / 状态 / 上下游素材聚合全部仍在 ImageNode，避免破坏现有运行总线契约。
+ *
+ * 子模型分流（v1.6.2 起）：
+ *   - openai/gpt-image-2 ：UI 比例 → sizeMap 转像素串 → body.size + body.quality
+ *   - gemini-3.1-flash-image-preview ：UI 比例直接送 body.aspectRatio + body.imageSize
+ *     （后端转 image_config.aspect_ratio / image_config.image_size 嵌套对象）
+ *     'auto' 与像素串残留（旧画布）不送 aspectRatio，让上游默认比例
  */
-import { submitQiniuImage, queryQiniuImageStatus } from '../../services/generation';
+import { submitQiniuImage, queryQiniuImageStatus, type QiniuImageSubmitRequest } from '../../services/generation';
 import { logBus } from '../../stores/logs';
 import { ratioToQiniuSize, DEFAULT_QINIU_RESOLUTION, type QiniuResolution } from './sizeMap';
 
@@ -24,24 +30,37 @@ export interface RunQiniuImageParams {
 
 export async function runQiniuImage({ id, apiModel, finalPrompt, allRefs, d, update }: RunQiniuImageParams) {
   const src = `image:${id.slice(0, 6)}`;
-  const quality = (d?.qiniuQuality || 'auto') as 'auto' | 'low' | 'medium' | 'high';
   const ratio = String(d?.qiniuSize || 'auto');
   const resolution = (d?.qiniuResolution || DEFAULT_QINIU_RESOLUTION) as QiniuResolution;
-  // UI 存储的是比例（'1:1' / '16:9' / …），上游接口要求像素串；resolution 决定目标像素数档位
-  const size = ratioToQiniuSize(ratio, resolution);
 
+  const isGemini = apiModel === 'gemini-3.1-flash-image-preview';
+
+  const req: QiniuImageSubmitRequest = {
+    model: apiModel,
+    prompt: finalPrompt,
+    images: allRefs,
+  };
+
+  if (isGemini) {
+    // gemini：直接送原始比例 + 清晰度档（后端转 image_config 嵌套）
+    // 'auto' 不传，让上游默认；旧画布残留的像素串（v1.5.6 早期）也不传，退到上游默认
+    if (ratio !== 'auto' && !/^\d+x\d+$/i.test(ratio)) req.aspectRatio = ratio;
+    req.imageSize = resolution;
+  } else {
+    // openai/gpt-image-2：UI 比例 → sizeMap 转像素串 + quality 字段
+    req.quality = (d?.qiniuQuality || 'auto') as 'auto' | 'low' | 'medium' | 'high';
+    req.size = ratioToQiniuSize(ratio, resolution);
+  }
+
+  const logFields = isGemini
+    ? `aspect_ratio=${req.aspectRatio ?? '(default)'} image_size=${req.imageSize}`
+    : `quality=${req.quality} ratio=${ratio} resolution=${resolution} size=${req.size}`;
   logBus.info(
-    `七牛云提交: model=${apiModel} quality=${quality} ratio=${ratio} resolution=${resolution} size=${size} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
+    `七牛云提交: model=${apiModel} ${logFields} 参考图=${allRefs.length} prompt="${finalPrompt.slice(0, 60)}${finalPrompt.length > 60 ? '…' : ''}"`,
     src,
   );
 
-  const submit = await submitQiniuImage({
-    model: apiModel,
-    prompt: finalPrompt,
-    quality,
-    size,
-    images: allRefs,
-  });
+  const submit = await submitQiniuImage(req);
 
   // 同步完成
   if (submit.sync && submit.urls && submit.urls.length) {

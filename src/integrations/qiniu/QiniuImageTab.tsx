@@ -1,11 +1,14 @@
 /**
  * 七牛云图像参数面板（ImageNode 内嵌）
- * 渲染 quality + size + （仅 openai/gpt-image-2）resolution 三个 select。
+ * 渲染 quality + size + （openai/gpt-image-2 与 gemini-3.1-flash-image-preview 均显示）resolution 三个 select。
  *   - quality：auto / low / medium / high
+ *     · openai/gpt-image-2 上游识别该字段；gemini 上游忽略（UI 保留以维持子模型间一致性）
  *   - size 显示的是比例（1:1 / 16:9 …），不同 apiModel 显示的比例集合不同：
- *       * gemini-3.1-flash-image-preview ：全 14 个比例 + auto
- *       * openai/gpt-image-2 ：仅 10 个 ≤3:1 比例 + auto（文档约束）
- *   - resolution（1K/2K/4K）：仅 openai/gpt-image-2 显示，对应不同目标像素数
+ *       * gemini-3.1-flash-image-preview ：全 14 个比例 + auto（runner 直送 image_config.aspect_ratio）
+ *       * openai/gpt-image-2 ：仅 10 个 ≤3:1 比例 + auto（runner 经 sizeMap 转像素串）
+ *   - resolution（1K/2K/4K）：openai/gpt-image-2 与 gemini 都显示
+ *     · openai：经 sizeMap.DOC_PRESETS_BY_RES 转像素串
+ *     · gemini：直送 image_config.image_size
  * 状态读写直接走父节点 data，不持有本地 state。
  */
 import type { ChangeEvent } from 'react';
@@ -32,7 +35,7 @@ const QUALITIES: Array<{ value: 'auto' | 'low' | 'medium' | 'high'; label: strin
 ];
 
 function supportsResolution(apiModel: string): boolean {
-  return apiModel === 'openai/gpt-image-2';
+  return apiModel === 'openai/gpt-image-2' || apiModel === 'gemini-3.1-flash-image-preview';
 }
 
 export default function QiniuImageTab({ d, update, apiModel }: Props) {
