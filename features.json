@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.7.1",
-  "lastUpdated": "2026-05-29-v1.7.1-merge-upstream-portrait-master",
+  "version": "1.7.2",
+  "lastUpdated": "2026-05-29-v1.7.2-single-instance-client-build",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,9 +16,9 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.7.1",
-    "semverVersion": "1.7.1",
-    "versionNote": "v1.7.1 合并 upstream/main v1.6.4-v1.6.5：跨画布素材发送历史、肖像大师 Avatar/词库/端口修复、LLM 默认模型名修复；继续保留 fork v1.7.0 drawing-board/主题控件统一与七牛/Grsai 自有集成。",
+    "version": "1.7.2",
+    "semverVersion": "1.7.2",
+    "versionNote": "v1.7.2 新增 Electron 单实例检测：用户重复打开客户端时阻止第二个进程启动，并自动聚焦已打开的主窗口或启动日志窗口；继续保留 fork v1.7.1 的 upstream 同步、drawing-board、七牛/Grsai 与品牌配置。",
     "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
@@ -1321,6 +1321,17 @@
         "公开版本同步到 1.6.5：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
       ]
     },
+    "phase88": {
+      "label": "Electron 客户端单实例检测与新版构建 (v1.7.2)",
+      "status": "complete",
+      "items": [
+        "Electron 主进程在启动早期调用 app.requestSingleInstanceLock() 获取单实例锁；未获取锁的第二个进程立即退出，避免重复拉起 Express 后端和多个主窗口。",
+        "主实例监听 second-instance 事件，若用户再次打开程序，会优先聚焦主窗口；若主窗口尚未创建则聚焦启动日志窗口，最小化状态会先 restore。",
+        "版本号同步到 1.7.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs 三处显示、backend/src/config.js APP_VERSION、features.json、README.md。",
+        "本版本目标为重新构建 Windows 客户端安装包。"
+      ]
+    },
+
     "phase87": {
       "label": "合并 upstream v1.6.5 → fork v1.7.1（肖像大师修复 + 跨画布素材发送增强）",
       "status": "complete",
