@@ -126,6 +126,7 @@
       }
     ],
     "win": {
+      "icon": "logo/favicon.ico",
       "target": [
         {
           "target": "nsis",
