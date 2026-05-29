@@ -26,7 +26,7 @@ const config = {
   // 服务器
   HOST: process.env.HOST || '127.0.0.1',
   PORT: process.env.PORT || 18766, // 注意:与主项目 18765 错开
-  APP_VERSION: '1.7.0',
+  APP_VERSION: '1.7.1',
   NODE_ENV: process.env.NODE_ENV || (IS_PACKAGED ? 'production' : 'development'),
   IS_PACKAGED,
 
@@ -90,6 +90,8 @@ const config = {
   DEFAULT_RESOURCE_LIBRARY_DIR,
   // v1.3.6: 主题模板目录。自定义模板 JSON 保存在这里，内置模板仍打包在前端代码里。
   DEFAULT_THEME_TEMPLATE_DIR,
+  // 本地 Eagle API 默认地址。仅允许本机地址，避免桌面端变成远端请求代理。
+  DEFAULT_EAGLE_API_BASE: 'http://127.0.0.1:41595',
   // 用于旧版本配置迁移：Windows 继续沿用 D:\zhenzhen，非 Windows 遇到旧硬编码默认值时迁移到用户目录。
   LEGACY_WINDOWS_DEFAULT_ROOT,
 };

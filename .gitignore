@@ -44,6 +44,8 @@ node_modules
 
 # Backend data(本地数据,不入库)
 data/
+!src/data/
+!src/data/**
 input/
 output/
 thumbnails/

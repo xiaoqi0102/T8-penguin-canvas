@@ -428,6 +428,35 @@ export function deleteResourceItem(id: string) {
   });
 }
 
+// ========== Eagle 本地库 ==========
+export interface EagleImportMaterial {
+  id?: string;
+  kind: ResourceMaterialSetKind;
+  url?: string;
+  text?: string;
+  name?: string;
+  tags?: string[];
+}
+
+export interface EagleImportResult {
+  base: string;
+  imported: Array<{ kind: string; name: string; result?: any }>;
+  skipped: Array<{ kind: string; name: string; reason: string }>;
+  failures: Array<{ kind: string; name: string; error: string }>;
+}
+
+export function sendToEagle(payload: {
+  materials: EagleImportMaterial[];
+  tags?: string[];
+  folderId?: string;
+  eagleApiBase?: string;
+}) {
+  return safeRequest<EagleImportResult>(`${BASE}/eagle/import`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 // ========== 主题模板 (v1.3.6) ==========
 
 export interface ThemeTemplatesResponse {

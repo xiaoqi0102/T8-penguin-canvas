@@ -21,7 +21,7 @@ import {
   type EdgeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Play, Copy, CopyPlus, Trash2, FolderPlus, PackagePlus, Library, Download } from 'lucide-react';
+import { Play, Copy, CopyPlus, Trash2, FolderPlus, PackagePlus, Library, Download, Send as SendIcon } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { useCanvasStore } from '../stores/canvas';
 import { useThemeStore } from '../stores/theme';
@@ -38,7 +38,18 @@ import {
   rectOf,
   type Rect as PlacementRect,
 } from '../utils/nodePlacement';
-import { createUploadDataFromItems, fileNameFromUrl, getMediaItemsFromData, type MediaItem, type MediaKind } from '../utils/mediaCollection';
+import { createOutputDataFromItems, createUploadDataFromItems, fileNameFromUrl, getMediaItemsFromData, type MediaItem, type MediaKind } from '../utils/mediaCollection';
+import {
+  bucketSendableMaterials,
+  collectSendableMaterialsFromNode,
+  collectSendableMaterialsFromNodes,
+  sendableMaterialKey,
+  sendableMaterialSignature,
+  sendableToMediaItem,
+  summarizeSendableMaterials,
+  type SendTargetMode,
+  type SendableMaterial,
+} from '../utils/sendMaterials';
 import {
   collectMaterialSetBucketsFromData,
   isMaterialSetKind,
@@ -55,6 +66,7 @@ import TerminalPanel from './TerminalPanel';
 import NodeActionBar from './NodeActionBar';
 import MaterialDragOverlay from './MaterialDragOverlay';
 import ThemeMusicToggle from './ThemeMusicToggle';
+import SendMaterialsModal from './SendMaterialsModal';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import type { CanvasTemplate } from '../config/canvasTemplates';
 import PlaceholderNode from './nodes/PlaceholderNode';
@@ -74,6 +86,7 @@ import CombineNode from './nodes/CombineNode';
 import RemoveBgNode from './nodes/RemoveBgNode';
 import ImageCompareNode from './nodes/ImageCompareNode';
 import ToolboxParamNode from './nodes/ToolboxParamNode';
+import PortraitMasterNode from './nodes/PortraitMasterNode';
 import IdeaNode from './nodes/IdeaNode';
 import BpNode from './nodes/BpNode';
 import RelayNode from './nodes/RelayNode';
@@ -148,10 +161,11 @@ const SPECIFIC_NODES: Record<string, any> = {
   bp: BpNode,
   relay: RelayNode,
   'video-output': VideoOutputNode,
-  // Toolbox (3)
+  // Toolbox (4)
   cinematic: ToolboxParamNode,
   'video-motion': ToolboxParamNode,
   'multi-angle-visual': ToolboxParamNode,
+  'portrait-master': PortraitMasterNode,
   // Input (1) - 上传素材
   upload: UploadNode,
   // Output (1) - 输出素材(文本/图像/视频/音频 预览 + 文本双击编辑)
@@ -178,6 +192,14 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
   },
   cinematic: { kind: 'cinematic', cinematicLanguage: 'en', cinematicStrength: 'balanced' },
   'video-motion': { kind: 'video-motion', motionLanguage: 'en' },
+  'portrait-master': {
+    portraitLanguage: 'en',
+    portraitSelection: {},
+    portraitLocks: {},
+    portraitWeights: {},
+    portraitCustomText: '',
+    prompt: '',
+  },
   'text-split': {
     sourceText: '',
     splitMode: 'line',
@@ -269,12 +291,189 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   // v1.2.8 工具节点 (循环器 / 从合集获取)
   'loop', 'pick-from-set',
   // v1.4.8: 工具箱文本节点也可点击 RUN 直接外挂 OutputNode
-  'cinematic', 'video-motion', 'multi-angle-visual',
+  'cinematic', 'video-motion', 'multi-angle-visual', 'portrait-master',
 ]);
 
 // 网格吸附步长 / 对齐阈值(世界坐标)
 const SNAP_GRID: [number, number] = [20, 20];
 const ALIGN_THRESHOLD = 6;
+
+interface SendNodeSpec {
+  type: NodeType;
+  data: Record<string, any>;
+}
+
+function mediaItemsFromSendables(items: SendableMaterial[], kind: MediaKind): MediaItem[] {
+  return items
+    .map(sendableToMediaItem)
+    .filter((item): item is MediaItem => !!item && item.kind === kind);
+}
+
+function buildSendNodeSpecs(materials: SendableMaterial[], mode: SendTargetMode): SendNodeSpec[] {
+  const buckets = bucketSendableMaterials(materials);
+  const specs: SendNodeSpec[] = [];
+  const textValues = buckets.text.map((item) => (item.text || '').trim()).filter(Boolean);
+  const mediaKinds: MediaKind[] = ['image', 'video', 'audio'];
+
+  if (mode === 'material-set') {
+    for (const kind of ['image', 'video', 'audio', 'text'] as MaterialSetKind[]) {
+      if (buckets[kind].length === 0) continue;
+      specs.push({
+        type: 'material-set',
+        data: materialSetItemsToData(kind, buckets[kind]),
+      });
+    }
+    return specs;
+  }
+
+  if (mode === 'output') {
+    for (const kind of mediaKinds) {
+      const items = mediaItemsFromSendables(buckets[kind], kind);
+      if (items.length === 0) continue;
+      specs.push({
+        type: 'output',
+        data: {
+          ...createOutputDataFromItems(kind, items),
+          sendSource: 'cross-canvas',
+        },
+      });
+    }
+    if (textValues.length > 0) {
+      specs.push({
+        type: 'output',
+        data: {
+          directOutputText: textValues.join('\n\n'),
+          directTextSegments: textValues,
+          textSegments: textValues,
+          sendSource: 'cross-canvas',
+        },
+      });
+    }
+    return specs;
+  }
+
+  if (mode === 'split-upload') {
+    for (const kind of mediaKinds) {
+      const items = mediaItemsFromSendables(buckets[kind], kind);
+      for (const item of items) {
+        specs.push({
+          type: 'upload',
+          data: createUploadDataFromItems(kind, [item]),
+        });
+      }
+    }
+    textValues.forEach((text) => {
+      specs.push({ type: 'text', data: { prompt: text, text } });
+    });
+    return specs;
+  }
+
+  for (const kind of mediaKinds) {
+    const items = mediaItemsFromSendables(buckets[kind], kind);
+    if (items.length === 0) continue;
+    specs.push({
+      type: 'upload',
+      data: createUploadDataFromItems(kind, items),
+    });
+  }
+  textValues.forEach((text) => {
+    specs.push({ type: 'text', data: { prompt: text, text } });
+  });
+  return specs;
+}
+
+function basePositionForAppend(existingNodes: Node[]): { x: number; y: number } {
+  const normalNodes = existingNodes.filter((node) => node.id !== BULK_PHANTOM_ID);
+  if (normalNodes.length === 0) return { x: 80, y: 80 };
+  const rects = normalNodes.map((node) => rectOf(node));
+  const maxRight = Math.max(...rects.map((rect) => rect.x + rect.w));
+  const minY = Math.min(...rects.map((rect) => rect.y));
+  return { x: maxRight + 120, y: minY };
+}
+
+function materialNodesFromSpecs(
+  specs: SendNodeSpec[],
+  existingNodes: Node[],
+  base: { x: number; y: number },
+  bridge?: { signature: string; mode: SendTargetMode; sourceCanvasId?: string | null },
+): Node[] {
+  const stamp = Date.now();
+  const desired = specs.map((spec, index) => {
+    const size = defaultSizeOf(spec.type);
+    return {
+      x: base.x + (index % 2) * (size.w + 80),
+      y: base.y + Math.floor(index / 2) * (size.h + 80),
+      w: size.w,
+      h: size.h,
+    };
+  });
+  const offset = placeBatchNodes(desired, existingNodes, {
+    source: 'placement:send-materials',
+  });
+  return specs.map((spec, index) => ({
+    id: `${spec.type}-send-${stamp}-${index}-${Math.random().toString(36).slice(2, 7)}`,
+    type: spec.type,
+    position: {
+      x: desired[index].x + offset.dx,
+      y: desired[index].y + offset.dy,
+    },
+    selected: true,
+    data: {
+      ...(INITIAL_DATA[spec.type] || {}),
+      ...spec.data,
+      sentFromMaterialBridge: true,
+      sendBridgeSignature: bridge?.signature || '',
+      sendBridgeMode: bridge?.mode,
+      sendBridgeSourceCanvasId: bridge?.sourceCanvasId || undefined,
+      sendBridgeCreatedAt: stamp,
+    },
+  })) as Node[];
+}
+
+function removeDuplicateSendBridgeNodes(
+  nodes: Node[],
+  edges: Edge[],
+  materials: SendableMaterial[],
+  signature: string,
+): { nodes: Node[]; edges: Edge[]; removed: number } {
+  const materialKeys = new Set(
+    materials
+      .map((item) => sendableMaterialKey(item))
+      .filter(Boolean),
+  );
+  const removeIds = new Set<string>();
+  for (const node of nodes) {
+    const data = node.data as any;
+    if (!data?.sentFromMaterialBridge) continue;
+    if (signature && data.sendBridgeSignature === signature) {
+      removeIds.add(node.id);
+      continue;
+    }
+    if (data.sendBridgeSignature) continue;
+    const nodeKeys = collectSendableMaterialsFromNode(node)
+      .map((item) => sendableMaterialKey(item))
+      .filter(Boolean);
+    if (nodeKeys.length > 0 && nodeKeys.every((key) => materialKeys.has(key))) {
+      removeIds.add(node.id);
+    }
+  }
+  if (removeIds.size === 0) return { nodes, edges, removed: 0 };
+  return {
+    nodes: nodes.filter((node) => !removeIds.has(node.id)),
+    edges: edges.filter((edge) => !removeIds.has(edge.source) && !removeIds.has(edge.target)),
+    removed: removeIds.size,
+  };
+}
+
+function centerOfMaterialNodes(nodes: Node[]): { x: number; y: number } | null {
+  if (nodes.length === 0) return null;
+  const rects = nodes.map((node) => rectOf(node));
+  const minX = Math.min(...rects.map((rect) => rect.x));
+  const minY = Math.min(...rects.map((rect) => rect.y));
+  const maxX = Math.max(...rects.map((rect) => rect.x + rect.w));
+  const maxY = Math.max(...rects.map((rect) => rect.y + rect.h));
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+}
 
 // 把所有节点类型都注册到对应组件(已实现的用业务组件,其余用 Placeholder)
 const nodeTypes = NODE_REGISTRY.reduce<Record<string, any>>((acc, m) => {
@@ -383,12 +582,31 @@ function isTextEditingTarget(target: EventTarget | null): boolean {
   return tag === 'input' || tag === 'textarea' || tag === 'select' || !!el?.isContentEditable;
 }
 
+function isCanvasOverviewShortcutBlocked(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  const el = target as HTMLElement;
+  if (el === document.body || el === document.documentElement) return false;
+  if (isTextEditingTarget(el)) return true;
+  return !!el.closest(
+    [
+      'button',
+      'a',
+      '[role="button"]',
+      '[data-canvas-floating-ui]',
+      '.react-flow__node',
+      '.t8-canvas-toolbar',
+      '.t8-context-menu',
+      '.t8-sidebar',
+    ].join(','),
+  );
+}
+
 interface CanvasInnerProps {
   onAddNodeRef?: React.MutableRefObject<AddNodeFn | null>;
 }
 
 function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
-  const { activeId } = useCanvasStore();
+  const { activeId, canvases, loadCanvases, setActive } = useCanvasStore();
   const { theme, style, templateId, customTemplates } = useThemeStore();
   const currentTemplate = useMemo(
     () => resolveThemeTemplate(templateId, customTemplates),
@@ -399,7 +617,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
   const isNaruto = visualStyle === 'naruto';
   const isEva = visualStyle === 'eva';
   const themeTokens = getTemplateMode(currentTemplate, theme).tokens;
-  const { screenToFlowPosition, setCenter, getViewport } = useReactFlow();
+  const { screenToFlowPosition, setCenter, getViewport, fitView } = useReactFlow();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -445,6 +663,27 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     edgesRef.current = edges;
   }, [edges]);
 
+  useEffect(() => {
+    const onOpenSendMaterials = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        materials?: SendableMaterial[];
+        sourceLabel?: string;
+        defaultMode?: SendTargetMode;
+        atScreen?: { x: number; y: number };
+      }>).detail || {};
+      const materials = Array.isArray(detail.materials) ? detail.materials : [];
+      if (materials.length === 0) return;
+      setSendModal({
+        materials,
+        sourceLabel: detail.sourceLabel || '素材',
+        defaultMode: detail.defaultMode || 'auto',
+        atScreen: detail.atScreen,
+      });
+    };
+    window.addEventListener('penguin:open-send-materials', onOpenSendMaterials);
+    return () => window.removeEventListener('penguin:open-send-materials', onOpenSendMaterials);
+  }, []);
+
   // 吸附 + 对齐辅助线
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [guides, setGuides] = useState<{ vertical: number[]; horizontal: number[] }>({
@@ -464,6 +703,18 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     y: number;
     ids: string[];
   } | null>(null);
+  const [sendModal, setSendModal] = useState<{
+    materials: SendableMaterial[];
+    sourceLabel: string;
+    defaultMode: SendTargetMode;
+    atScreen?: { x: number; y: number };
+  } | null>(null);
+  const pendingSendFocusRef = useRef<{
+    canvasId: string;
+    center: { x: number; y: number };
+    zoom: number;
+  } | null>(null);
+  const pendingSendFocusTimerRef = useRef<number | null>(null);
 
   // 画布空白区右键菜单(快速添加节点)
   const [paneMenu, setPaneMenu] = useState<{
@@ -529,6 +780,27 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         setLoaded(true);
       });
   }, [activeId, histReset]);
+
+  useEffect(() => {
+    if (!activeId || !loaded) return;
+    const pending = pendingSendFocusRef.current;
+    if (!pending || pending.canvasId !== activeId) return;
+    pendingSendFocusRef.current = null;
+    if (pendingSendFocusTimerRef.current) window.clearTimeout(pendingSendFocusTimerRef.current);
+    pendingSendFocusTimerRef.current = window.setTimeout(() => {
+      setCenter(pending.center.x, pending.center.y, {
+        zoom: pending.zoom,
+        duration: 520,
+      });
+      pendingSendFocusTimerRef.current = null;
+    }, 90);
+  }, [activeId, loaded, nodes.length, setCenter]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingSendFocusTimerRef.current) window.clearTimeout(pendingSendFocusTimerRef.current);
+    };
+  }, []);
 
   // nodes/edges 变化后压栈(节流防止拖拽中海量入栈)
   useEffect(() => {
@@ -828,6 +1100,188 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     },
     [downloadMaterialItem, getDownloadableItemsFromNodes],
   );
+
+  const inferSendModeFromNodes = useCallback((selectedNodes: Node[]): SendTargetMode => {
+    if (selectedNodes.length === 1) {
+      const type = String(selectedNodes[0].type || '');
+      if (type === 'material-set') return 'material-set';
+      if (type === 'upload') return 'upload';
+      if (type === 'output') return 'output';
+    }
+    return 'material-set';
+  }, []);
+
+  const openSendMaterials = useCallback(
+    (ids: string[], atScreen?: { x: number; y: number }) => {
+      const selectedNodes = nodesRef.current.filter((node) => ids.includes(node.id) && node.type !== 'groupBox');
+      const materials = collectSendableMaterialsFromNodes(selectedNodes, activeId);
+      if (materials.length === 0) {
+        logBus.warn('所选节点没有可发送素材', '发送素材');
+        return;
+      }
+      setSendModal({
+        materials,
+        sourceLabel: `选中 ${selectedNodes.length} 个节点`,
+        defaultMode: inferSendModeFromNodes(selectedNodes),
+        atScreen,
+      });
+    },
+    [activeId, inferSendModeFromNodes],
+  );
+
+  const resolveSendMode = useCallback((mode: SendTargetMode): SendTargetMode => {
+    if (mode !== 'auto') return mode;
+    return sendModal?.defaultMode && sendModal.defaultMode !== 'auto' ? sendModal.defaultMode : 'material-set';
+  }, [sendModal?.defaultMode]);
+
+  const basePositionForActiveSend = useCallback(() => {
+    const atScreen = sendModal?.atScreen;
+    if (atScreen) return screenToFlowPosition(atScreen);
+    const flowEl = document.querySelector('.react-flow') as HTMLElement | null;
+    const rect = flowEl?.getBoundingClientRect();
+    return screenToFlowPosition(
+      rect
+        ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+        : { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    );
+  }, [screenToFlowPosition, sendModal?.atScreen]);
+
+  const handleSendMaterialsToCanvas = useCallback(
+    async (targetCanvasId: string, mode: SendTargetMode, switchAfter: boolean) => {
+      if (!sendModal || sendModal.materials.length === 0) return;
+      const effectiveMode = resolveSendMode(mode);
+      const specs = buildSendNodeSpecs(sendModal.materials, effectiveMode);
+      if (specs.length === 0) {
+        logBus.warn('没有可发送到画布的素材', '发送素材');
+        return;
+      }
+      const bridgeSignature = sendableMaterialSignature(sendModal.materials);
+
+      if (targetCanvasId === activeId) {
+        const base = basePositionForActiveSend();
+        const cleaned = removeDuplicateSendBridgeNodes(nodesRef.current, edgesRef.current, sendModal.materials, bridgeSignature);
+        const newNodes = materialNodesFromSpecs(specs, cleaned.nodes, base, {
+          signature: bridgeSignature,
+          mode: effectiveMode,
+          sourceCanvasId: activeId,
+        });
+        const focusCenter = centerOfMaterialNodes(newNodes);
+        if (activeId && focusCenter) {
+          const { zoom } = getViewport();
+          pendingSendFocusRef.current = {
+            canvasId: activeId,
+            center: focusCenter,
+            zoom: Math.min(Math.max(zoom || 0.9, 0.72), 1.05),
+          };
+        }
+        setEdges(cleaned.edges);
+        setNodes([...cleaned.nodes.map((node) => ({ ...node, selected: false })), ...newNodes]);
+        setSendModal(null);
+        logBus.success(
+          `已发送 ${summarizeSendableMaterials(sendModal.materials)} 到当前画布${cleaned.removed ? `，已替换旧批次 ${cleaned.removed} 个节点` : ''}`,
+          '发送素材',
+        );
+        return;
+      }
+
+      const data = await api.getCanvasData(targetCanvasId);
+      const targetNodes = Array.isArray(data.nodes) ? data.nodes : [];
+      const targetEdges = Array.isArray(data.edges) ? data.edges : [];
+      const cleaned = removeDuplicateSendBridgeNodes(
+        targetNodes as Node[],
+        targetEdges as Edge[],
+        sendModal.materials,
+        bridgeSignature,
+      );
+      const newNodes = materialNodesFromSpecs(specs, cleaned.nodes as Node[], basePositionForAppend(cleaned.nodes as Node[]), {
+        signature: bridgeSignature,
+        mode: effectiveMode,
+        sourceCanvasId: activeId,
+      });
+      const focusCenter = centerOfMaterialNodes(newNodes);
+      if (switchAfter && focusCenter) {
+        pendingSendFocusRef.current = {
+          canvasId: targetCanvasId,
+          center: focusCenter,
+          zoom: 0.88,
+        };
+      }
+      const payload = {
+        nodes: [...cleaned.nodes, ...newNodes],
+        edges: cleaned.edges,
+        viewport: data.viewport || { x: 0, y: 0, zoom: 1 },
+      };
+      await api.saveCanvasData(targetCanvasId, payload);
+      api.autoSaveCanvasData(targetCanvasId, payload).catch(() => {});
+      await loadCanvases();
+      if (switchAfter) setActive(targetCanvasId);
+      setSendModal(null);
+      logBus.success(
+        `已发送 ${summarizeSendableMaterials(sendModal.materials)} 到目标画布${cleaned.removed ? `，已替换旧批次 ${cleaned.removed} 个节点` : ''}`,
+        '发送素材',
+      );
+    },
+    [activeId, basePositionForActiveSend, getViewport, loadCanvases, resolveSendMode, sendModal, setActive],
+  );
+
+  const handleSaveSendMaterialsToResource = useCallback(async () => {
+    if (!sendModal || sendModal.materials.length === 0) return;
+    const buckets = bucketSendableMaterials(sendModal.materials);
+    let saved = 0;
+    const failures: string[] = [];
+    for (const kind of ['image', 'video', 'audio', 'text'] as MaterialSetKind[]) {
+      const items = buckets[kind];
+      if (items.length === 0) continue;
+      if (kind !== 'text' && items.length === 1 && items[0].url) {
+        const result = await api.addResourceItem({
+          kind: kind as api.ResourceKind,
+          url: items[0].url,
+          title: items[0].name || `${PORT_LABEL[kind]}素材`,
+          tags: ['跨画布发送'],
+          sourceNodeId: items[0].sourceNodeId,
+          sourceCanvasId: items[0].sourceCanvasId || activeId || undefined,
+        });
+        if (result.success) saved += 1;
+        else failures.push(result.error || `${PORT_LABEL[kind]}入库失败`);
+        continue;
+      }
+      const result = await api.addResourceSet({
+        materialSetKind: kind,
+        materialSetItems: items,
+        title: `${PORT_LABEL[kind]}素材集 · ${items.length}项`,
+        tags: ['跨画布发送'],
+        sourceNodeId: items[0]?.sourceNodeId,
+        sourceCanvasId: items[0]?.sourceCanvasId || activeId || undefined,
+      });
+      if (result.success) saved += 1;
+      else failures.push(result.error || `${PORT_LABEL[kind]}素材集入库失败`);
+    }
+    window.dispatchEvent(new CustomEvent('penguin:resources-changed'));
+    if (saved > 0) logBus.success(`已保存 ${saved} 项到资源库`, '发送素材');
+    if (failures.length > 0) logBus.warn(failures.slice(0, 2).join('；'), '发送素材');
+  }, [activeId, sendModal]);
+
+  const handleSendMaterialsToEagle = useCallback(async () => {
+    if (!sendModal || sendModal.materials.length === 0) return;
+    const result = await api.sendToEagle({
+      materials: sendModal.materials.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        url: item.url,
+        text: item.text,
+        name: item.name,
+      })),
+      tags: ['T8', '贞贞画布'],
+    });
+    if (!result.success) {
+      logBus.warn(result.error || '发送到 Eagle 失败，请确认 Eagle 已启动并开启本地 API', 'Eagle');
+      return;
+    }
+    const imported = result.data.imported.length;
+    const failed = result.data.failures.length;
+    if (imported > 0) logBus.success(`已发送 ${imported} 项到 Eagle`, 'Eagle');
+    if (failed > 0) logBus.warn(`${failed} 项发送失败，可检查 Eagle 是否支持该素材类型`, 'Eagle');
+  }, [sendModal]);
 
   const handleCanvasPointerMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     lastCanvasPointerRef.current = { x: e.clientX, y: e.clientY };
@@ -2886,6 +3340,32 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
           .filter((n) => n.selected && n.type !== 'groupBox')
           .map((n) => n.id);
         if (selIds.length >= 1) handleCreateGroup(selIds);
+      } else if (
+        !ctrl &&
+        !e.altKey &&
+        !e.shiftKey &&
+        !e.isComposing &&
+        e.key.toLowerCase() === 'z'
+      ) {
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (
+          isCanvasOverviewShortcutBlocked(e.target) ||
+          isCanvasOverviewShortcutBlocked(activeEl) ||
+          document.querySelector(
+            [
+              '[data-canvas-floating-ui="image-compare-modal"]',
+              '[data-canvas-floating-ui="portrait-master-editor"]',
+              '[data-canvas-floating-ui="send-materials-modal"]',
+              '[data-canvas-floating-ui="picker-menu"]',
+              '[data-canvas-floating-ui="node-menu"]',
+              '[data-canvas-floating-ui="pane-menu"]',
+            ].join(','),
+          )
+        ) {
+          return;
+        }
+        e.preventDefault();
+        fitView({ padding: 0.18, duration: 420, minZoom: 0.05, maxZoom: 1.15 });
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         // xyflow 内置 Backspace 删除,但在节点未选中时仍可能删除连线;
         // 我们手动处理仅删除选中,避免输入边缘情况
@@ -2906,7 +3386,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         internalPasteTimerRef.current = null;
       }
     };
-  }, [histUndo, histRedo, handleCopy, handlePaste, handleDuplicate, handleDeleteSelected, handleCreateGroup, nodes, selectedCount]);
+  }, [histUndo, histRedo, handleCopy, handlePaste, handleDuplicate, handleDeleteSelected, handleCreateGroup, nodes, selectedCount, fitView]);
 
   // 全局滚轮拦截 —— 自动给所有节点内的 input / textarea / select / contenteditable
   // 挂上 wheel.stopPropagation()，让用户在文本框内可用鼠标滚轮滚动文字而不触发画布缩放。
@@ -3261,6 +3741,19 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         </>
       )}
 
+      <SendMaterialsModal
+        open={!!sendModal}
+        materials={sendModal?.materials || []}
+        sourceLabel={sendModal?.sourceLabel || '素材'}
+        defaultMode={sendModal?.defaultMode || 'auto'}
+        canvases={canvases}
+        activeCanvasId={activeId}
+        onClose={() => setSendModal(null)}
+        onSendToCanvas={handleSendMaterialsToCanvas}
+        onSaveToResource={handleSaveSendMaterialsToResource}
+        onSendToEagle={handleSendMaterialsToEagle}
+      />
+
       {/* 右键菜单(框选 右键 或 节点右键) */}
       {contextMenu && (() => {
         const ids = contextMenu.ids;
@@ -3275,6 +3768,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
           ? normalizeMaterialSetItems((materialSetNode?.data as any)?.materialSetItems, materialSetKind)
           : [];
         const downloadableCount = getDownloadableItemsFromNodes(ids).length;
+        const sendableCount = collectSendableMaterialsFromNodes(selNodes, activeId).length;
         const menuItemCls = 't8-context-menu__item';
         return (
           <>
@@ -3369,6 +3863,18 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
                   <span>保存素材集到资源库</span>
                 </button>
               )}
+              <button
+                className={menuItemCls}
+                disabled={sendableCount === 0}
+                title={sendableCount > 0 ? `把 ${sendableCount} 个素材发送到其他画布、资源库或 Eagle` : '所选节点没有可发送素材'}
+                onClick={() => {
+                  closeContextMenu();
+                  openSendMaterials(ids, { x: contextMenu.x, y: contextMenu.y });
+                }}
+              >
+                <SendIcon size={13} />
+                <span>发送到... ({sendableCount})</span>
+              </button>
               <button
                 className={menuItemCls}
                 disabled={downloadableCount === 0}

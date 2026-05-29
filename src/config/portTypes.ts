@@ -103,6 +103,7 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   cinematic: { inputs: [], outputs: ['text'] },
   'video-motion': { inputs: [], outputs: ['text'] },
   'multi-angle-visual': { inputs: ['image'], outputs: ['text'] },
+  'portrait-master': { inputs: ['text', 'metadata'], outputs: ['text', 'metadata'] },
 
   // ========== 上传素材节点 (NEW) ==========
   // 动态:由 data.uploadType 决定具体输出。未上传时 outputs=[],不允许连出。

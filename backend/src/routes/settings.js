@@ -42,6 +42,8 @@ const DEFAULT_SETTINGS = {
   resourceLibraryPath: config.DEFAULT_RESOURCE_LIBRARY_DIR,
   // v1.3.6: 自定义主题模板路径
   themeTemplatePath: config.DEFAULT_THEME_TEMPLATE_DIR,
+  // 本地 Eagle API 地址，只用于“发送到 Eagle”功能。路由层仍会强制限制为本机地址。
+  eagleApiBase: config.DEFAULT_EAGLE_API_BASE,
   // 其他偏好
   preferences: {
     theme: 'dark',

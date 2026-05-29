@@ -60,6 +60,7 @@ const imageOpsRouter = require('./routes/imageOps');
 const rechargeRouter = require('./routes/recharge');
 const resourcesRouter = require('./routes/resources');
 const themesRouter = require('./routes/themes');
+const eagleRouter = require('./routes/eagle');
 
 app.use('/api/canvas', canvasRouter);
 app.use('/api/settings', settingsRouter);
@@ -69,6 +70,7 @@ app.use('/api/image', imageOpsRouter);
 app.use('/api/recharge', rechargeRouter.apiRouter);
 app.use('/api/resources', resourcesRouter);
 app.use('/api/themes', themesRouter);
+app.use('/api/eagle', eagleRouter);
 app.use('/pay', rechargeRouter.payRouter);
 
 // ========== 前端静态资源(仅打包模式) ==========

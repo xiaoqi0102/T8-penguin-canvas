@@ -50,6 +50,7 @@ const DEFAULT: ApiSettings = {
   canvasAutoSavePath: '',
   resourceLibraryPath: '',
   themeTemplatePath: '',
+  eagleApiBase: '',
   preferences: { theme: 'dark', language: 'zh-CN' },
 };
 

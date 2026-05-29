@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Send,
   Star,
   Trash2,
   Video,
@@ -19,6 +20,7 @@ import type { CSSProperties } from 'react';
 import { useThemeStore } from '../stores/theme';
 import * as api from '../services/api';
 import type { ResourceCategory, ResourceItem, ResourceKind } from '../services/api';
+import { resourceItemToSendMaterials } from '../utils/sendMaterials';
 
 const KIND_META: Record<ResourceKind, { label: string; icon: typeof ImageIcon; accent: string }> = {
   image: { label: '图像', icon: ImageIcon, accent: '#fbbf24' },
@@ -164,6 +166,22 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
     onInsertMaterial(item);
     await api.updateResourceItem(item.id, { touch: true });
     setMsg('已插入画布');
+  };
+
+  const sendItem = async (item: ResourceItem) => {
+    const materials = resourceItemToSendMaterials(item);
+    if (materials.length === 0) {
+      setMsg('该资源没有可发送素材');
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('penguin:open-send-materials', {
+      detail: {
+        materials,
+        sourceLabel: `资源库 · ${item.title}`,
+        defaultMode: item.kind === 'set' ? 'material-set' : 'upload',
+      },
+    }));
+    await api.updateResourceItem(item.id, { touch: true });
   };
 
   const showImagePreview = useCallback((target: HTMLButtonElement, item: ResourceItem) => {
@@ -454,6 +472,15 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                       aria-label="插入画布"
                     >
                       <Plus size={15} />
+                    </button>
+                    <button
+                      onClick={() => sendItem(item)}
+                      className="nodrag nopan t8-mini-icon-button resource-card-action"
+                      style={miniActionBase}
+                      title="发送到画布 / Eagle"
+                      aria-label="发送到画布 / Eagle"
+                    >
+                      <Send size={13} />
                     </button>
                     <button
                       onClick={() => renameItem(item)}

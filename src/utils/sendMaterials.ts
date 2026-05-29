@@ -1,0 +1,150 @@
+import type { Node } from '@xyflow/react';
+import type { ResourceItem, ResourceMaterialSetKind } from '../services/api';
+import { collectMaterialSetBucketsFromData, normalizeMaterialSetItems, type MaterialSetItem, type MaterialSetKind } from './materialSet';
+import { fileNameFromUrl, type MediaItem, type MediaKind } from './mediaCollection';
+
+export type SendTargetMode = 'auto' | 'material-set' | 'upload' | 'split-upload' | 'output';
+
+export interface SendableMaterial extends MaterialSetItem {
+  sourceNodeId?: string;
+  sourceCanvasId?: string;
+  sourceType?: string;
+}
+
+export type SendableBuckets = Record<MaterialSetKind, SendableMaterial[]>;
+
+const MATERIAL_KINDS: MaterialSetKind[] = ['text', 'image', 'video', 'audio'];
+const MEDIA_KINDS: MediaKind[] = ['image', 'video', 'audio'];
+
+function toSendable(
+  item: MaterialSetItem,
+  meta: Pick<SendableMaterial, 'sourceNodeId' | 'sourceCanvasId' | 'sourceType'> = {},
+): SendableMaterial {
+  return {
+    ...item,
+    name: item.name || (item.kind === 'text' ? (item.text || '').slice(0, 24) : fileNameFromUrl(item.url || '')),
+    ...meta,
+  };
+}
+
+function pushUnique(bucket: SendableMaterial[], seen: Set<string>, item: SendableMaterial) {
+  const value = item.kind === 'text' ? item.text : item.url;
+  if (!value) return;
+  const key = `${item.kind}:${value}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  bucket.push(item);
+}
+
+export function emptySendableBuckets(): SendableBuckets {
+  return { text: [], image: [], video: [], audio: [] };
+}
+
+export function bucketSendableMaterials(materials: SendableMaterial[]): SendableBuckets {
+  const buckets = emptySendableBuckets();
+  const seen = new Set<string>();
+  for (const item of materials) {
+    if (!MATERIAL_KINDS.includes(item.kind)) continue;
+    pushUnique(buckets[item.kind], seen, item);
+  }
+  return buckets;
+}
+
+export function sendableMaterialKey(item: Pick<SendableMaterial, 'kind' | 'text' | 'url'>): string {
+  const value = item.kind === 'text' ? (item.text || '').trim() : (item.url || '').trim();
+  return value ? `${item.kind}:${value}` : '';
+}
+
+export function sendableMaterialSignature(materials: SendableMaterial[]): string {
+  const keys = new Set<string>();
+  const buckets = bucketSendableMaterials(materials);
+  for (const kind of MATERIAL_KINDS) {
+    for (const item of buckets[kind]) {
+      const key = sendableMaterialKey(item);
+      if (key) keys.add(key);
+    }
+  }
+  return [...keys].sort().join('|');
+}
+
+export function collectSendableMaterialsFromNode(node: Node, sourceCanvasId?: string | null): SendableMaterial[] {
+  const buckets = collectMaterialSetBucketsFromData(node.data);
+  const out: SendableMaterial[] = [];
+  for (const kind of MATERIAL_KINDS) {
+    for (const item of buckets[kind]) {
+      out.push(toSendable(item, {
+        sourceNodeId: node.id,
+        sourceCanvasId: sourceCanvasId || undefined,
+        sourceType: String(node.type || ''),
+      }));
+    }
+  }
+  return out;
+}
+
+export function collectSendableMaterialsFromNodes(
+  nodes: Node[],
+  sourceCanvasId?: string | null,
+): SendableMaterial[] {
+  return [...nodes]
+    .filter((node) => node.type !== 'groupBox')
+    .sort((a, b) => {
+      const dy = (a.position?.y ?? 0) - (b.position?.y ?? 0);
+      if (Math.abs(dy) > 24) return dy;
+      return (a.position?.x ?? 0) - (b.position?.x ?? 0);
+    })
+    .flatMap((node) => collectSendableMaterialsFromNode(node, sourceCanvasId));
+}
+
+export function resourceItemToSendMaterials(item: ResourceItem): SendableMaterial[] {
+  if (item.kind === 'set') {
+    const kind = item.materialSetKind as ResourceMaterialSetKind | undefined;
+    if (!kind || !MATERIAL_KINDS.includes(kind as MaterialSetKind)) return [];
+    return normalizeMaterialSetItems(item.materialSetItems || [], kind as MaterialSetKind).map((child) =>
+      toSendable(child, {
+        sourceNodeId: item.sourceNodeId,
+        sourceCanvasId: item.sourceCanvasId,
+        sourceType: 'resource-set',
+      }),
+    );
+  }
+  if (!MEDIA_KINDS.includes(item.kind as MediaKind) || !item.fileUrl) return [];
+  return [
+    toSendable(
+      {
+        id: item.id,
+        kind: item.kind as MediaKind,
+        url: item.fileUrl,
+        name: item.title || item.originalName || fileNameFromUrl(item.fileUrl),
+        size: item.size,
+        mime: item.mime,
+      },
+      {
+        sourceNodeId: item.sourceNodeId,
+        sourceCanvasId: item.sourceCanvasId,
+        sourceType: 'resource-item',
+      },
+    ),
+  ];
+}
+
+export function sendableToMediaItem(item: SendableMaterial): MediaItem | null {
+  if (!MEDIA_KINDS.includes(item.kind as MediaKind) || !item.url) return null;
+  return {
+    kind: item.kind as MediaKind,
+    url: item.url,
+    name: item.name || fileNameFromUrl(item.url),
+    size: item.size,
+    mime: item.mime,
+  };
+}
+
+export function summarizeSendableMaterials(materials: SendableMaterial[]): string {
+  const buckets = bucketSendableMaterials(materials);
+  const parts: string[] = [];
+  if (buckets.image.length) parts.push(`${buckets.image.length} 图像`);
+  if (buckets.video.length) parts.push(`${buckets.video.length} 视频`);
+  if (buckets.audio.length) parts.push(`${buckets.audio.length} 音频`);
+  if (buckets.text.length) parts.push(`${buckets.text.length} 文本`);
+  return parts.join(' · ') || '暂无素材';
+}

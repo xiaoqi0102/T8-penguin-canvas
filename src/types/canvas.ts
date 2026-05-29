@@ -42,10 +42,11 @@ export type NodeType =
   | 'bp'
   | 'relay'
   | 'video-output'
-  // Toolbox (3)
+  // Toolbox (4)
   | 'cinematic'
   | 'video-motion'
   | 'multi-angle-visual'
+  | 'portrait-master'
   // Input/Output 素材 (2) - 上传素材(图像/视频/音频三合一) + 输出素材(文本/图像/视频/音频预览)
   | 'upload'
   | 'material-set'
@@ -140,6 +141,8 @@ export interface ApiSettings {
   resourceLibraryPath?: string;
   // v1.3.6: 自定义主题模板路径(主题 JSON 文件)
   themeTemplatePath?: string;
+  // 本地 Eagle API 地址(默认 http://127.0.0.1:41595)
+  eagleApiBase?: string;
   preferences?: {
     theme?: 'dark' | 'light';
     language?: string;

@@ -1,5 +1,5 @@
-import { memo, useState } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { Handle, Position, useUpdateNodeInternals, type NodeProps, type ResizeParams } from '@xyflow/react';
 import { Type } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import ResizableCorners from './ResizableCorners';
@@ -17,12 +17,58 @@ import ResizableCorners from './ResizableCorners';
  */
 const TextNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
+  const updateNodeInternals = useUpdateNodeInternals();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const syncRafRef = useRef<{ first?: number; second?: number }>({});
   const text = ((data as any)?.prompt as string) || '';
   // 节点本地尺寸 state: 默认 (260, 由内容撑高) → 拖角后由 ResizableCorners onResize 同步具体 px
   const [size, setSize] = useState<{ w: number; h?: number }>({ w: 260 });
 
+  const syncNodeInternals = useCallback(() => {
+    if (syncRafRef.current.first) window.cancelAnimationFrame(syncRafRef.current.first);
+    if (syncRafRef.current.second) window.cancelAnimationFrame(syncRafRef.current.second);
+
+    syncRafRef.current.first = window.requestAnimationFrame(() => {
+      updateNodeInternals(id);
+      syncRafRef.current.second = window.requestAnimationFrame(() => updateNodeInternals(id));
+    });
+
+    return () => {
+      if (syncRafRef.current.first) window.cancelAnimationFrame(syncRafRef.current.first);
+      if (syncRafRef.current.second) window.cancelAnimationFrame(syncRafRef.current.second);
+      syncRafRef.current = {};
+    };
+  }, [id, updateNodeInternals]);
+
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return syncNodeInternals();
+
+    const cleanup = syncNodeInternals();
+    const observer = new ResizeObserver(() => {
+      syncNodeInternals();
+    });
+    observer.observe(el);
+
+    return () => {
+      cleanup();
+      observer.disconnect();
+    };
+  }, [syncNodeInternals]);
+
+  useLayoutEffect(() => syncNodeInternals(), [selected, size.w, size.h, syncNodeInternals]);
+
+  const handleResize = useCallback(
+    (_e: unknown, params: ResizeParams) => {
+      setSize({ w: params.width, h: params.height });
+      syncNodeInternals();
+    },
+    [syncNodeInternals],
+  );
+
   return (
     <div
+      ref={rootRef}
       className={`relative rounded-xl border-2 transition-all flex flex-col ${
         selected ? 'border-sky-400 shadow-2xl shadow-sky-500/20' : 'border-white/15 hover:border-white/30'
       }`}
@@ -40,7 +86,8 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
         minWidth={220}
         minHeight={140}
         accent="#38bdf8"
-        onResize={(_e, p) => setSize({ w: p.width, h: p.height })}
+        onResize={handleResize}
+        onResizeEnd={syncNodeInternals}
       />
       <Handle type="source" position={Position.Right} className="!bg-sky-400 !border-0" />
 

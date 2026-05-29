@@ -31,6 +31,8 @@ interface Props {
   accent?: string;
   /** 缩放进行中回调 (可选, 一般无需) */
   onResize?: (e: any, params: ResizeParams) => void;
+  /** 缩放结束回调：用于节点在最终尺寸落定后同步 ReactFlow handle 坐标 */
+  onResizeEnd?: (e: any, params: ResizeParams) => void;
 }
 
 const POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
@@ -43,6 +45,7 @@ export default function ResizableCorners({
   maxHeight,
   accent = '#5eead4',
   onResize,
+  onResizeEnd,
 }: Props) {
   const { theme, style } = useThemeStore();
   const isDark = theme === 'dark';
@@ -70,6 +73,7 @@ export default function ResizableCorners({
           maxWidth={maxWidth}
           maxHeight={maxHeight}
           onResize={onResize}
+          onResizeEnd={onResizeEnd}
           className={`t8-resize-handle t8-resize-handle--${themeStyle} t8-resize-handle--${themeStyle}-${themeMode} t8-resize-handle--${p}`}
           style={styleVars}
         />
