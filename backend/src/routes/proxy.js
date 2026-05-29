@@ -8,6 +8,8 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const http = require('http');
+const https = require('https');
 const config = require('../config');
 const { getWhitePng } = require('../utils/whitePng');
 const { tryDecodeDuckPayload } = require('../utils/duckPayload');
@@ -2216,6 +2218,45 @@ async function refToQiniuImage(ref) {
   return null;
 }
 
+const QINIU_SUBMIT_TIMEOUT_MS = 60 * 60 * 1000;
+
+function fetchQiniuSubmit(url, options) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const client = target.protocol === 'http:' ? http : https;
+    const body = options.body || '';
+    const req = client.request(
+      target,
+      {
+        method: options.method || 'POST',
+        headers: {
+          ...options.headers,
+          'Content-Length': Buffer.byteLength(body),
+        },
+        timeout: QINIU_SUBMIT_TIMEOUT_MS,
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          resolve({
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode || 0,
+            text: async () => text,
+          });
+        });
+      },
+    );
+    req.on('timeout', () => {
+      req.destroy(new Error(`七牛云提交超时:${QINIU_SUBMIT_TIMEOUT_MS / 1000}s 未返回响应`));
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 async function callQiniuImageUpstream({ apiKey, baseUrl, model, prompt, quality, size, aspectRatio, imageSize, refs }) {
   const auth = `Bearer ${apiKey}`;
   const hasRefs = Array.isArray(refs) && refs.length > 0;
@@ -2248,7 +2289,7 @@ async function callQiniuImageUpstream({ apiKey, baseUrl, model, prompt, quality,
     ? `aspect_ratio: ${body.image_config?.aspect_ratio || '(default)'} image_size: ${body.image_config?.image_size || '(default)'}`
     : `quality: ${body.quality} size: ${body.size}`;
   console.log('[upstream] Qiniu →', hasRefs ? '/edits' : '/generations', 'model:', model, logTail, 'refs:', refs?.length || 0);
-  return await fetch(url, {
+  return await fetchQiniuSubmit(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: auth },
     body: JSON.stringify(body),

@@ -36,7 +36,8 @@ src/integrations/
 | 字段命名风格 | OpenAI 下划线 `size` / `quality` | 驼峰 `aspectRatio` / `imageSize` / `replyType` |
 | 异步标志 | 上游自决（路径加 `?async=true` 或上游识别） | 显式请求体 `replyType: "async"` |
 | 状态枚举 | `succeed` / `processing` / `failed` | `succeeded` / `running` / `failed` / `violation` |
-| 响应包装 | 顶层带 `data:{status,...}` 二层结构 | 直接顶层 `{id, status, results}` |
+| 响应包装 | 按子模型分流：`openai/gpt-image-2` 文/图生图同步返回 `created + data[].b64_json`（不返回 `task_id`）；`gemini-3.1-flash-image-preview` 可返回异步 `task_id` 并查 `/v1/images/tasks/{tid}` | 直接顶层 `{id, status, results}` |
+| 提交等待 | 七牛两个子模型都必须走 `fetchQiniuSubmit`：`openai/gpt-image-2` 同步返回可能长时间不返回响应头，`gemini-3.1-flash-image-preview` 提交拿 `task_id` 前也可能等待较久；统一允许 60 分钟响应等待，避免 Node fetch 默认 `UND_ERR_HEADERS_TIMEOUT` 约 5 分钟截断 | 普通 fetch 提交后轮询 |
 | 端点切换 | 国内 `openai.qiniu.com` / 海外 `openai.sufy.com` | 国内 `grsai.dakka.com.cn` / 全球 `grsaiapi.com` |
 | 默认提交模式 | 上游 `?async=true` 直接异步 | 后端代理默认 `replyType=async` |
 | 认证 Header | `Authorization: Bearer sk-xxx` | `Authorization: Bearer sk-xxx` |
@@ -186,7 +187,7 @@ cp -r src/integrations/qiniu src/integrations/xyz
 |---|---|---|
 | `backend/src/config.js` | `QINIU_BASE_URL: 'https://openai.qiniu.com'` | `GRSAI_BASE_URL: 'https://grsai.dakka.com.cn'` |
 | `backend/src/routes/settings.js` DEFAULT_SETTINGS | `qiniuApiKey` + `qiniuBaseUrl` | `grsaiApiKey` + `grsaiBaseUrl` |
-| `backend/src/routes/proxy.js` | 七牛云块（5 辅助 + 3 路由 `/qiniu/image[/submit|/status/:tid]`） | grsai 块（5 辅助 + 3 路由 `/grsai/image[/submit|/status/:tid]`） |
+| `backend/src/routes/proxy.js` | 七牛云块（`loadQiniu/refToQiniu/fetchQiniuSubmit/callQiniu/pollQiniu/normalizeQiniu` + 3 路由 `/qiniu/image[/submit|/status/:tid]`）；`fetchQiniuSubmit` 专用于 60 分钟同步响应等待 | grsai 块（5 辅助 + 3 路由 `/grsai/image[/submit|/status/:tid]`） |
 | `src/types/canvas.ts` ApiSettings | `qiniuApiKey?` / `qiniuBaseUrl?` | `grsaiApiKey?` / `grsaiBaseUrl?` |
 | `src/stores/apiKeys.ts` | `DEFAULT_QINIU_BASE` | `DEFAULT_GRSAI_BASE` |
 | `src/services/generation.ts` | `submitQiniuImage` / `queryQiniuImageStatus` | `submitGrsaiImage` / `queryGrsaiImageStatus` |
@@ -341,4 +342,16 @@ const body = { model, prompt, quality: quality || 'auto', size: size || 'auto' }
 - **像素串 vs 比例字符串**：用正则 `/^\d+x\d+$/` 判别，避免把比例串误当像素串处理
 - **旧画布兼容**：旧 gemini 节点 `qiniuSize: '1024x1024'`（v1.5.6 早期允许的像素串）→ runner 检测到不送 `aspect_ratio`，让上游默认；旧 gemini 节点无 `qiniuResolution` → runner 默认 `'1K'`
 - **gemini 不需要 quality**：UI 保留控件以保持与 openai/gpt-image-2 一致；`d.qiniuQuality` 仅 runner 在 openai 分支读取，gemini 分支彻底丢弃
+
+**Q15：七牛提交为什么要单独做 60 分钟响应等待？**
+七牛 `openai/gpt-image-2` 的文生图 `/v1/images/generations` 与图生图 `/v1/images/edits` 文档返回结构都是同步 `ImageGenerationResponse`：`created + data[].b64_json`，**不会返回 `task_id`**。因此这一路不能假设“提交马上返回 taskId、然后前端轮询 60 分钟”；真实链路是上游可能长时间生成，最后一次性返回 `b64_json`。
+
+`gemini-3.1-flash-image-preview` 虽然通常会返回异步 `task_id` 再查 `/v1/images/tasks/{tid}`，但它同样先经过 `/v1/images/generations` 或 `/v1/images/edits` 的提交阶段；如果提交阶段超过 Node fetch 默认约 5 分钟仍未返回响应头，也会在拿到 `task_id` 前触发 `HeadersTimeoutError / UND_ERR_HEADERS_TIMEOUT`。
+
+当前后端在 `backend/src/routes/proxy.js` 中给七牛提交专门收口为 `fetchQiniuSubmit`，两个七牛子模型共用这条路径，用原生 `http/https` 请求把提交响应等待放宽到 `QINIU_SUBMIT_TIMEOUT_MS = 60 * 60 * 1000`。
+
+关键边界：
+- **只改提交等待，不改参数协议**：`openai/gpt-image-2` 的 `/edits` 仍必须发送 `size`，它是图生图尺寸控制的实际字段；不要因为某些文档 schema 漏列 `size` 就回退成“不发 size”。
+- **60 分钟提交等待 ≠ 60 分钟轮询**：`fetchQiniuSubmit` 覆盖提交阶段（包含 `openai/gpt-image-2` 等同步图片、以及 `gemini-3.1-flash-image-preview` 拿 `task_id` 前的等待）；`runQiniuImage.ts` 的 `maxPoll=1800 / interval=2000` 只在后端已经拿到 `taskId` 后才生效。
+- **上游同步响应体必须兼容 Response-like 接口**：`fetchQiniuSubmit` 返回 `{ ok, status, text() }`，用于复用现有 `callQiniuImageUpstream` 调用方解析逻辑。
 
