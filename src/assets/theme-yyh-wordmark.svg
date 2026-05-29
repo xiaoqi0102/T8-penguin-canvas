@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" role="img" aria-label="Yu Yu Hakusho wordmark">
+  <defs>
+    <linearGradient id="yyhPanel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#071622"/>
+      <stop offset="0.56" stop-color="#111429"/>
+      <stop offset="1" stop-color="#21132d"/>
+    </linearGradient>
+    <linearGradient id="yyhTitle" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#f7fdff"/>
+      <stop offset="0.45" stop-color="#dffcff"/>
+      <stop offset="0.62" stop-color="#65fff3"/>
+      <stop offset="1" stop-color="#f25b75"/>
+    </linearGradient>
+    <linearGradient id="yyhSpirit" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#42f7ff"/>
+      <stop offset="0.55" stop-color="#77ff95"/>
+      <stop offset="1" stop-color="#bc50ff"/>
+    </linearGradient>
+    <filter id="yyhGlow" x="-20%" y="-35%" width="140%" height="170%">
+      <feGaussianBlur stdDeviation="5" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <pattern id="yyhGrid" width="42" height="42" patternUnits="userSpaceOnUse">
+      <path d="M42 0H0V42" fill="none" stroke="#45e9ff" stroke-opacity=".14" stroke-width="1"/>
+      <circle cx="21" cy="21" r="1.4" fill="#8b55ff" fill-opacity=".32"/>
+    </pattern>
+  </defs>
+
+  <g opacity=".96">
+    <path d="M64 48H1004l92 92v332H156l-92-92Z" fill="url(#yyhPanel)" opacity=".86"/>
+    <path d="M64 48H1004l92 92v332H156l-92-92Z" fill="url(#yyhGrid)" opacity=".62"/>
+    <path d="M64 48H1004l92 92v332H156l-92-92Z" fill="none" stroke="#42f7ff" stroke-width="6"/>
+    <path d="M92 78h880l78 78v286H170l-78-78Z" fill="none" stroke="#b84bff" stroke-width="2" opacity=".72"/>
+    <path d="M92 78H388M826 78h146l78 78v60M1050 352v90H870" fill="none" stroke="#ff3b62" stroke-width="5" opacity=".88"/>
+  </g>
+
+  <g transform="translate(102 92)" font-family="'Microsoft YaHei', 'Noto Sans SC', 'PingFang SC', sans-serif">
+    <text x="0" y="34" fill="#77ff95" font-size="22" font-weight="800" letter-spacing="3">SYSTEM STATUS: REI GUN READY</text>
+    <text x="0" y="62" fill="#42f7ff" font-size="18" font-weight="700" letter-spacing="2">SPIRIT DETECTIVE CANVAS / DARK TOURNAMENT OPS</text>
+    <text x="0" y="266" fill="url(#yyhTitle)" font-size="178" font-weight="950" letter-spacing="-8" filter="url(#yyhGlow)">幽游白书</text>
+    <text x="16" y="326" fill="#77ff95" font-size="42" font-weight="900" letter-spacing="3">REI MAP OPS</text>
+    <text x="306" y="326" fill="#ff4969" font-size="30" font-weight="900" letter-spacing="2">区域 04 · 灵界之门</text>
+  </g>
+
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M142 420C238 344 348 388 452 286S692 214 820 330s190 86 260 14" stroke="#42f7ff" stroke-width="5" opacity=".78"/>
+    <path d="M138 438c116-50 210 12 312-68s211-72 330 22 210 60 300-22" stroke="#ff3b62" stroke-width="4" opacity=".76"/>
+    <path d="M205 404l16-16 16 16-16 16Z" fill="#77ff95" stroke="#071622" stroke-width="4"/>
+    <path d="M780 326l22-22 22 22-22 22Z" fill="#42f7ff" stroke="#071622" stroke-width="4"/>
+    <circle cx="985" cy="354" r="16" fill="#ff3b62" stroke="#071622" stroke-width="5"/>
+  </g>
+
+  <g transform="translate(930 102)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <path d="M0 0h118l28 28v120H0Z" fill="#071622" fill-opacity=".76" stroke="#42f7ff" stroke-width="3"/>
+    <text x="14" y="30" fill="#77ff95" font-size="16" font-weight="800">SYNC 92.7%</text>
+    <text x="14" y="56" fill="#42f7ff" font-size="14" font-weight="700">YUSUKE</text>
+    <text x="14" y="82" fill="#ff4969" font-size="14" font-weight="700">HIEI ALERT</text>
+    <path d="M14 112h92" stroke="#77ff95" stroke-width="5"/>
+    <path d="M14 130h62" stroke="#ff4969" stroke-width="5"/>
+  </g>
+</svg>

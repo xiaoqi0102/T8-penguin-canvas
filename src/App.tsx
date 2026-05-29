@@ -17,6 +17,16 @@ import type { ResourceItem } from './services/api';
 import { applyThemeTemplate } from './theme/applyTheme';
 import { resolveThemeTemplate } from './theme/defaultTemplates';
 import { materialSetItemsToData, type MaterialSetKind, type MaterialSetItem } from './utils/materialSet';
+import {
+  buildPortraitPrompt,
+  normalizePortraitLocks,
+  normalizePortraitSelection,
+  normalizePortraitWeights,
+  portraitSelectionStats,
+  resolvePortraitPreview,
+  summarizePortraitSelection,
+  type PortraitLanguage,
+} from './data/portraitMasterOptions';
 
 // vite.config 注入的编译期常量（与 package.json 同步），勿硬编码 v1.x.x
 declare const __APP_VERSION__: string;
@@ -31,6 +41,54 @@ function isShortcutTypingTarget(target: EventTarget | null): boolean {
     target.isContentEditable ||
     Boolean(target.closest('[contenteditable="true"]'))
   );
+}
+
+function safePortraitLanguage(value: unknown): PortraitLanguage {
+  return value === 'zh' ? 'zh' : 'en';
+}
+
+function portraitResourceToNodeData(item: ResourceItem): Record<string, any> | null {
+  if (item.kind !== 'set' || item.materialSetKind !== 'text' || !Array.isArray(item.materialSetItems)) return null;
+  const rawText = item.materialSetItems
+    .map((entry) => String(entry.text || '').trim())
+    .find((text) => text.includes('"t8-portrait-master"'));
+  if (!rawText) return null;
+  try {
+    const parsed = JSON.parse(rawText);
+    if (!parsed || parsed.schema !== 't8-portrait-master') return null;
+    const selection = normalizePortraitSelection(parsed.selection);
+    const locks = normalizePortraitLocks(parsed.locks);
+    const weights = normalizePortraitWeights(parsed.weights);
+    const customText = typeof parsed.customText === 'string' ? parsed.customText : '';
+    const language = safePortraitLanguage(parsed.language);
+    const prompt = buildPortraitPrompt({ selection, weights, customText, language });
+    return {
+      portraitLanguage: language,
+      portraitSelection: selection,
+      portraitLocks: locks,
+      portraitWeights: weights,
+      portraitCustomText: customText,
+      prompt,
+      text: prompt,
+      outputText: prompt,
+      portraitMetadata: {
+        schema: 't8-portrait-master',
+        version: 1,
+        selection,
+        locks,
+        weights,
+        customText,
+        language,
+        prompt,
+        preview: resolvePortraitPreview(selection),
+      },
+      portraitSummary: summarizePortraitSelection(selection, 'zh'),
+      portraitStats: portraitSelectionStats(selection),
+      portraitSchemaVersion: 1,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -254,12 +312,19 @@ function App() {
   const isRh = currentTemplate.visuals?.style === 'rh';
   const isNaruto = currentTemplate.visuals?.style === 'naruto';
   const isEva = currentTemplate.visuals?.style === 'eva';
+  const isYyh = currentTemplate.visuals?.style === 'yyh';
 
   const handleAddNode = (type: NodeType) => {
     addNodeRef.current?.(type);
   };
 
   const handleInsertResource = (item: ResourceItem) => {
+    const portraitData = portraitResourceToNodeData(item);
+    if (portraitData) {
+      addNodeRef.current?.('portrait-master', { data: portraitData });
+      void api.updateResourceItem(item.id, { touch: true });
+      return;
+    }
     if (item.kind === 'set' && item.materialSetKind && item.materialSetItems?.length) {
       addNodeRef.current?.('material-set', {
         data: materialSetItemsToData(
@@ -290,7 +355,7 @@ function App() {
     <div
       className={`t8-app-shell h-screen flex flex-col overflow-hidden ${
         isPixel ? '' : isDark ? 'bg-zinc-950 text-white' : 'bg-zinc-50 text-zinc-900'
-      } ${isOp ? 't8-app-shell--op' : ''} ${isRh ? 't8-app-shell--rh' : ''} ${isNaruto ? 't8-app-shell--naruto' : ''} ${isEva ? 't8-app-shell--eva' : ''}`}
+      } ${isOp ? 't8-app-shell--op' : ''} ${isRh ? 't8-app-shell--rh' : ''} ${isNaruto ? 't8-app-shell--naruto' : ''} ${isEva ? 't8-app-shell--eva' : ''} ${isYyh ? 't8-app-shell--yyh' : ''}`}
       style={{ background: 'var(--t8-bg-app)', color: 'var(--t8-text-main)' }}
     >
       {/* 头部状态栏 */}
@@ -361,6 +426,21 @@ function App() {
                 </div>
               </div>
               <span className="t8-eva-brand__sync" aria-hidden="true">SYSTEM STATUS: ONLINE</span>
+            </div>
+          ) : isYyh ? (
+            <div className="t8-yyh-brand flex items-center gap-2">
+              <span className="t8-yyh-brand__mark" aria-hidden="true">
+                <Sparkles size={16} />
+              </span>
+              <div className="min-w-0">
+                <h1 className="t8-yyh-brand__title text-[14px] font-black leading-none">
+                  幽游白书 · 贞贞的无限画布
+                </h1>
+                <div className="t8-yyh-brand__sub text-[9px] font-bold tracking-wide leading-none mt-0.5">
+                  SPIRIT DETECTIVE CANVAS / REI MAP ONLINE
+                </div>
+              </div>
+              <span className="t8-yyh-brand__status" aria-hidden="true">REI GUN READY</span>
             </div>
           ) : isPixel ? (
             <>

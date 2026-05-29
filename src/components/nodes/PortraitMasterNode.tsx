@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Handle,
@@ -10,18 +10,28 @@ import {
 } from '@xyflow/react';
 import {
   Copy,
+  Download,
+  FileText,
   Lock,
+  PackagePlus,
   Play,
   RotateCcw,
   Search,
+  Send,
   Shuffle,
   SlidersHorizontal,
   Sparkles,
+  Star,
+  Trash2,
   Unlock,
+  Upload as UploadIcon,
   UserRoundCog,
   X,
 } from 'lucide-react';
 import { PORT_COLOR } from '../../config/portTypes';
+import * as api from '../../services/api';
+import { useCanvasStore } from '../../stores/canvas';
+import { logBus } from '../../stores/logs';
 import {
   PORTRAIT_CATEGORIES,
   PORTRAIT_GROUPS,
@@ -42,14 +52,93 @@ import {
   type PortraitSelection,
   type PortraitWeights,
 } from '../../data/portraitMasterOptions';
+import {
+  PORTRAIT_ADVANCED_CATEGORIES,
+  PORTRAIT_ADVANCED_GROUPS,
+  PORTRAIT_ADVANCED_OPTION_BY_ID,
+  buildPortraitAdvancedPrompt,
+  categoryAdvancedOptionCount,
+  clearAdvancedCategorySelection,
+  normalizePortraitAdvancedLocks,
+  normalizePortraitAdvancedSelection,
+  normalizePortraitAdvancedWeights,
+  portraitAdvancedStats,
+  portraitSelectionLooksUnderage,
+  randomizePortraitHiddenAdvanced,
+  summarizePortraitAdvancedSelection,
+} from '../../data/portraitMasterAdvancedOptions';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
-import { placeSingleNode } from '../../utils/nodePlacement';
+import { useThemeStore } from '../../stores/theme';
+import { useHiddenFeatureStore, isYyhPortraitEnabled } from '../../stores/hiddenFeatures';
+import { resolveThemeTemplate } from '../../theme/defaultTemplates';
+import { materialSetItemFromText, materialSetItemsToData } from '../../utils/materialSet';
+import { defaultSizeOf, placeBatchNodes, placeSingleNode, type Rect } from '../../utils/nodePlacement';
 import { useUpdateNodeData } from './useUpdateNodeData';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+const PORTRAIT_FAVORITES_KEY = 't8:portrait-master:favorites:v1';
+const MAX_PORTRAIT_FAVORITES = 40;
+
+type PortraitRandomMode = 'all' | 'empty' | 'category' | 'unlocked';
+type PortraitBatchMode = 'text-nodes' | 'material-set';
+
+interface PortraitBackup {
+  schema: 't8-portrait-master';
+  version: number;
+  title?: string;
+  selection: PortraitSelection;
+  locks: PortraitLocks;
+  weights: PortraitWeights;
+  advancedSelection?: PortraitSelection;
+  advancedLocks?: PortraitLocks;
+  advancedWeights?: PortraitWeights;
+  customText: string;
+  language: PortraitLanguage;
+  prompt: string;
+  exportedAt: string;
+}
+
+interface PortraitFavorite extends PortraitBackup {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const STYLE_PACKS = [
+  { id: 'any', label: '不限风格', hints: [] },
+  { id: 'pure', label: '清纯', hints: ['清纯', '柔和', '自然', '白皙', '学院', '少女', 'soft', 'natural', 'gentle', 'fair', 'academy'] },
+  { id: 'mature', label: '御姐', hints: ['御姐', '成熟', '冷艳', '高定', '高挑', 'elegant', 'mature', 'cool', 'high-fashion'] },
+  { id: 'cyber', label: '赛博', hints: ['赛博', '未来', '机械', '冷光', 'cyber', 'futuristic', 'neon', 'mechanic'] },
+  { id: 'ancient', label: '古风', hints: ['古典', '巫女', '王族', '花朵', '丝绸', 'classical', 'royal', 'shrine', 'ornate'] },
+  { id: 'academy', label: '学院', hints: ['学院', '学生', '制服', '图书', 'academy', 'school', 'student', 'librarian'] },
+  { id: 'dark', label: '暗黑', hints: ['暗黑', '哥特', '吸血鬼', '黑色', '冷感', 'gothic', 'dark', 'vampire', 'black'] },
+  { id: 'idol', label: '偶像', hints: ['偶像', '歌手', '舞台', '亮片', 'idol', 'singer', 'stage', 'sparkle'] },
+  { id: 'battle', label: '战斗', hints: ['战斗', '剑士', '忍者', '骑士', '战术', '伤痕', 'battle', 'swordsman', 'ninja', 'knight', 'tactical'] },
+  { id: 'lolita', label: '洛丽塔', hints: ['人偶', '童话', '甜妹', '蝴蝶结', '娃娃', 'doll', 'storybook', 'sweet', 'ribbon', 'princess'] },
+  { id: 'workplace', label: '职场', hints: ['都市', '医生', '侦探', '领袖', '利落', 'urban', 'doctor', 'detective', 'leader', 'clean sharp'] },
+] as const;
+
+type StylePackId = (typeof STYLE_PACKS)[number]['id'];
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
 
 function safeLanguage(value: unknown): PortraitLanguage {
   return value === 'zh' ? 'zh' : 'en';
+}
+
+function safeRandomMode(value: unknown): PortraitRandomMode {
+  return value === 'all' || value === 'empty' || value === 'category' || value === 'unlocked' ? value : 'unlocked';
+}
+
+function safeStylePack(value: unknown): StylePackId {
+  return STYLE_PACKS.some((pack) => pack.id === value) ? (value as StylePackId) : 'any';
+}
+
+function safeBatchMode(value: unknown): PortraitBatchMode {
+  return value === 'material-set' ? 'material-set' : 'text-nodes';
 }
 
 function promptFromState(
@@ -57,8 +146,212 @@ function promptFromState(
   weights: PortraitWeights,
   customText: string,
   language: PortraitLanguage,
+  advancedSelection: PortraitSelection = {},
+  advancedWeights: PortraitWeights = {},
+  includeAdvanced = false,
 ): string {
-  return buildPortraitPrompt({ selection, weights, customText, language });
+  const basePrompt = buildPortraitPrompt({ selection, weights, customText: '', language });
+  const advancedPrompt = includeAdvanced && !portraitSelectionLooksUnderage(selection)
+    ? buildPortraitAdvancedPrompt({ selection: advancedSelection, weights: advancedWeights, language })
+    : '';
+  const custom = customText.trim();
+  const separator = language === 'zh' ? '，' : ', ';
+  return [basePrompt, advancedPrompt, custom].filter(Boolean).join(separator);
+}
+
+function buildPortraitBackup(params: {
+  title?: string;
+  selection: PortraitSelection;
+  locks: PortraitLocks;
+  weights: PortraitWeights;
+  advancedSelection?: PortraitSelection;
+  advancedLocks?: PortraitLocks;
+  advancedWeights?: PortraitWeights;
+  customText: string;
+  language: PortraitLanguage;
+  includeAdvanced?: boolean;
+}): PortraitBackup {
+  const advancedSelection = normalizePortraitAdvancedSelection(params.advancedSelection);
+  const advancedLocks = normalizePortraitAdvancedLocks(params.advancedLocks);
+  const advancedWeights = normalizePortraitAdvancedWeights(params.advancedWeights);
+  const prompt = promptFromState(
+    params.selection,
+    params.weights,
+    params.customText,
+    params.language,
+    advancedSelection,
+    advancedWeights,
+    Boolean(params.includeAdvanced),
+  );
+  return {
+    schema: 't8-portrait-master',
+    version: SCHEMA_VERSION,
+    title: params.title,
+    selection: params.selection,
+    locks: params.locks,
+    weights: params.weights,
+    advancedSelection,
+    advancedLocks,
+    advancedWeights,
+    customText: params.customText,
+    language: params.language,
+    prompt,
+    exportedAt: new Date().toISOString(),
+  };
+}
+
+function parsePortraitBackup(raw: unknown): PortraitBackup | null {
+  if (!isRecord(raw) || raw.schema !== 't8-portrait-master') return null;
+  const selection = normalizePortraitSelection(raw.selection);
+  const locks = normalizePortraitLocks(raw.locks);
+  const weights = normalizePortraitWeights(raw.weights);
+  const advancedSelection = normalizePortraitAdvancedSelection(raw.advancedSelection);
+  const advancedLocks = normalizePortraitAdvancedLocks(raw.advancedLocks);
+  const advancedWeights = normalizePortraitAdvancedWeights(raw.advancedWeights);
+  const customText = typeof raw.customText === 'string' ? raw.customText : '';
+  const language = safeLanguage(raw.language);
+  return buildPortraitBackup({
+    title: typeof raw.title === 'string' ? raw.title.slice(0, 80) : undefined,
+    selection,
+    locks,
+    weights,
+    advancedSelection,
+    advancedLocks,
+    advancedWeights,
+    customText,
+    language,
+  });
+}
+
+function loadPortraitFavorites(): PortraitFavorite[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(PORTRAIT_FAVORITES_KEY) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        const backup = parsePortraitBackup(item);
+        if (!backup || !isRecord(item)) return null;
+        const id = typeof item.id === 'string' && item.id ? item.id : `portrait-fav-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim().slice(0, 80) : backup.title || '未命名角色';
+        return {
+          ...backup,
+          id,
+          name,
+          title: backup.title || name,
+          createdAt: typeof item.createdAt === 'string' ? item.createdAt : backup.exportedAt,
+          updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : backup.exportedAt,
+        } as PortraitFavorite;
+      })
+      .filter(Boolean)
+      .slice(0, MAX_PORTRAIT_FAVORITES) as PortraitFavorite[];
+  } catch {
+    return [];
+  }
+}
+
+function savePortraitFavorites(favorites: PortraitFavorite[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PORTRAIT_FAVORITES_KEY, JSON.stringify(favorites.slice(0, MAX_PORTRAIT_FAVORITES)));
+  } catch {
+    // localStorage may be disabled; ignore so the editor remains usable.
+  }
+}
+
+function downloadJson(filename: string, payload: unknown) {
+  if (typeof document === 'undefined') return;
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+}
+
+function seedFromString(value: string): number {
+  const text = value.trim();
+  if (!text) return Date.now() >>> 0;
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createRng(seed: number) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pickStyledOption(groupId: string, rng: () => number, stylePackId: StylePackId) {
+  const group = PORTRAIT_GROUPS.find((item) => item.id === groupId);
+  if (!group || group.options.length === 0) return null;
+  const pack = STYLE_PACKS.find((item) => item.id === stylePackId) || STYLE_PACKS[0];
+  const hints = pack.hints.map((hint) => hint.toLowerCase());
+  const pool = hints.length
+    ? group.options.filter((option) => {
+        const hay = `${option.label} ${option.labelEn} ${option.prompt}`.toLowerCase();
+        return hints.some((hint) => hay.includes(hint));
+      })
+    : group.options;
+  const options = pool.length > 0 ? pool : group.options;
+  return options[Math.floor(rng() * options.length)] || null;
+}
+
+function applyPortraitConflictRules(selection: PortraitSelection): PortraitSelection {
+  const out = { ...selection };
+  if (out.outfit) {
+    // 套装通常已经包含上下装形态，优先保留套装，避免 prompt 自相矛盾。
+    delete out.top;
+    delete out.bottom;
+  }
+  const hairAccessory = out.hairAccessory ? PORTRAIT_OPTION_BY_ID.get(out.hairAccessory) : null;
+  if (hairAccessory && /帽|头盔|兜帽|hat|cap|helmet|hood/i.test(`${hairAccessory.label} ${hairAccessory.labelEn} ${hairAccessory.prompt}`)) {
+    delete out.bangs;
+  }
+  return out;
+}
+
+function randomizePortraitAdvanced(params: {
+  current: PortraitSelection;
+  locks: PortraitLocks;
+  mode: PortraitRandomMode;
+  categoryId: string;
+  stylePackId: StylePackId;
+  seedText: string;
+  offset?: number;
+}): PortraitSelection {
+  const rng = createRng((seedFromString(params.seedText) + (params.offset || 0) * 9973) >>> 0);
+  const out: PortraitSelection = { ...params.current };
+  const category = PORTRAIT_CATEGORIES.find((item) => item.id === params.categoryId);
+  const categoryGroupIds = new Set(category?.groups.map((group) => group.id) || []);
+  for (const group of PORTRAIT_GROUPS) {
+    const locked = !!params.locks[group.id];
+    const shouldRandomize =
+      params.mode === 'all' ||
+      (params.mode === 'empty' && !out[group.id]) ||
+      (params.mode === 'category' && categoryGroupIds.has(group.id) && !locked) ||
+      (params.mode === 'unlocked' && !locked);
+    if (!shouldRandomize) continue;
+    if (params.mode !== 'all' && locked) continue;
+    if (rng() < 0.07) {
+      delete out[group.id];
+      continue;
+    }
+    const option = pickStyledOption(group.id, rng, params.stylePackId);
+    if (option) out[group.id] = option.id;
+  }
+  return applyPortraitConflictRules(out);
 }
 
 function clampWeight(value: unknown): number {
@@ -339,7 +632,7 @@ const PortraitAvatarPreview = ({ selection }: { selection: PortraitSelection }) 
         : `radial-gradient(circle at 50% 24%, color-mix(in srgb, var(--t8-accent) 22%, transparent), transparent 34%), linear-gradient(135deg, ${preview.background}44, var(--t8-bg-panel-muted))`;
   return (
     <div
-      className="relative flex h-60 w-full items-center justify-center overflow-hidden rounded-xl border"
+      className="relative flex min-h-[270px] w-full flex-col overflow-hidden rounded-xl border px-4 pb-3 pt-9"
       style={{
         borderColor: 'var(--t8-border)',
         background: bgMix,
@@ -348,7 +641,8 @@ const PortraitAvatarPreview = ({ selection }: { selection: PortraitSelection }) 
       <div className="absolute left-3 top-3 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--t8-text-dim)' }}>
         Avatar
       </div>
-      <svg className="absolute inset-x-0 top-5 mx-auto h-[158px] w-[214px] overflow-visible" viewBox="0 0 220 180" role="img" aria-label="肖像预览">
+      <div className="flex min-h-0 flex-1 items-center justify-center pb-2">
+      <svg className="h-[178px] w-full max-w-[232px] overflow-visible" viewBox="0 0 220 180" role="img" aria-label="肖像预览">
         <g transform="translate(-30 0)">
           <ellipse cx="110" cy="166" rx="62" ry="10" fill="#000" opacity="0.12" />
         </g>
@@ -402,7 +696,8 @@ const PortraitAvatarPreview = ({ selection }: { selection: PortraitSelection }) 
           </g>
         </g>
       </svg>
-      <div className="absolute bottom-4 left-5 right-5 grid grid-cols-2 gap-1.5 text-[11px]" style={{ color: 'var(--t8-text-muted)' }}>
+      </div>
+      <div className="grid shrink-0 grid-cols-2 gap-1.5 text-[11px]" style={{ color: 'var(--t8-text-muted)' }}>
         {[hair, eyes, outfit, mood].filter(Boolean).slice(0, 4).map((item) => (
           <span key={item} className="truncate rounded px-1.5 py-0.5" style={{ background: 'var(--t8-bg-panel-elevated)' }}>
             {item}
@@ -416,13 +711,34 @@ const PortraitAvatarPreview = ({ selection }: { selection: PortraitSelection }) 
 const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const rf = useReactFlow();
+  const { activeId, canvases, loadCanvases } = useCanvasStore();
+  const { templateId, customTemplates } = useThemeStore();
+  const yyhPortraitIds = useHiddenFeatureStore((s) => s.yyhPortraitIds);
   const d = (data as any) || {};
+  const activeTemplate = useMemo(
+    () => resolveThemeTemplate(templateId, customTemplates),
+    [templateId, customTemplates],
+  );
+  const isYyhVisual = activeTemplate.visuals?.style === 'yyh';
+  const yyhHiddenMode = Boolean(isYyhVisual && isYyhPortraitEnabled(yyhPortraitIds, id));
 
+  const jsonInputRef = useRef<HTMLInputElement | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState(PORTRAIT_CATEGORIES[0]?.id || 'base');
+  const [activeAdvancedCategoryId, setActiveAdvancedCategoryId] = useState(PORTRAIT_ADVANCED_CATEGORIES[0]?.id || 'hidden-lingerie');
+  const [showAdvancedPanel, setShowAdvancedPanel] = useState(false);
   const [search, setSearch] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [favoriteName, setFavoriteName] = useState('');
+  const [favorites, setFavorites] = useState<PortraitFavorite[]>(() => loadPortraitFavorites());
+  const [randomMode, setRandomMode] = useState<PortraitRandomMode>('unlocked');
+  const [stylePackId, setStylePackId] = useState<StylePackId>('any');
+  const [randomSeed, setRandomSeed] = useState('');
+  const [batchCount, setBatchCount] = useState(3);
+  const [batchMode, setBatchMode] = useState<PortraitBatchMode>('text-nodes');
+  const [targetCanvasId, setTargetCanvasId] = useState('');
+  const [hiddenRandomEnabled, setHiddenRandomEnabled] = useState(false);
 
   const openEditor = useCallback(() => {
     rf.setNodes((nodes) =>
@@ -438,28 +754,54 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
   const selection = useMemo(() => normalizePortraitSelection(d.portraitSelection), [d.portraitSelection]);
   const locks = useMemo(() => normalizePortraitLocks(d.portraitLocks), [d.portraitLocks]);
   const weights = useMemo(() => normalizePortraitWeights(d.portraitWeights), [d.portraitWeights]);
+  const advancedSelection = useMemo(() => normalizePortraitAdvancedSelection(d.portraitAdvancedSelection), [d.portraitAdvancedSelection]);
+  const advancedLocks = useMemo(() => normalizePortraitAdvancedLocks(d.portraitAdvancedLocks), [d.portraitAdvancedLocks]);
+  const advancedWeights = useMemo(() => normalizePortraitAdvancedWeights(d.portraitAdvancedWeights), [d.portraitAdvancedWeights]);
   const customText = typeof d.portraitCustomText === 'string' ? d.portraitCustomText : '';
   const language = safeLanguage(d.portraitLanguage);
+  const hiddenBlockedByBase = yyhHiddenMode && portraitSelectionLooksUnderage(selection);
   const prompt = useMemo(
-    () => promptFromState(selection, weights, customText, language),
-    [selection, weights, customText, language],
+    () => promptFromState(selection, weights, customText, language, advancedSelection, advancedWeights, yyhHiddenMode),
+    [selection, weights, customText, language, advancedSelection, advancedWeights, yyhHiddenMode],
   );
   const stats = portraitSelectionStats(selection);
+  const advancedStats = portraitAdvancedStats(advancedSelection);
   const summary = summarizePortraitSelection(selection, 'zh');
+  const advancedSummary = summarizePortraitAdvancedSelection(advancedSelection, 'zh');
   const activeCategory = PORTRAIT_CATEGORIES.find((item) => item.id === activeCategoryId) || PORTRAIT_CATEGORIES[0];
+  const activeAdvancedCategory = PORTRAIT_ADVANCED_CATEGORIES.find((item) => item.id === activeAdvancedCategoryId) || PORTRAIT_ADVANCED_CATEGORIES[0];
+  const editorCategory = showAdvancedPanel && yyhHiddenMode ? activeAdvancedCategory : activeCategory;
+  const selectedTargetCanvasId = targetCanvasId || activeId || canvases[0]?.id || '';
+  const selectedTargetCanvas = canvases.find((canvas) => canvas.id === selectedTargetCanvasId) || null;
 
   const commit = useCallback(
     (patch: Record<string, any>) => {
       const nextSelection = normalizePortraitSelection(patch.portraitSelection ?? selection);
       const nextWeights = normalizePortraitWeights(patch.portraitWeights ?? weights);
+      const nextAdvancedSelection = normalizePortraitAdvancedSelection(patch.portraitAdvancedSelection ?? advancedSelection);
+      const nextAdvancedWeights = normalizePortraitAdvancedWeights(patch.portraitAdvancedWeights ?? advancedWeights);
       const nextCustomText = typeof patch.portraitCustomText === 'string' ? patch.portraitCustomText : customText;
       const nextLanguage = safeLanguage(patch.portraitLanguage ?? language);
-      const nextPrompt = promptFromState(nextSelection, nextWeights, nextCustomText, nextLanguage);
+      const includeAdvanced = Boolean(patch.portraitAdvancedEnabled ?? yyhHiddenMode);
+      const advancedBlocked = includeAdvanced && portraitSelectionLooksUnderage(nextSelection);
+      const nextPrompt = promptFromState(
+        nextSelection,
+        nextWeights,
+        nextCustomText,
+        nextLanguage,
+        nextAdvancedSelection,
+        nextAdvancedWeights,
+        includeAdvanced,
+      );
       const portraitMetadata = {
         schema: 't8-portrait-master',
         version: SCHEMA_VERSION,
         selection: nextSelection,
         weights: nextWeights,
+        advancedSelection: nextAdvancedSelection,
+        advancedWeights: nextAdvancedWeights,
+        advancedEnabled: includeAdvanced,
+        advancedBlocked,
         customText: nextCustomText,
         language: nextLanguage,
         prompt: nextPrompt,
@@ -473,10 +815,92 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
         portraitMetadata,
         portraitSummary: summarizePortraitSelection(nextSelection, 'zh'),
         portraitStats: portraitSelectionStats(nextSelection),
+        portraitAdvancedSummary: summarizePortraitAdvancedSelection(nextAdvancedSelection, 'zh'),
+        portraitAdvancedStats: portraitAdvancedStats(nextAdvancedSelection),
+        yyhPortraitHidden: includeAdvanced,
         portraitSchemaVersion: SCHEMA_VERSION,
       });
     },
-    [customText, language, selection, update, weights],
+    [advancedSelection, advancedWeights, customText, language, selection, update, weights, yyhHiddenMode],
+  );
+
+  useEffect(() => {
+    const advancedEnabled = yyhHiddenMode;
+    const advancedBlocked = advancedEnabled && portraitSelectionLooksUnderage(selection);
+    const hiddenFlag = advancedEnabled;
+    if (d.prompt === prompt && Boolean(d.yyhPortraitHidden) === hiddenFlag) return;
+    update({
+      prompt,
+      text: prompt,
+      outputText: prompt,
+      portraitMetadata: {
+        schema: 't8-portrait-master',
+        version: SCHEMA_VERSION,
+        selection,
+        weights,
+        advancedSelection,
+        advancedWeights,
+        advancedEnabled,
+        advancedBlocked,
+        customText,
+        language,
+        prompt,
+        preview: resolvePortraitPreview(selection),
+      },
+      portraitSummary: summarizePortraitSelection(selection, 'zh'),
+      portraitStats: portraitSelectionStats(selection),
+      portraitAdvancedSummary: advancedSummary,
+      portraitAdvancedStats: advancedStats,
+      yyhPortraitHidden: hiddenFlag,
+      portraitSchemaVersion: SCHEMA_VERSION,
+    });
+  }, [
+    advancedSelection,
+    advancedStats,
+    advancedSummary,
+    advancedWeights,
+    customText,
+    d.prompt,
+    d.yyhPortraitHidden,
+    language,
+    prompt,
+    selection,
+    update,
+    weights,
+    yyhHiddenMode,
+  ]);
+
+  const currentBackup = useCallback(
+    (title?: string) => buildPortraitBackup({
+      title,
+      selection,
+      locks,
+      weights,
+      advancedSelection,
+      advancedLocks,
+      advancedWeights,
+      customText,
+      language,
+      includeAdvanced: yyhHiddenMode,
+    }),
+    [advancedLocks, advancedSelection, advancedWeights, customText, language, locks, selection, weights, yyhHiddenMode],
+  );
+
+  const applyBackup = useCallback(
+    (backup: PortraitBackup) => {
+      commit({
+        portraitSelection: backup.selection,
+        portraitLocks: backup.locks,
+        portraitWeights: backup.weights,
+        portraitAdvancedSelection: backup.advancedSelection || {},
+        portraitAdvancedLocks: backup.advancedLocks || {},
+        portraitAdvancedWeights: backup.advancedWeights || {},
+        portraitCustomText: backup.customText,
+        portraitLanguage: backup.language,
+      });
+      logBus.success('已应用肖像角色配置', '肖像大师');
+    },
+    [commit],
   );
 
   const selectOption = (groupId: string, optionId: string) => {
@@ -500,9 +924,68 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
     commit({ portraitSelection: clearCategorySelection(selection, categoryId) });
   };
 
+  const selectAdvancedOption = (groupId: string, optionId: string) => {
+    const next = { ...advancedSelection };
+    if (optionId) next[groupId] = optionId;
+    else delete next[groupId];
+    commit({ portraitAdvancedSelection: next, portraitAdvancedEnabled: yyhHiddenMode });
+  };
+
+  const toggleAdvancedLock = (groupId: string) => {
+    const next: PortraitLocks = { ...advancedLocks, [groupId]: !advancedLocks[groupId] };
+    commit({ portraitAdvancedLocks: next, portraitAdvancedEnabled: yyhHiddenMode });
+  };
+
+  const changeAdvancedWeight = (groupId: string, value: string) => {
+    const next: PortraitWeights = { ...advancedWeights, [groupId]: clampWeight(value) };
+    commit({ portraitAdvancedWeights: next, portraitAdvancedEnabled: yyhHiddenMode });
+  };
+
+  const clearAdvancedCategory = (categoryId: string) => {
+    commit({
+      portraitAdvancedSelection: clearAdvancedCategorySelection(advancedSelection, categoryId),
+      portraitAdvancedEnabled: yyhHiddenMode,
+    });
+  };
+
+  const handleHiddenRandom = (categoryId?: string) => {
+    if (!yyhHiddenMode || hiddenBlockedByBase) {
+      logBus.warn('隐藏高级词条仅支持成年角色设定，当前基础人物不会输出隐藏词条。', '肖像大师');
+      return;
+    }
+    const next = randomizePortraitHiddenAdvanced({
+      current: advancedSelection,
+      locks: advancedLocks,
+      categoryId,
+      seed: seedFromString(randomSeed || `${Date.now()}`),
+    });
+    commit({ portraitAdvancedSelection: next, portraitAdvancedEnabled: true });
+  };
+
   const handleRandom = () => {
+    const next = randomizePortraitAdvanced({
+      current: selection,
+      locks,
+      mode: randomMode,
+      categoryId: activeCategory.id,
+      stylePackId,
+      seedText: randomSeed,
+    });
+    const patch: Record<string, any> = { portraitSelection: next };
+    if (yyhHiddenMode && hiddenRandomEnabled && !portraitSelectionLooksUnderage(next)) {
+      patch.portraitAdvancedSelection = randomizePortraitHiddenAdvanced({
+        current: advancedSelection,
+        locks: advancedLocks,
+        seed: seedFromString(randomSeed || `${Date.now()}`),
+      });
+      patch.portraitAdvancedEnabled = true;
+    }
+    commit(patch);
+  };
+
+  const handleQuickRandom = () => {
     const next = randomizePortraitSelection({ current: selection, locks });
-    commit({ portraitSelection: next });
+    commit({ portraitSelection: applyPortraitConflictRules(next) });
   };
 
   const handleCopy = () => {
@@ -511,6 +994,318 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     }).catch(() => undefined);
+  };
+
+  const handleExportJson = () => {
+    const title = favoriteName.trim() || summary || 'portrait-master';
+    downloadJson(`t8-portrait-master-${Date.now()}.json`, currentBackup(title));
+  };
+
+  const handleSaveToResourceLibrary = async () => {
+    const name = (favoriteName.trim() || summary || '未命名角色').slice(0, 80);
+    const backup = currentBackup(name);
+    const text = JSON.stringify(backup, null, 2);
+    try {
+      let categoryId = 'set_uncategorized';
+      const cats = await api.getResourceCategories('set');
+      if (cats.success) {
+        const existing = cats.data.find((cat) => cat.name === '角色' || cat.name === '肖像角色');
+        if (existing) categoryId = existing.id;
+        else {
+          const created = await api.addResourceCategory('set', '角色');
+          if (created.success) categoryId = created.data.id;
+        }
+      }
+      const saved = await api.addResourceSet({
+        materialSetKind: 'text',
+        materialSetItems: [{
+          kind: 'text',
+          text,
+          name: `${name}.portrait.json`,
+          mime: 'application/json',
+        }],
+        categoryId,
+        title: `${name} · 肖像配置`,
+        tags: ['portrait-master', '肖像大师', '角色'],
+        sourceNodeId: id,
+        sourceCanvasId: activeId || '',
+        favorite: true,
+      });
+      if (!saved.success) throw new Error(saved.error || '保存资源库失败');
+      window.dispatchEvent(new CustomEvent('penguin:resources-changed'));
+      logBus.success((saved as any).duplicate ? '资源库已有相同肖像配置' : '已保存到资源库角色分类', '肖像大师');
+    } catch (e: any) {
+      logBus.warn(e?.message || '保存到资源库失败', '肖像大师');
+    }
+  };
+
+  const handleImportJson = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || '{}'));
+        const libraryRoles = isRecord(parsed) && parsed.schema === 't8-portrait-master-library' && Array.isArray(parsed.roles)
+          ? parsed.roles
+          : null;
+        if (libraryRoles) {
+          const imported = libraryRoles
+            .map((item) => {
+              const backup = parsePortraitBackup(item);
+              if (!backup || !isRecord(item)) return null;
+              return {
+                ...backup,
+                id: typeof item.id === 'string' && item.id ? item.id : `portrait-fav-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                name: typeof item.name === 'string' && item.name.trim() ? item.name.trim().slice(0, 80) : backup.title || '导入角色',
+                createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              } as PortraitFavorite;
+            })
+            .filter(Boolean) as PortraitFavorite[];
+          if (imported.length === 0) throw new Error('角色库 JSON 里没有有效角色');
+          const next = [...imported, ...favorites]
+            .filter((item, index, arr) => arr.findIndex((x) => x.id === item.id) === index)
+            .slice(0, MAX_PORTRAIT_FAVORITES);
+          setFavorites(next);
+          savePortraitFavorites(next);
+          logBus.success(`已导入 ${imported.length} 个肖像角色`, '肖像大师');
+          return;
+        }
+        const backup = parsePortraitBackup(parsed);
+        if (!backup) throw new Error('不是有效的肖像大师 JSON');
+        applyBackup(backup);
+      } catch (e: any) {
+        logBus.warn(e?.message || '导入肖像 JSON 失败', '肖像大师');
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleSaveFavorite = () => {
+    const now = new Date().toISOString();
+    const name = (favoriteName.trim() || summary || '未命名角色').slice(0, 80);
+    const backup = currentBackup(name);
+    const fav: PortraitFavorite = {
+      ...backup,
+      id: `portrait-fav-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name,
+      title: name,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const next = [fav, ...favorites.filter((item) => item.name !== name)].slice(0, MAX_PORTRAIT_FAVORITES);
+    setFavorites(next);
+    savePortraitFavorites(next);
+    setFavoriteName('');
+    logBus.success(`已收藏角色：${name}`, '肖像大师');
+  };
+
+  const handleDeleteFavorite = (favoriteId: string) => {
+    const next = favorites.filter((item) => item.id !== favoriteId);
+    setFavorites(next);
+    savePortraitFavorites(next);
+  };
+
+  const createTextNodesOnCurrentCanvas = (texts: string[], sourceLabel = 'portrait-master-text') => {
+    const valid = texts.map((text) => text.trim()).filter(Boolean);
+    if (valid.length === 0) {
+      logBus.warn('没有可输出的 prompt', '肖像大师');
+      return;
+    }
+    const nodes = rf.getNodes();
+    const me = rf.getNode(id);
+    const myW = (me as any)?.measured?.width || (me as any)?.width || 560;
+    const baseX = (me?.position?.x ?? 0) + myW + 80;
+    const baseY = me?.position?.y ?? 0;
+    const size = defaultSizeOf('text');
+    const desired: Rect[] = valid.map((_, index) => ({
+      x: baseX + (index % 2) * (size.w + 36),
+      y: baseY + Math.floor(index / 2) * (size.h + 36),
+      w: size.w,
+      h: size.h,
+    }));
+    const off = placeBatchNodes(desired, nodes, { source: `placement:${sourceLabel}` });
+    const ts = Date.now();
+    const newNodes = valid.map((text, index) => ({
+      id: `text-portrait-${ts}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+      type: 'text',
+      position: { x: desired[index].x + off.dx, y: desired[index].y + off.dy },
+      data: { prompt: text, text },
+      selected: false,
+    })) as Node[];
+    rf.addNodes(newNodes);
+    logBus.success(`已生成 ${newNodes.length} 个文本节点`, '肖像大师');
+  };
+
+  const createMaterialSetOnCurrentCanvas = (texts: string[]) => {
+    const items = texts.map((text) => materialSetItemFromText(text)).filter(Boolean);
+    if (items.length === 0) {
+      logBus.warn('没有可输出为素材集的 prompt', '肖像大师');
+      return;
+    }
+    const nodes = rf.getNodes();
+    const me = rf.getNode(id);
+    const myW = (me as any)?.measured?.width || (me as any)?.width || 560;
+    const baseX = (me?.position?.x ?? 0) + myW + 80;
+    const baseY = me?.position?.y ?? 0;
+    const pos = placeSingleNode(baseX, baseY, 'material-set', nodes, { source: `placement:portrait-master-material-set:${id}` });
+    const newNode: Node = {
+      id: `material-set-portrait-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: 'material-set',
+      position: pos,
+      data: materialSetItemsToData('text', items as any),
+      selected: false,
+    } as Node;
+    rf.addNodes(newNode);
+    logBus.success(`已生成 ${items.length} 条文本素材集`, '肖像大师');
+  };
+
+  const createPortraitNodeData = (backup: PortraitBackup) => ({
+    portraitLanguage: backup.language,
+    portraitSelection: backup.selection,
+    portraitLocks: backup.locks,
+    portraitWeights: backup.weights,
+    portraitAdvancedSelection: backup.advancedSelection || {},
+    portraitAdvancedLocks: backup.advancedLocks || {},
+    portraitAdvancedWeights: backup.advancedWeights || {},
+    portraitCustomText: backup.customText,
+    prompt: backup.prompt,
+    text: backup.prompt,
+    outputText: backup.prompt,
+    portraitMetadata: {
+      schema: 't8-portrait-master',
+      version: SCHEMA_VERSION,
+      selection: backup.selection,
+      locks: backup.locks,
+      weights: backup.weights,
+      advancedSelection: backup.advancedSelection || {},
+      advancedWeights: backup.advancedWeights || {},
+      advancedEnabled: Boolean(backup.advancedSelection && Object.keys(backup.advancedSelection).length > 0),
+      advancedBlocked: portraitSelectionLooksUnderage(backup.selection),
+      customText: backup.customText,
+      language: backup.language,
+      prompt: backup.prompt,
+      preview: resolvePortraitPreview(backup.selection),
+    },
+    portraitSummary: summarizePortraitSelection(backup.selection, 'zh'),
+    portraitStats: portraitSelectionStats(backup.selection),
+    portraitSchemaVersion: SCHEMA_VERSION,
+  });
+
+  const appendNodeToCanvas = async (targetId: string, type: 'portrait-master' | 'text', nodeData: Record<string, any>) => {
+    if (!targetId) {
+      logBus.warn('请选择目标画布', '肖像大师');
+      return;
+    }
+    const targetIsCurrent = targetId === activeId;
+    if (targetIsCurrent) {
+      const nodes = rf.getNodes();
+      const me = rf.getNode(id);
+      const myW = (me as any)?.measured?.width || (me as any)?.width || 560;
+      const pos = placeSingleNode((me?.position?.x ?? 0) + myW + 80, me?.position?.y ?? 0, type, nodes, {
+        source: `placement:portrait-master-send-current:${type}`,
+      });
+      rf.addNodes({
+        id: `${type}-portrait-send-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type,
+        position: pos,
+        data: nodeData,
+        selected: false,
+      } as Node);
+      logBus.success(`已发送到当前画布：${type === 'text' ? '文本节点' : '肖像大师配置'}`, '肖像大师');
+      return;
+    }
+    try {
+      const canvas = await api.getCanvasData(targetId);
+      const targetNodes = Array.isArray(canvas.nodes) ? (canvas.nodes as Node[]) : [];
+      const maxRight = targetNodes.reduce((right, node) => {
+        const w = (node as any)?.measured?.width || (node as any)?.width || defaultSizeOf(String(node.type || '')).w;
+        return Math.max(right, (node.position?.x ?? 0) + w);
+      }, 0);
+      const pos = placeSingleNode(maxRight + 80, 80, type, targetNodes, {
+        source: `placement:portrait-master-send-target:${type}`,
+      });
+      const newNode: Node = {
+        id: `${type}-portrait-send-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type,
+        position: pos,
+        data: nodeData,
+        selected: false,
+      } as Node;
+      await api.saveCanvasData(targetId, {
+        nodes: [...targetNodes, newNode],
+        edges: Array.isArray(canvas.edges) ? canvas.edges : [],
+        viewport: canvas.viewport || { x: 0, y: 0, zoom: 1 },
+      });
+      await loadCanvases();
+      logBus.success(`已发送到${selectedTargetCanvas?.name || '目标画布'}`, '肖像大师');
+    } catch (e: any) {
+      logBus.warn(e?.message || '发送到目标画布失败', '肖像大师');
+    }
+  };
+
+  const handleCreateTextNode = () => {
+    createTextNodesOnCurrentCanvas([prompt], 'portrait-master-single-text');
+  };
+
+  const handleSendPortraitConfig = () => {
+    const backup = currentBackup(favoriteName.trim() || summary || '肖像大师配置');
+    void appendNodeToCanvas(selectedTargetCanvasId, 'portrait-master', createPortraitNodeData(backup));
+  };
+
+  const handleSendPromptText = () => {
+    const finalPrompt = prompt.trim();
+    if (!finalPrompt) {
+      logBus.warn('当前 prompt 为空', '肖像大师');
+      return;
+    }
+    void appendNodeToCanvas(selectedTargetCanvasId, 'text', { prompt: finalPrompt, text: finalPrompt });
+  };
+
+  const handleBatchGenerate = () => {
+    const count = Math.max(1, Math.min(24, Math.floor(Number(batchCount) || 1)));
+    const baseSeed = randomSeed.trim() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const batchRandomMode = randomMode === 'empty' ? 'unlocked' : randomMode;
+    const prompts: string[] = [];
+    const seen = new Set<string>();
+    for (let i = 0; i < count; i += 1) {
+      let text = '';
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const seedText = `${baseSeed}:batch-${i + 1}:try-${attempt + 1}`;
+        const nextSelection = randomizePortraitAdvanced({
+          current: selection,
+          locks,
+          mode: batchRandomMode,
+          categoryId: activeCategory.id,
+          stylePackId,
+          seedText,
+          offset: i + attempt * count + 1,
+        });
+        const nextAdvancedSelection = yyhHiddenMode && hiddenRandomEnabled && !portraitSelectionLooksUnderage(nextSelection)
+          ? randomizePortraitHiddenAdvanced({
+              current: advancedSelection,
+              locks: advancedLocks,
+              seed: seedFromString(`${seedText}:advanced`),
+            })
+          : advancedSelection;
+        text = promptFromState(
+          nextSelection,
+          weights,
+          customText,
+          language,
+          nextAdvancedSelection,
+          advancedWeights,
+          yyhHiddenMode,
+        ).trim();
+        if (!text || !seen.has(text)) break;
+      }
+      if (text) prompts.push(text);
+      if (text) seen.add(text);
+    }
+    if (batchMode === 'material-set') createMaterialSetOnCurrentCanvas(prompts);
+    else createTextNodesOnCurrentCanvas(prompts, 'portrait-master-batch-text');
   };
 
   const handleRun = async () => {
@@ -530,6 +1325,10 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
         version: SCHEMA_VERSION,
         selection,
         weights,
+        advancedSelection,
+        advancedWeights,
+        advancedEnabled: yyhHiddenMode,
+        advancedBlocked: hiddenBlockedByBase,
         customText,
         language,
         prompt: finalPrompt,
@@ -553,8 +1352,9 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
         nds.map((node) => {
           if (!downstreamOutputIds.has(node.id)) return node;
           const nd = (node.data as any) || {};
-          if (nd.directOutputText === finalPrompt) return node;
-          return { ...node, data: { ...nd, directOutputText: finalPrompt } };
+          const nextHidden = yyhHiddenMode;
+          if (nd.directOutputText === finalPrompt && Boolean(nd.yyhPortraitHidden) === nextHidden) return node;
+          return { ...node, data: { ...nd, directOutputText: finalPrompt, yyhPortraitHidden: nextHidden, yyhPortraitSourceNodeId: id } };
         }),
       );
       return;
@@ -571,7 +1371,7 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
       id: newId,
       type: 'output',
       position: pos,
-      data: { directOutputText: finalPrompt },
+      data: { directOutputText: finalPrompt, yyhPortraitHidden: yyhHiddenMode, yyhPortraitSourceNodeId: id },
       selected: false,
     } as Node;
     const newEdge: Edge = {
@@ -579,6 +1379,8 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
       source: id,
       target: newId,
       type: 'deletable',
+      className: yyhHiddenMode ? 'yyh-portrait-hidden-edge' : undefined,
+      data: yyhHiddenMode ? { yyhPortraitHiddenEdge: true } : undefined,
     } as Edge;
     rf.addNodes(newNode);
     rf.setEdges((eds) => [...eds, newEdge]);
@@ -589,8 +1391,9 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
   const filteredOptionIds = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return null;
+    const groups = showAdvancedPanel && yyhHiddenMode ? activeAdvancedCategory.groups : activeCategory.groups;
     return new Set(
-      activeCategory.groups.flatMap((group) =>
+      groups.flatMap((group) =>
         group.options
           .filter((option) =>
             `${option.label} ${option.labelEn} ${option.prompt}`.toLowerCase().includes(keyword),
@@ -598,12 +1401,13 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
           .map((option) => option.id),
       ),
     );
-  }, [activeCategory, search]);
+  }, [activeAdvancedCategory, activeCategory, search, showAdvancedPanel, yyhHiddenMode]);
 
   return (
     <div
       className={`t8-node relative w-[560px] overflow-visible transition-all ${selected ? 'ring-2 ring-pink-300' : ''}`}
       data-node-kind="portrait-master"
+      data-yyh-portrait-hidden={yyhHiddenMode ? 'true' : undefined}
     >
       <Handle type="target" position={Position.Left} style={{ background: PORT_COLOR.text, border: 0 }} />
       <Handle type="source" position={Position.Right} style={{ background: PORT_COLOR.text, border: 0 }} />
@@ -618,7 +1422,7 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-black">肖像大师</div>
           <div className="truncate text-[10px]" style={{ color: 'var(--t8-text-muted)' }}>
-            {stats.selected}/{stats.totalGroups} 项 · prompt 捏人系统
+            {stats.selected}/{stats.totalGroups} 项 · prompt 捏人系统{yyhHiddenMode ? ` · 隐藏 ${advancedStats.selected}/${advancedStats.totalGroups}` : ''}
           </div>
         </div>
         <button
@@ -691,10 +1495,12 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
           onWheel={(event) => event.stopPropagation()}
         >
           <div
-            className="t8-panel nodrag nopan flex max-h-[86vh] w-[1040px] max-w-[96vw] flex-col overflow-hidden"
+            className="t8-panel nodrag nopan flex max-h-[92vh] w-[1320px] max-w-[98vw] flex-col overflow-hidden"
+            data-yyh-portrait-editor-hidden={yyhHiddenMode ? 'true' : undefined}
             onPointerDown={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
           >
+            <input ref={jsonInputRef} type="file" accept="application/json" className="hidden" onChange={handleImportJson} />
             <div className="t8-node-header flex items-center gap-3 px-4 py-3">
               <UserRoundCog size={18} />
               <div className="min-w-0 flex-1">
@@ -708,23 +1514,50 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-[190px_1fr_300px] gap-3 overflow-hidden p-3">
+            <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)_390px] gap-3 overflow-hidden p-3">
               <aside className="t8-card min-h-0 overflow-y-auto p-2">
                 <div className="space-y-1">
                   {PORTRAIT_CATEGORIES.map((category) => {
-                    const active = category.id === activeCategory.id;
+                    const active = !showAdvancedPanel && category.id === activeCategory.id;
                     return (
                       <button
                         key={category.id}
                         type="button"
                         className={`t8-btn w-full justify-between px-2 py-2 text-left text-[11px] ${active ? 't8-btn-primary' : ''}`}
-                        onClick={() => setActiveCategoryId(category.id)}
+                        onClick={() => {
+                          setShowAdvancedPanel(false);
+                          setActiveCategoryId(category.id);
+                        }}
                       >
                         <span className="truncate">{category.label}</span>
                         <span className="shrink-0 text-[10px]">{categoryOptionCount(category.id)}</span>
                       </button>
                     );
                   })}
+                  {yyhHiddenMode && (
+                    <>
+                      <div className="px-1 pt-2 text-[10px] font-bold" style={{ color: 'var(--t8-danger)' }}>
+                        幽游隐藏高级
+                      </div>
+                      {PORTRAIT_ADVANCED_CATEGORIES.map((category) => {
+                        const active = showAdvancedPanel && category.id === activeAdvancedCategory.id;
+                        return (
+                          <button
+                            key={category.id}
+                            type="button"
+                            className={`t8-btn w-full justify-between px-2 py-2 text-left text-[11px] ${active ? 't8-btn-primary' : ''}`}
+                            onClick={() => {
+                              setShowAdvancedPanel(true);
+                              setActiveAdvancedCategoryId(category.id);
+                            }}
+                          >
+                            <span className="truncate">{category.label}</span>
+                            <span className="shrink-0 text-[10px]">{categoryAdvancedOptionCount(category.id)}</span>
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
               </aside>
 
@@ -732,10 +1565,19 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
                 <div className="t8-card p-2">
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-black">{activeCategory.label}</div>
-                      <div className="text-[11px]" style={{ color: 'var(--t8-text-muted)' }}>{activeCategory.description}</div>
+                      <div className="text-sm font-black">{editorCategory.label}</div>
+                      <div className="text-[11px]" style={{ color: 'var(--t8-text-muted)' }}>{editorCategory.description}</div>
+                      {showAdvancedPanel && hiddenBlockedByBase && (
+                        <div className="mt-1 rounded px-2 py-1 text-[10px]" style={{ background: 'color-mix(in srgb, var(--t8-danger) 14%, transparent)', color: 'var(--t8-danger)' }}>
+                          当前基础人物疑似未成年或学生设定，隐藏高级词条不会输出。
+                        </div>
+                      )}
                     </div>
-                    <button type="button" className="t8-btn h-8 px-2 text-[11px]" onClick={() => clearCategory(activeCategory.id)}>
+                    <button
+                      type="button"
+                      className="t8-btn h-8 px-2 text-[11px]"
+                      onClick={() => showAdvancedPanel ? clearAdvancedCategory(activeAdvancedCategory.id) : clearCategory(activeCategory.id)}
+                    >
                       <RotateCcw size={13} /> 清空本类
                     </button>
                   </div>
@@ -744,7 +1586,7 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
                     <input
                       className="t8-input h-8 w-full pl-8 pr-2 text-[11px]"
                       value={search}
-                      placeholder="搜索当前大类选项..."
+                      placeholder={showAdvancedPanel ? '搜索隐藏高级选项...' : '搜索当前大类选项...'}
                       onChange={(event) => setSearch(event.target.value)}
                     />
                   </label>
@@ -752,16 +1594,19 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
 
                 <div className="min-h-0 flex-1 overflow-y-auto pr-1">
                   <div className="grid grid-cols-2 gap-2">
-                    {activeCategory.groups.map((group) => {
-                      const selectedOptionId = selection[group.id] || '';
-                      const selectedOption = selectedOptionId ? PORTRAIT_OPTION_BY_ID.get(selectedOptionId) : null;
+                    {editorCategory.groups.map((group) => {
+                      const advancedGroup = showAdvancedPanel && yyhHiddenMode;
+                      const optionMap = advancedGroup ? PORTRAIT_ADVANCED_OPTION_BY_ID : PORTRAIT_OPTION_BY_ID;
+                      const selectedOptionId = (advancedGroup ? advancedSelection : selection)[group.id] || '';
+                      const selectedOption = selectedOptionId ? optionMap.get(selectedOptionId) : null;
                       const visibleOptions = filteredOptionIds
                         ? group.options.filter((option) => filteredOptionIds.has(option.id))
                         : group.options;
                       const options = selectedOption && !visibleOptions.some((option) => option.id === selectedOption.id)
                         ? [selectedOption, ...visibleOptions]
                         : visibleOptions;
-                      const weight = weights[group.id] ?? 1;
+                      const weight = (advancedGroup ? advancedWeights : weights)[group.id] ?? 1;
+                      const locked = advancedGroup ? advancedLocks[group.id] : locks[group.id];
                       return (
                         <section key={group.id} className="t8-card space-y-2 p-2">
                           <div className="flex items-center justify-between gap-2">
@@ -774,16 +1619,16 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
                             <button
                               type="button"
                               className="t8-mini-icon-button shrink-0"
-                              onClick={() => toggleLock(group.id)}
-                              title={locks[group.id] ? '取消锁定' : '锁定随机'}
+                              onClick={() => advancedGroup ? toggleAdvancedLock(group.id) : toggleLock(group.id)}
+                              title={locked ? '取消锁定' : '锁定随机'}
                             >
-                              {locks[group.id] ? <Lock size={13} /> : <Unlock size={13} />}
+                              {locked ? <Lock size={13} /> : <Unlock size={13} />}
                             </button>
                           </div>
                           <select
                             className="t8-select h-8 w-full px-2 text-[11px]"
                             value={selectedOptionId}
-                            onChange={(event) => selectOption(group.id, event.target.value)}
+                            onChange={(event) => advancedGroup ? selectAdvancedOption(group.id, event.target.value) : selectOption(group.id, event.target.value)}
                           >
                             <option value="">不选</option>
                             {options.map((option) => (
@@ -800,13 +1645,13 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
                               max={1.8}
                               step={0.1}
                               value={weight}
-                              onChange={(event) => changeWeight(group.id, event.target.value)}
+                              onChange={(event) => advancedGroup ? changeAdvancedWeight(group.id, event.target.value) : changeWeight(group.id, event.target.value)}
                               disabled={!selectedOptionId}
                             />
                             <input
                               className="t8-input h-7 px-1 text-center text-[10px]"
                               value={weight.toFixed(1)}
-                              onChange={(event) => changeWeight(group.id, event.target.value)}
+                              onChange={(event) => advancedGroup ? changeAdvancedWeight(group.id, event.target.value) : changeWeight(group.id, event.target.value)}
                               disabled={!selectedOptionId}
                             />
                           </div>
@@ -817,7 +1662,7 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
                 </div>
               </main>
 
-              <aside className="flex min-h-0 flex-col gap-2">
+              <aside className="flex min-h-0 flex-col gap-2 overflow-y-auto pr-1">
                 <PortraitAvatarPreview selection={selection} />
                 <div className="t8-card space-y-2 p-2">
                   <div className="flex items-center justify-between gap-2">
@@ -838,16 +1683,168 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
                     onChange={(event) => commit({ portraitCustomText: event.target.value })}
                   />
                 </div>
-                <div className="t8-card flex min-h-0 flex-1 flex-col p-2">
+                <div className="t8-card flex min-h-[150px] max-h-52 flex-col p-2">
                   <div className="mb-1 flex items-center justify-between gap-2 text-[12px] font-black">
                     <span>Prompt 预览</span>
                     <button type="button" className="t8-mini-icon-button" onClick={handleCopy} title="复制 prompt" disabled={!prompt.trim()}>
                       <Copy size={13} />
                     </button>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed">
+                  <div className="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-[11px] leading-relaxed">
                     {prompt || <span style={{ color: 'var(--t8-text-dim)' }}>暂未选择任何词条。</span>}
                   </div>
+                </div>
+                {yyhHiddenMode && (
+                  <div className="t8-card space-y-2 p-2" data-yyh-portrait-hidden-panel="true">
+                    <div className="flex items-center justify-between gap-2 text-[12px] font-black">
+                      <span>隐藏高级</span>
+                      <span className="text-[10px]" style={{ color: hiddenBlockedByBase ? 'var(--t8-danger)' : 'var(--t8-accent)' }}>
+                        {hiddenBlockedByBase ? '已安全屏蔽' : `${advancedStats.selected}/${advancedStats.totalGroups}`}
+                      </span>
+                    </div>
+                    <div className="text-[10px] leading-relaxed" style={{ color: 'var(--t8-text-muted)' }}>
+                      {hiddenBlockedByBase ? '基础人物含少女、少年、学生等设定，隐藏成人词条不会参与 prompt。' : advancedSummary}
+                    </div>
+                    <label className="flex items-center justify-between gap-2 rounded px-2 py-1 text-[10px]" style={{ background: 'var(--t8-bg-panel-muted)' }}>
+                      <span>随机时加入隐藏词条</span>
+                      <input
+                        type="checkbox"
+                        checked={hiddenRandomEnabled}
+                        onChange={(event) => setHiddenRandomEnabled(event.target.checked)}
+                        disabled={hiddenBlockedByBase}
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={() => handleHiddenRandom(activeAdvancedCategory.id)} disabled={hiddenBlockedByBase}>
+                        <Sparkles size={12} /> 随当前隐藏类
+                      </button>
+                      <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={() => handleHiddenRandom()} disabled={hiddenBlockedByBase}>
+                        <Shuffle size={12} /> 随全部隐藏
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="t8-card space-y-2 p-2">
+                  <div className="flex items-center justify-between gap-2 text-[12px] font-black">
+                    <span className="inline-flex items-center gap-1"><Star size={13} /> 角色库</span>
+                    <span className="text-[10px]" style={{ color: 'var(--t8-text-dim)' }}>{favorites.length}/{MAX_PORTRAIT_FAVORITES}</span>
+                  </div>
+                  <input
+                    className="t8-input h-8 w-full px-2 text-[11px]"
+                    value={favoriteName}
+                    placeholder="角色名称，可留空使用摘要"
+                    onChange={(event) => setFavoriteName(event.target.value)}
+                  />
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleSaveFavorite} disabled={!prompt.trim()}>
+                      <Star size={12} /> 收藏
+                    </button>
+                  </div>
+                  <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
+                    {favorites.length === 0 ? (
+                      <div className="rounded border border-dashed border-current/20 px-2 py-3 text-center text-[10px]" style={{ color: 'var(--t8-text-dim)' }}>
+                        常用角色会显示在这里
+                      </div>
+                    ) : favorites.map((favorite) => (
+                      <div key={favorite.id} className="flex items-center gap-1 rounded px-1.5 py-1" style={{ background: 'var(--t8-bg-panel-muted)' }}>
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 truncate text-left text-[10px] font-semibold"
+                          title={favorite.name}
+                          onClick={() => applyBackup(favorite)}
+                        >
+                          {favorite.name}
+                        </button>
+                        <button type="button" className="t8-mini-icon-button h-6 w-6" title="删除收藏" onClick={() => handleDeleteFavorite(favorite.id)}>
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="t8-card space-y-2 p-2">
+                  <div className="text-[12px] font-black">JSON / 复用</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleExportJson} disabled={!prompt.trim()}>
+                      <Download size={12} /> 导出当前
+                    </button>
+                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleSaveToResourceLibrary} disabled={!prompt.trim()}>
+                      <PackagePlus size={12} /> 存资源库
+                    </button>
+                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleCreateTextNode} disabled={!prompt.trim()}>
+                      <FileText size={12} /> 文本节点
+                    </button>
+                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={() => jsonInputRef.current?.click()}>
+                      <UploadIcon size={12} /> 导入 JSON
+                    </button>
+                  </div>
+                  <select
+                    className="t8-select h-8 w-full px-2 text-[11px]"
+                    value={selectedTargetCanvasId}
+                    onChange={(event) => setTargetCanvasId(event.target.value)}
+                  >
+                    {canvases.map((canvas) => (
+                      <option key={canvas.id} value={canvas.id}>
+                        {canvas.name}{canvas.id === activeId ? '（当前）' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleSendPortraitConfig} disabled={!selectedTargetCanvasId}>
+                      <Send size={12} /> 发配置
+                    </button>
+                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleSendPromptText} disabled={!prompt.trim() || !selectedTargetCanvasId}>
+                      <Send size={12} /> 发Prompt
+                    </button>
+                  </div>
+                </div>
+                <div className="t8-card space-y-2 p-2">
+                  <div className="flex items-center justify-between gap-2 text-[12px] font-black">
+                    <span className="inline-flex items-center gap-1"><Shuffle size={13} /> 高级随机</span>
+                    <button type="button" className="t8-btn h-7 px-2 text-[10px]" onClick={handleQuickRandom}>
+                      快速
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <select className="t8-select h-8 px-2 text-[10px]" value={randomMode} onChange={(event) => setRandomMode(safeRandomMode(event.target.value))}>
+                      <option value="unlocked">重随未锁定项</option>
+                      <option value="empty">只填空项</option>
+                      <option value="category">只随机当前类</option>
+                      <option value="all">随机全部含锁定</option>
+                    </select>
+                    <select className="t8-select h-8 px-2 text-[10px]" value={stylePackId} onChange={(event) => setStylePackId(safeStylePack(event.target.value))}>
+                      {STYLE_PACKS.map((pack) => <option key={pack.id} value={pack.id}>{pack.label}</option>)}
+                    </select>
+                  </div>
+                  <input
+                    className="t8-input h-8 w-full px-2 text-[11px]"
+                    value={randomSeed}
+                    placeholder="随机种子，可留空"
+                    onChange={(event) => setRandomSeed(event.target.value)}
+                  />
+                  <button type="button" className="t8-btn t8-btn-primary min-h-8 w-full px-2 text-[11px]" onClick={handleRandom}>
+                    <Sparkles size={13} /> 按规则随机当前角色
+                  </button>
+                </div>
+                <div className="t8-card space-y-2 p-2">
+                  <div className="text-[12px] font-black">批量角色</div>
+                  <div className="grid grid-cols-[1fr_1fr] gap-1.5">
+                    <input
+                      className="t8-input h-8 px-2 text-[11px]"
+                      type="number"
+                      min={1}
+                      max={24}
+                      value={batchCount}
+                      onChange={(event) => setBatchCount(Math.max(1, Math.min(24, Number(event.target.value) || 1)))}
+                    />
+                    <select className="t8-select h-8 px-2 text-[10px]" value={batchMode} onChange={(event) => setBatchMode(safeBatchMode(event.target.value))}>
+                      <option value="text-nodes">多个文本节点</option>
+                      <option value="material-set">文本素材集</option>
+                    </select>
+                  </div>
+                  <button type="button" className="t8-btn min-h-8 w-full px-2 text-[11px]" onClick={handleBatchGenerate}>
+                    <PackagePlus size={13} /> 批量生成
+                  </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" className="t8-btn min-h-8 px-2 text-[11px]" onClick={handleRandom}>

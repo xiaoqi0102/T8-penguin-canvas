@@ -111,6 +111,9 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
   const isRhDomVisual =
     typeof document !== 'undefined' && document.documentElement.dataset.themeVisual === 'rh';
   const isRhVisual = activeTemplate.visuals?.style === 'rh' || isRhDomVisual;
+  const isYyhDomVisual =
+    typeof document !== 'undefined' && document.documentElement.dataset.themeVisual === 'yyh';
+  const isYyhVisual = activeTemplate.visuals?.style === 'yyh' || isYyhDomVisual;
   const rhDuckUploadIds = useHiddenFeatureStore((s) => s.rhDuckUploadIds);
   const clearRhDuckUpload = useHiddenFeatureStore((s) => s.clearRhDuckUpload);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +136,7 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
       mediaItems.length > 0 &&
       isRhDuckUploadEnabled(rhDuckUploadIds, id),
   );
+  const yyhPortraitUploadMode = Boolean(isYyhVisual && d?.yyhPortraitHidden);
 
   // 节点本地尺寸 state: 默认 (260, 高度由内容撑开 — 上传后图/视频会撑高 root)
   // 拖角后由 ResizableCorners onResize 同步具体 px (保证 measured 准确 + keepAspectRatio 生效 + handleBounds 准确)
@@ -446,13 +450,14 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
 
   // ==================== 渲染 ====================
   const handleColor = meta?.color || PORT_COLOR.any;
-  const effectiveHandleColor = rhDuckMode ? '#ff345f' : handleColor;
+  const effectiveHandleColor = rhDuckMode ? '#ff345f' : yyhPortraitUploadMode ? '#ff4fd8' : handleColor;
   const headerLabel = meta ? `上传${meta.label}` : '上传素材';
   const totalSize = mediaItems.reduce((sum, item) => sum + (item.size || 0), 0);
 
   return (
     <div
       data-rh-duck-mode={rhDuckMode ? 'true' : undefined}
+      data-yyh-portrait-hidden-upload={yyhPortraitUploadMode ? 'true' : undefined}
       className="relative rounded-xl border-2 transition-colors flex flex-col"
       style={{
         background: isDark ? 'rgba(20,20,22,.92)' : 'rgba(255,255,255,.96)',

@@ -85,6 +85,7 @@ const VISUAL_STYLE_OPTIONS = [
   { value: 'rh', label: 'RH 工作台' },
   { value: 'naruto', label: '火影忍者' },
   { value: 'eva', label: 'EVA 指挥' },
+  { value: 'yyh', label: '幽游白书' },
 ] as const;
 
 const VISUAL_INTENSITY_OPTIONS = [
@@ -100,6 +101,7 @@ const MUSIC_PRESET_OPTIONS: Array<{ value: ThemeMusicPreset; label: string }> = 
   { value: 'rh-pulse', label: 'RH 脉冲' },
   { value: 'shinobi-flame', label: '忍者火焰' },
   { value: 'eva-sync', label: 'EVA 同步' },
+  { value: 'spirit-gun', label: '灵丸脉冲' },
 ];
 
 const MAX_THEME_AUDIO_SIZE = 20 * 1024 * 1024;
@@ -158,6 +160,17 @@ function visualDefaultsFor(style: ThemeVisuals['style'], legacyStyle: LegacyThem
       canvasPattern: 'eva-grid',
       nodeFrame: 'eva-panel',
       headerMark: prev?.headerMark || 'EVA',
+    };
+  }
+  if (style === 'yyh') {
+    return {
+      ...fallbackVisuals(legacyStyle),
+      ...(prev || {}),
+      style,
+      iconPack: 'yyh',
+      canvasPattern: 'spirit-map',
+      nodeFrame: 'spirit-case',
+      headerMark: prev?.headerMark || 'REI GUN',
     };
   }
   if (style === 'tech') {
@@ -226,6 +239,16 @@ function fallbackMusic(legacyStyle: LegacyThemeStyle, visuals?: ThemeVisuals): T
       volume: 0.16,
       bpm: 152,
       copyrightNote: 'EVA 风格默认音乐文件，可在主题模板中上传替换。',
+    };
+  }
+  if (visualStyle === 'yyh') {
+    return {
+      title: 'Spirit Gun Pulse',
+      preset: 'spirit-gun',
+      source: 'synth',
+      volume: 0.16,
+      bpm: 138,
+      copyrightNote: '原创灵界侦探氛围合成循环；可替换为已授权音频 URL。',
     };
   }
   if (legacyStyle === 'tech' || visualStyle === 'tech') {

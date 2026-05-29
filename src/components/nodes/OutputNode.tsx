@@ -96,6 +96,10 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
     typeof document !== 'undefined' && document.documentElement.dataset.themeVisual === 'rh';
   const isRhVisual = activeTemplate.visuals?.style === 'rh' || isRhDomVisual;
   const isRhDuckOutput = Boolean(isRhVisual && d.rhDuckDecoded);
+  const isYyhDomVisual =
+    typeof document !== 'undefined' && document.documentElement.dataset.themeVisual === 'yyh';
+  const isYyhVisual = activeTemplate.visuals?.style === 'yyh' || isYyhDomVisual;
+  const isYyhPortraitOutput = Boolean(isYyhVisual && d.yyhPortraitHidden);
 
   // 节点本地尺寸 state: 默认 (320, 高度由内容撑开)
   // 拖角后由 ResizableCorners onResize 同步具体 px — 保证节点始终有具体尺寸 → wrapper measured 准确
@@ -421,8 +425,8 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
   const isEdited = overrideText !== '' && overrideText !== liveText;
   const HANDLE = PORT_COLOR.any;
   const accent = '#5eead4'; // teal-300, 与 nodeRegistry color: 'teal' 对齐
-  const effectiveAccent = isRhDuckOutput ? '#ff345f' : accent;
-  const effectiveHandle = isRhDuckOutput ? '#ff345f' : HANDLE;
+  const effectiveAccent = isRhDuckOutput ? '#ff345f' : isYyhPortraitOutput ? '#ff4fd8' : accent;
+  const effectiveHandle = isRhDuckOutput ? '#ff345f' : isYyhPortraitOutput ? '#ff4fd8' : HANDLE;
 
   const total = collected.texts.length + collected.images.length + collected.videos.length + collected.audios.length;
 
@@ -693,6 +697,7 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
   return (
     <div
       data-rh-duck-output={isRhDuckOutput ? 'true' : undefined}
+      data-yyh-portrait-hidden-output={isYyhPortraitOutput ? 'true' : undefined}
       className="relative flex flex-col"
       style={{ width: size.w, height: size.h, minWidth: 260 }}
       {...dropProps}
@@ -781,6 +786,7 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
           root 拖角后有具体 px 时, 内层 flex-1 撑满剩余 + min-h-0 允许内容 overflow */}
       <div
         data-rh-duck-output-frame={isRhDuckOutput ? 'true' : undefined}
+        data-yyh-portrait-hidden-output-frame={isYyhPortraitOutput ? 'true' : undefined}
         className={`rounded-xl border-2 transition-colors ${size.h ? 'flex-1 min-h-0' : ''}`}
         style={{
           background: isDark ? 'rgb(20,20,22)' : 'rgb(255,255,255)',

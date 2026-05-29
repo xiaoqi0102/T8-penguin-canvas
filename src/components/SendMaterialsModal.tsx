@@ -11,6 +11,7 @@ import {
   PackagePlus,
   Send as SendIcon,
   UploadCloud,
+  UserRoundCog,
   X,
 } from 'lucide-react';
 import type { CanvasListItem } from '../types/canvas';
@@ -33,6 +34,7 @@ interface SendMaterialsModalProps {
 
 const MODE_OPTIONS: Array<{ value: SendTargetMode; label: string; desc: string; icon: typeof PackagePlus }> = [
   { value: 'auto', label: '智能保持', desc: '尽量按来源类型还原到目标画布', icon: MonitorUp },
+  { value: 'portrait-master', label: '肖像大师', desc: '发送可继续编辑的肖像配置节点', icon: UserRoundCog },
   { value: 'material-set', label: '合并素材集', desc: '同类型素材打包成素材集，方便继续传给生成节点', icon: PackagePlus },
   { value: 'upload', label: '上传素材', desc: '图像/视频/音频以合集上传节点出现，文本生成文本节点', icon: UploadCloud },
   { value: 'split-upload', label: '拆成多个上传', desc: '每个媒体单独一个上传节点，适合逐个调整', icon: Box },
@@ -149,6 +151,14 @@ export default function SendMaterialsModal({
   const buckets = useMemo(() => bucketSendableMaterials(materials), [materials]);
   const summary = useMemo(() => summarizeSendableMaterials(materials), [materials]);
   const signature = useMemo(() => sendableMaterialSignature(materials), [materials]);
+  const hasPortraitMasterConfig = useMemo(
+    () => materials.some((item) => item.sourceType === 'portrait-master' && item.sourceNodeData),
+    [materials],
+  );
+  const modeOptions = useMemo(
+    () => MODE_OPTIONS.filter((opt) => opt.value !== 'portrait-master' || hasPortraitMasterConfig),
+    [hasPortraitMasterConfig],
+  );
   const filteredCanvases = useMemo(() => {
     const keyword = q.trim().toLowerCase();
     if (!keyword) return canvases;
@@ -159,8 +169,8 @@ export default function SendMaterialsModal({
     [canvases, targetId],
   );
   const selectedMode = useMemo(
-    () => MODE_OPTIONS.find((opt) => opt.value === mode) || MODE_OPTIONS[0],
-    [mode],
+    () => modeOptions.find((opt) => opt.value === mode) || modeOptions[0] || MODE_OPTIONS[0],
+    [mode, modeOptions],
   );
   const recentTargets = useMemo(() => {
     const seen = new Set<string>();
@@ -179,6 +189,12 @@ export default function SendMaterialsModal({
     if (!targetId || !signature) return null;
     return sendHistory.find((entry) => entry.targetCanvasId === targetId && entry.signature === signature) || null;
   }, [sendHistory, signature, targetId]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (modeOptions.some((opt) => opt.value === mode)) return;
+    setMode(modeOptions[0]?.value || 'auto');
+  }, [mode, modeOptions, open]);
 
   if (!open) return null;
 
@@ -211,7 +227,7 @@ export default function SendMaterialsModal({
   const handleHistoryPick = (entry: SendHistoryEntry) => {
     if (!canvases.some((canvas) => canvas.id === entry.targetCanvasId)) return;
     setTargetId(entry.targetCanvasId);
-    if (MODE_OPTIONS.some((opt) => opt.value === entry.mode)) setMode(entry.mode);
+    if (modeOptions.some((opt) => opt.value === entry.mode)) setMode(entry.mode);
   };
   const handleSendToCanvas = async () => {
     const target = selectedCanvas || canvases.find((canvas) => canvas.id === targetId);
@@ -313,7 +329,7 @@ export default function SendMaterialsModal({
             <div>
               <label className="mb-1 block text-xs font-semibold opacity-70">发送方式</label>
               <div className="grid grid-cols-2 gap-2">
-                {MODE_OPTIONS.map((opt) => {
+                {modeOptions.map((opt) => {
                   const Icon = opt.icon;
                   const active = mode === opt.value;
                   const labelChunks = chunkModeLabel(opt.label);

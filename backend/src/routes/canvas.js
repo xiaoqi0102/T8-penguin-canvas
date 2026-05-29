@@ -103,11 +103,12 @@ router.get('/:id', (req, res) => {
 router.put('/:id', (req, res) => {
   const file = getCanvasFile(req.params.id);
   const incoming = req.body;
+  const allowEmptyOverwrite = req.query?.allowEmpty === '1' || incoming?.allowEmpty === true;
   // 防空数据覆盖保护
   if (
     !incoming ||
     !Array.isArray(incoming.nodes) ||
-    (incoming.nodes.length === 0 && fs.existsSync(file))
+    (!allowEmptyOverwrite && incoming.nodes.length === 0 && fs.existsSync(file))
   ) {
     const existing = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf-8')) : null;
     if (existing && Array.isArray(existing.nodes) && existing.nodes.length > 0) {
@@ -115,12 +116,17 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ success: false, error: '拒绝空数据覆盖' });
     }
   }
-  fs.writeFileSync(file, JSON.stringify(incoming, null, 2), 'utf-8');
+  const persisted = {
+    nodes: Array.isArray(incoming?.nodes) ? incoming.nodes : [],
+    edges: Array.isArray(incoming?.edges) ? incoming.edges : [],
+    viewport: incoming?.viewport || { x: 0, y: 0, zoom: 1 },
+  };
+  fs.writeFileSync(file, JSON.stringify(persisted, null, 2), 'utf-8');
   // 更新列表元数据
   const list = loadCanvasList();
   const item = list.find((x) => x.id === req.params.id);
   if (item) {
-    item.nodeCount = incoming.nodes?.length || 0;
+    item.nodeCount = persisted.nodes.length;
     item.updatedAt = Date.now();
     saveCanvasList(list);
   }

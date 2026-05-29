@@ -1,8 +1,15 @@
 export type ThemeMode = 'dark' | 'light';
 export type LegacyThemeStyle = 'tech' | 'pixel';
-export type ThemeVisualStyle = 'plain' | 'tech' | 'pixel' | 'op' | 'rh' | 'naruto' | 'eva';
+export type ThemeVisualStyle = 'plain' | 'tech' | 'pixel' | 'op' | 'rh' | 'naruto' | 'eva' | 'yyh';
 export type ThemeIntensity = 'subtle' | 'medium' | 'strong';
-export type ThemeMusicPreset = 'tech-pulse' | 'pixel-pop' | 'grand-line-adventure' | 'rh-pulse' | 'shinobi-flame' | 'eva-sync';
+export type ThemeMusicPreset =
+  | 'tech-pulse'
+  | 'pixel-pop'
+  | 'grand-line-adventure'
+  | 'rh-pulse'
+  | 'shinobi-flame'
+  | 'eva-sync'
+  | 'spirit-gun';
 export type ThemeMusicSource = 'synth' | 'url' | 'upload';
 
 export interface ThemeTokens {
@@ -51,9 +58,9 @@ export interface ThemeModeDefinition {
 export interface ThemeVisuals {
   style: ThemeVisualStyle;
   intensity?: ThemeIntensity;
-  iconPack?: 'default' | 'op' | 'naruto' | 'eva';
-  canvasPattern?: 'none' | 'dots' | 'map' | 'circuit' | 'confetti' | 'hub' | 'chakra' | 'eva-grid';
-  nodeFrame?: 'plain' | 'glass' | 'sticker' | 'wanted' | 'hub-card' | 'shinobi-scroll' | 'eva-panel';
+  iconPack?: 'default' | 'op' | 'naruto' | 'eva' | 'yyh';
+  canvasPattern?: 'none' | 'dots' | 'map' | 'circuit' | 'confetti' | 'hub' | 'chakra' | 'eva-grid' | 'spirit-map';
+  nodeFrame?: 'plain' | 'glass' | 'sticker' | 'wanted' | 'hub-card' | 'shinobi-scroll' | 'eva-panel' | 'spirit-case';
   headerMark?: string;
 }
 

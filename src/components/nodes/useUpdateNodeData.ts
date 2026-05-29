@@ -2,6 +2,7 @@ import { useReactFlow } from '@xyflow/react';
 import { useCallback, useRef } from 'react';
 import * as api from '../../services/api';
 import { useCanvasStore } from '../../stores/canvas';
+import { isCanvasNodeDeleted } from '../../utils/deletedNodeRegistry';
 
 const offscreenPatchQueues = new Map<string, Promise<void>>();
 
@@ -15,7 +16,9 @@ function enqueueOffscreenCanvasPatch(
   const next = prev
     .catch(() => undefined)
     .then(async () => {
+      if (isCanvasNodeDeleted(canvasId, nodeId)) return;
       const data = await api.getCanvasData(canvasId);
+      if (isCanvasNodeDeleted(canvasId, nodeId)) return;
       let found = false;
       const nodes = (Array.isArray(data.nodes) ? data.nodes : []).map((node: any) => {
         if (node?.id !== nodeId) return node;

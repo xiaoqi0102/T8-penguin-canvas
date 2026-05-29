@@ -8,6 +8,7 @@ export const rhThemeMusicUrl = new URL('../assets/theme-music/rh-tide.mp3', impo
 export const rhHiddenThemeMusicUrl = new URL('../assets/theme-music/rh-hidden-saya.mp3', import.meta.url).href;
 export const narutoThemeMusicUrl = new URL('../assets/theme-music/naruto-shinsei-gyakuten.mp3', import.meta.url).href;
 export const evaThemeMusicUrl = new URL('../assets/theme-music/eva-decisive-battle.mp3', import.meta.url).href;
+export const yyhThemeMusicUrl = new URL('../assets/theme-music/yyh-unbalanced-kiss-piano.mp3', import.meta.url).href;
 
 export const DEFAULT_THEME_TEMPLATE_ID = 'pixel-candy';
 export const TECH_TEMPLATE_ID = 'tech-default';
@@ -16,6 +17,7 @@ export const OP_TEMPLATE_ID = 'op-style';
 export const RH_TEMPLATE_ID = 'rh-style';
 export const NARUTO_TEMPLATE_ID = 'naruto-style';
 export const EVA_TEMPLATE_ID = 'eva-style';
+export const YYH_TEMPLATE_ID = 'yyh-style';
 
 const techDark: ThemeTokens = {
   appBg: '#09090b',
@@ -453,6 +455,80 @@ const evaLight: ThemeTokens = {
   portAudio: '#5630a8',
 };
 
+const yyhDark: ThemeTokens = {
+  appBg: '#040610',
+  canvasBg: '#07101c',
+  panelBg: '#0b1322',
+  panelBgElevated: '#101d31',
+  panelBgMuted: '#162744',
+  nodeBg: '#0c1729',
+  nodeHeaderBg: '#10243c',
+  textMain: '#f2fbff',
+  textMuted: '#b6d7ea',
+  textDim: '#7595ad',
+  border: 'rgba(67, 247, 255, 0.18)',
+  borderStrong: '#43f7ff',
+  accent: '#43f7ff',
+  accentHover: '#8cfbff',
+  accentText: '#031119',
+  secondary: '#b444ff',
+  warning: '#ffb84d',
+  danger: '#ff4f7b',
+  success: '#52ff9a',
+  shadowPanel: '0 18px 54px rgba(0,0,0,0.54), 0 0 0 1px rgba(67,247,255,0.12)',
+  shadowButton: '0 0 18px rgba(67,247,255,0.24)',
+  shadowStrong: '0 26px 78px rgba(0,0,0,0.64), 0 0 38px rgba(180,68,255,0.18)',
+  radiusPanel: '10px',
+  radiusButton: '6px',
+  radiusNode: '14px',
+  gridDot: '#18355a',
+  edge: '#3fc8e8',
+  edgeSelected: '#ff4fda',
+  selectionBg: 'rgba(67,247,255,0.16)',
+  selectionBorder: '#43f7ff',
+  portText: '#43f7ff',
+  portImage: '#ffb84d',
+  portVideo: '#ff4f7b',
+  portAudio: '#b444ff',
+  fontFamily: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+  displayFont: "'Arial Black', Impact, 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif",
+};
+
+const yyhLight: ThemeTokens = {
+  ...yyhDark,
+  appBg: '#edf7f5',
+  canvasBg: '#e4f1ee',
+  panelBg: '#fbfff7',
+  panelBgElevated: '#f1fff8',
+  panelBgMuted: '#d9eee8',
+  nodeBg: '#fbfff7',
+  nodeHeaderBg: '#d8fff3',
+  textMain: '#0d1824',
+  textMuted: '#314a5d',
+  textDim: '#667f8b',
+  border: 'rgba(5, 68, 78, 0.16)',
+  borderStrong: '#007c88',
+  accent: '#007c88',
+  accentHover: '#00a6ad',
+  accentText: '#ffffff',
+  secondary: '#7b27c8',
+  warning: '#c06d00',
+  danger: '#d52d57',
+  success: '#168f55',
+  shadowPanel: '4px 4px 0 rgba(5,18,28,0.86), 0 16px 38px rgba(13,38,56,0.14)',
+  shadowButton: '2px 2px 0 rgba(5,18,28,0.86)',
+  shadowStrong: '6px 6px 0 rgba(5,18,28,0.86), 0 24px 64px rgba(13,38,56,0.18)',
+  gridDot: '#86aea7',
+  edge: '#266c78',
+  edgeSelected: '#d52d57',
+  selectionBg: 'rgba(0,124,136,0.14)',
+  selectionBorder: '#007c88',
+  portText: '#007c88',
+  portImage: '#c06d00',
+  portVideo: '#d52d57',
+  portAudio: '#7b27c8',
+};
+
 export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
   {
     schema: 't8-theme-template',
@@ -624,6 +700,34 @@ export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
       copyrightNote: 'EVA 风格默认音乐文件，可在主题模板中上传替换。公开分发前请确认音乐授权边界。',
     },
     modes: { dark: { tokens: evaDark }, light: { tokens: evaLight } },
+  },
+  {
+    schema: 't8-theme-template',
+    version: THEME_TEMPLATE_VERSION,
+    id: YYH_TEMPLATE_ID,
+    name: '幽游白书风格',
+    description: '灵界侦探视觉：霓虹灵界地图、灵丸能量、暗紫青绿终端、战斗卡片和机械小地图。非角色图像化，保留创作工具的清爽可读。',
+    author: 'T8',
+    builtIn: true,
+    legacyStyle: 'tech',
+    visuals: {
+      style: 'yyh',
+      intensity: 'strong',
+      iconPack: 'yyh',
+      canvasPattern: 'spirit-map',
+      nodeFrame: 'spirit-case',
+      headerMark: 'REI GUN',
+    },
+    music: {
+      title: '不平衡的 KISS 钢琴曲',
+      preset: 'spirit-gun',
+      source: 'url',
+      url: yyhThemeMusicUrl,
+      volume: 0.16,
+      bpm: 138,
+      copyrightNote: '幽游白书风格默认音乐文件，可在主题模板中上传替换。公开分发前请确认音乐授权边界。',
+    },
+    modes: { dark: { tokens: yyhDark }, light: { tokens: yyhLight } },
   },
 ];
 

@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.7.2",
-  "lastUpdated": "2026-05-29-v1.7.2-single-instance-client-build",
+  "version": "1.7.3",
+  "lastUpdated": "2026-05-29-v1.7.3-merge-upstream-v1.6.6-to-v1.6.9",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,9 +16,9 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.7.2",
-    "semverVersion": "1.7.2",
-    "versionNote": "v1.7.2 新增 Electron 单实例检测：用户重复打开客户端时阻止第二个进程启动，并自动聚焦已打开的主窗口或启动日志窗口；继续保留 fork v1.7.1 的 upstream 同步、drawing-board、七牛/Grsai 与品牌配置。",
+    "version": "1.7.3",
+    "semverVersion": "1.7.3",
+    "versionNote": "v1.7.3 合并 upstream v1.6.6→v1.6.9 全部内容到 fork v1.7.2 之上：吸收肖像大师角色库与高级随机批量 (v1.6.6)、画布最近节点 G 定位快捷键 (v1.6.6-hotfix)、幽游白书官方主题与浅色水印 (v1.6.7/v1.6.8)、幽游白书隐藏高级词库 (v1.6.8)、肖像大师批量随机生成修复 (v1.6.9)；继续保留 fork 自有 v1.7.1 upstream 同步、v1.7.2 Electron 单实例检测、drawing-board、七牛/Grsai provider 与品牌配置。fork phase87/88 重命名为 phase93/94 避让 upstream 撞 key，新增 phase95 记录本次合并。已通过 npm run build；本次未重新打包 Electron。",
     "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
@@ -44,7 +44,7 @@
     }
   },
   "themes": {
-    "description": "主题模板体系：内置科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格 / EVA风格六套模板 × 浅色/深色模式，由 zustand theme store 持久化，data-theme-style + data-theme-mode + data-theme-visual 注入 html 根；新增节点应使用 ThemeToken CSS 变量与通用 t8-* 样式，避免逐节点硬编码主题。",
+    "description": "主题模板体系：内置科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格 / EVA风格 / 幽游白书风格七套模板 × 浅色/深色模式，由 zustand theme store 持久化，data-theme-style + data-theme-mode + data-theme-visual 注入 html 根；新增节点应使用 ThemeToken CSS 变量与通用 t8-* 样式，避免逐节点硬编码主题。",
     "templateSystem": {
       "schema": "t8-theme-template",
       "version": 2,
@@ -68,7 +68,12 @@
         "本地保存、资源库、主题模板等默认路径必须由 backend/src/config.js 统一按平台计算，前端不得再次硬编码 D:\\zhenzhen；非 Windows 旧默认值由 settings 路由迁移，用户自定义路径不得覆盖",
         "官方主题浅色模式必须检查并覆盖老节点内部暗色工具类，如 text-white/*、bg-white/*、border-white/*、cyan/violet 标签和状态色，避免只改外壳导致字段、参数或实际发送文字不可读",
         "主题风格化元素使用 visuals.style / iconPack / canvasPattern / nodeFrame / headerMark 表达，避免把某个 IP 或图案写死在业务组件里",
-        "自定义模板导入时必须通过 validateTheme/后端 normalizeTemplate，过滤未知枚举、过长字段和非法音乐 URL"
+        "自定义模板导入时必须通过 validateTheme/后端 normalizeTemplate，过滤未知枚举、过长字段和非法音乐 URL",
+        "ThemeMusicToggle 与 ReactFlow Controls 必须同置于 .t8-control-rail，由全局变量统一定位和堆叠；主题 CSS 只能覆盖尺寸、颜色和视觉样式，不得分别硬编码 left/top/bottom 造成喇叭与缩放条漂移",
+        "画布背景水印必须放在 .t8-canvas-shell::before/::after 背景层，z-index:0 且 pointer-events:none；ReactFlow 节点、边、浮层和 GroupBox 内容必须盖住水印，不能让装饰穿透到素材预览或画板内容上方",
+        "强风格官方主题可为 light/dark 分别提供水印资产；若深色水印包含黑底终端、警告面板或厚重贴片，浅色模式必须改用透明底线稿 / 印章 / HUD 版本，避免浅色画布出现突兀深色块",
+        "框选/节点右键菜单、空白右键快速添加菜单、拖线候选菜单和选中节点右上角 RUN/关闭浮动条都属于全局主题控件，必须使用 t8-context-menu / t8-node-action-bar 语义类和 visuals.style 作为视觉判断来源，禁止仅按 legacyStyle=像素/科技分支导致 OP、火影、EVA 等主题残留白底或绿色按钮",
+        "全局菜单新增动作时必须检查 light/dark 与七套官方主题的可读性；小图标和菜单图标仍需固定尺寸，避免 OP/像素风胶囊按钮把资源库、图像对比、批量下载等入口撑大"
       ],
       "music": {
         "defaultMuted": true,
@@ -87,9 +92,10 @@
           "rh-style": "rh-tide.mp3",
           "rh-hidden": "rh-hidden-saya.mp3",
           "naruto-style": "naruto-shinsei-gyakuten.mp3",
-          "eva-style": "eva-decisive-battle.mp3"
+          "eva-style": "eva-decisive-battle.mp3",
+          "yyh-style": "yyh-unbalanced-kiss-piano.mp3"
         },
-        "rule": "主题音乐默认静音，通常只在用户主动点击播放按钮后播放；RH 主题隐藏模式是唯一例外，会自动切换隐藏音乐并解除静音。模板编辑器支持上传替换，导出模板可携带 data:audio/*。"
+        "rule": "主题音乐默认静音，通常只在用户主动点击播放按钮后播放；RH 鸭鸭隐藏模式和幽游白书肖像大师隐藏模式会自动切换隐藏音乐并解除静音。模板编辑器支持上传替换，导出模板可携带 data:audio/*。"
       }
     },
     "styles": {
@@ -184,6 +190,19 @@
           "headerMark": "EVA"
         },
         "music": "eva-decisive-battle.mp3"
+      },
+      "yyh": {
+        "label": "幽游白书风格",
+        "description": "幽游白书灵界侦探视觉模板：暗紫青绿终端、灵丸能量、霓虹灵界地图、战斗卡片、REI MAP 小地图与灵界符号水印；浅色/深色都要保证工具属性、长文本、素材预览和全局菜单可读。",
+        "default": false,
+        "visuals": {
+          "style": "yyh",
+          "iconPack": "yyh",
+          "canvasPattern": "spirit-map",
+          "nodeFrame": "spirit-case",
+          "headerMark": "REI GUN"
+        },
+        "music": "yyh-unbalanced-kiss-piano.mp3"
       }
     },
     "defaultStyle": "pixel",
@@ -1321,26 +1340,104 @@
         "公开版本同步到 1.6.5：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
       ]
     },
+    "phase87": {
+      "label": "肖像大师角色库与高级随机批量 (v1.6.6)",
+      "status": "complete",
+      "items": [
+        "肖像大师编辑器完成 roadmap 第三阶段：支持当前角色 JSON 导出、角色库 JSON 导入/导出、本机常用角色收藏、跨画布发送肖像大师配置、跨画布发送输出 prompt，以及一键在当前画布生成文本节点。",
+        "肖像大师可保存到资源库「角色」分类，沿用现有文本素材集协议保存 t8-portrait-master JSON；资源库插入时会识别该 JSON 并直接恢复为肖像大师节点，避免新增后端资源类型造成兼容风险。",
+        "肖像大师编辑器完成 roadmap 第四阶段：支持随机全部、只填空项、只随机当前大类、重随未锁定项，支持随机种子复现和清纯/御姐/赛博/古风/学院/暗黑/偶像/战斗/洛丽塔/职场等风格包。",
+        "高级随机增加基础冲突规则：套装优先覆盖上衣/下装，帽子/头盔/兜帽类头饰会清理刘海，减少 prompt 自相矛盾。",
+        "批量角色支持一次生成 1-24 条 prompt，可输出为多个文本节点，也可输出为一个文本素材集，方便接入循环器、文本分割、图像、视频、LLM 与 RunningHub 链路。",
+        "公开版本同步到 1.6.6：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+      ]
+    },
     "phase88": {
+      "label": "画布最近节点定位快捷键 (v1.6.6-hotfix)",
+      "status": "complete",
+      "items": [
+        "新增画布空白处 G 快捷键：未选中任何节点时，以当前屏幕中心对应的画布坐标为基准，定位到最近的普通节点并居中显示。",
+        "G 快捷键复用 Z 全貌视图的防误触边界：输入框、节点、弹窗、侧边栏、工具栏、右键菜单聚焦时不会触发；Ctrl+G 打组逻辑保持不变。",
+        "定位时保持当前 zoom 的自然感并限制在 0.55-1.15 之间，节点居中后添加一次临时高亮，不写入节点 data，避免触发自动保存或跨画布同步副作用。",
+        "快捷键面板、README 和 features.json shortcuts 同步新增 G 说明。"
+      ]
+    },
+    "phase89": {
+      "label": "幽游白书官方主题 (v1.6.7)",
+      "status": "complete",
+      "items": [
+        "新增第七套官方主题「幽游白书风格」，以灵界侦探、灵丸能量、霓虹灵界地图、暗紫青绿终端和战斗卡片为核心视觉母题。",
+        "主题枚举、内置模板、后端主题白名单、主题编辑器、默认音乐、顶栏品牌、侧栏图标、MiniMap、GroupBox 和全局菜单全部接入 yyh 视觉分支。",
+        "新增 src/styles/theme-yyh.css，覆盖节点外壳、节点标题、输入框、按钮、端口、连线、选中态、资源库、右键菜单、NodeActionBar、SHIFT 灵剑剪线和 light/dark legacy internal controls。",
+        "公开主题设计规范同步补充 yyh / spirit-map / spirit-case / spirit-gun，幽游白书默认音乐改为 yyh-unbalanced-kiss-piano.mp3；后续官方主题必须同步覆盖全局 UI 表面而不是只换颜色。"
+      ]
+    },
+    "phase90": {
+      "label": "幽游白书浅色水印独立化 (v1.6.8)",
+      "status": "complete",
+      "items": [
+        "新增 src/assets/theme-yyh-wordmark-light.svg，作为幽游白书浅色模式专用透明底线稿 / HUD 水印，避免复用深色终端面板导致浅色画布底部出现沉重贴片。",
+        "src/styles/theme-yyh.css 新增 --yyh-wordmark-light-image 与 --yyh-wordmark-active-image，light/dark 自动切换水印；深色继续使用 theme-yyh-wordmark.svg，浅色使用轻量线稿。",
+        "浅色模式下同步降低画布雷达线条、主水印、GroupBox 水印与组内装饰层透明度，让节点和连线保持第一视觉层级。",
+        "README、features.json 与公开主题设计规范同步补充：强风格主题允许浅色 / 深色独立水印，新增主题必须分别检查 light/dark 水印可读性和压迫感。",
+        "公开版本同步到 1.6.8：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 与 docs/theme-design-guide.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+      ]
+    },
+    "phase91": {
+      "label": "幽游白书肖像大师隐藏高级词库 (v1.6.8)",
+      "status": "complete",
+      "items": [
+        "新增 src/data/portraitMasterAdvancedOptions.ts，肖像大师隐藏高级词库分为内衣层、私房氛围、成人道具三大类，每个小参数自动扩展到 100 个选项，并复用权重、锁定、随机和 JSON 复用协议。",
+        "幽游白书主题下选中肖像大师节点后，长按顶部 RUN 3 秒切换隐藏模式；隐藏模式开启后肖像大师节点、RUN 浮动条、输出节点和相关连线统一进入粉色发光视觉。",
+        "隐藏视觉状态与高级词条安全阻断解耦：即使基础人物触发安全屏蔽，节点本体、编辑器、端口和连线仍保持粉色隐藏模式，只是不拼入隐藏高级 prompt。",
+        "隐藏高级 prompt 只在幽游白书隐藏模式下拼入输出；若基础人物选择包含少女、少年、学生、校园、童话年轻角色等未成年/年轻化信号，会保守阻断隐藏高级词条输出，只保留公开 prompt。",
+        "ThemeMusicToggle 扩展隐藏音乐通道，幽游白书隐藏模式开启时可自动解除静音并切换隐藏音乐；当前先复用主题音乐通道，等待后续提供专用隐藏曲目。",
+        "已通过 npm run build；本次未打包 Electron，skill.md 未改动。"
+      ]
+    },
+    "phase92": {
+      "label": "肖像大师批量随机生成修复 (v1.6.9)",
+      "status": "complete",
+      "items": [
+        "肖像大师批量角色生成不再简单复用当前 prompt：每一条批量结果都会基于基础 seed、序号和重试次数派生独立 seed，按当前随机模式重新生成未锁定选项。",
+        "当随机模式为“只填空项”时，批量输出自动使用“重随未锁定项”的语义，避免已填满角色在批量生成时全部输出同一段文本。",
+        "批量生成保留当前角色锁定项、权重、自定义补充、语言、风格包、幽游白书隐藏模式和隐藏高级词库规则；若偶发重复，会最多重试 12 次并去重。",
+        "公开版本同步到 1.6.9：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+      ]
+    },
+    "phase93": {
+      "label": "合并 upstream v1.6.5 → fork v1.7.1（肖像大师修复 + 跨画布素材发送增强）",
+      "status": "complete",
+      "items": [
+        "fork 原 phase87，因 upstream v1.6.6 起占用 phase87/88 而重命名为 phase93（v1.7.3 合并时迁移）。",
+        "fetch upstream T8mars/T8-penguin-canvas main 后多 4 个 commit：e3ed1f8 跨画布素材发送、feb6eb8 发送历史增强、baafd38 v1.6.4、2288718 v1.6.5 肖像大师与 LLM 默认模型修复。",
+        "merge upstream/main 时手工融合版本号、features.json、ApiSettings、Electron/backend/Vite 配置冲突；fork 自有七牛/Grsai provider、品牌 favicon、接口文档和 v1.7.0 drawing-board/主题控件改动继续保留。",
+        "版本号决策 v1.7.1：fork 已是 1.7.0，本次吸收 upstream 1.6.5 后按补丁版本递增，避免回退到 upstream 版本号。",
+        "features.json 同步补入 upstream phase85/phase86、portrait-master 工具箱节点、drawing-board 与 portrait-master 可执行清单，并移除 drawing-board 的非执行标记以匹配当前代码。",
+        "公开版本对外统一到 1.7.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次未重新打包 Electron。"
+      ]
+    },
+    "phase94": {
       "label": "Electron 客户端单实例检测与新版构建 (v1.7.2)",
       "status": "complete",
       "items": [
+        "fork 原 phase88，因 upstream v1.6.6-hotfix 起占用 phase88 而重命名为 phase94（v1.7.3 合并时迁移）。",
         "Electron 主进程在启动早期调用 app.requestSingleInstanceLock() 获取单实例锁；未获取锁的第二个进程立即退出，避免重复拉起 Express 后端和多个主窗口。",
         "主实例监听 second-instance 事件，若用户再次打开程序，会优先聚焦主窗口；若主窗口尚未创建则聚焦启动日志窗口，最小化状态会先 restore。",
         "版本号同步到 1.7.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs 三处显示、backend/src/config.js APP_VERSION、features.json、README.md。",
         "本版本目标为重新构建 Windows 客户端安装包。"
       ]
     },
-
-    "phase87": {
-      "label": "合并 upstream v1.6.5 → fork v1.7.1（肖像大师修复 + 跨画布素材发送增强）",
+    "phase95": {
+      "label": "合并 upstream v1.6.6→v1.6.9 → fork v1.7.3（肖像大师批量随机 + 幽游白书主题 + G 快捷键）",
       "status": "complete",
       "items": [
-        "fetch upstream T8mars/T8-penguin-canvas main 后多 4 个 commit：e3ed1f8 跨画布素材发送、feb6eb8 发送历史增强、baafd38 v1.6.4、2288718 v1.6.5 肖像大师与 LLM 默认模型修复。",
-        "merge upstream/main 时手工融合版本号、features.json、ApiSettings、Electron/backend/Vite 配置冲突；fork 自有七牛/Grsai provider、品牌 favicon、接口文档和 v1.7.0 drawing-board/主题控件改动继续保留。",
-        "版本号决策 v1.7.1：fork 已是 1.7.0，本次吸收 upstream 1.6.5 后按补丁版本递增，避免回退到 upstream 版本号。",
-        "features.json 同步补入 upstream phase85/phase86、portrait-master 工具箱节点、drawing-board 与 portrait-master 可执行清单，并移除 drawing-board 的非执行标记以匹配当前代码。",
-        "公开版本对外统一到 1.7.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次未重新打包 Electron。"
+        "fetch upstream T8mars/T8-penguin-canvas main 后多 3 个 commit：83b9a0c v1.6.6 肖像大师角色库 + 跨画布素材发送增强、913f1c3 幽游白书主题打磨、8336346 v1.6.9 肖像大师批量随机修复；以及 v1.6.7/v1.6.8 中间 phase 全部纳入。",
+        "merge upstream/main 时所有源码冲突均由 git 自动合并（PortraitMasterNode、Canvas、SendMaterialsModal、sendMaterials 等）；手工融合的仅 8 个元数据文件：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs（3 处）、backend/src/config.js APP_VERSION、README.md、features.json。",
+        "版本号决策 v1.7.3：fork 已是 1.7.2，本次吸收 upstream 1.6.6→1.6.9 后按补丁版本递增，延续「不回退到 upstream 版本号」的 fork 历史惯例。",
+        "features.json phase 编号策略：upstream phase87-92 保持原号；fork 原 phase87/88 重命名为 phase93/phase94 避让，新增 phase95 记录本次合并。延续 v1.6.1 合并时「fork phase77/78 重命名为 phase80/81」的处理方式。",
+        "fork 自有 v1.7.0 drawing-board、v1.7.1 upstream 同步、v1.7.2 单实例检测、七牛/Grsai provider、品牌 favicon 与接口文档全部保留；features.json themes 列表合并新增 5 条主题视觉守则、shortcuts 区采纳 upstream Z/G 快捷键。",
+        "公开版本对外统一到 1.7.3：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs 三处、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次未重新打包 Electron，skill.md 仅本地更新。"
       ]
     }
   },
@@ -1588,7 +1685,7 @@
         {
           "type": "portrait-master",
           "label": "肖像大师",
-          "description": "捏人 Prompt 设计器：9 大类词库，每个小参数 100 个可选词条；支持 Avatar 分层预览、不选、随机、锁定、权重、自定义补充、默认英文 prompt 与运行输出到 OutputNode"
+          "description": "捏人 Prompt 设计器：9 大类词库，每个小参数 100 个可选词条；支持 Avatar 分层预览、不选、锁定、权重、自定义补充、默认英文 prompt、角色库收藏、JSON 导入导出、资源库角色分类、跨画布发送配置/Prompt、高级随机、种子复现、风格包与批量输出文本节点/文本素材集"
         }
       ]
     }
@@ -2139,6 +2236,8 @@
     "右键点击节点/选区": "弹出菜单(组执行/打组/合并到素材集/复制/删除)",
     "打组后右上角 ▶": "执行组内所有节点",
     "打组后双击标题": "重命名节点组",
+    "Z": "焦点在画布空白处时缩小并查看画布全貌",
+    "G": "焦点在画布空白处且未选中节点时定位当前视野最近节点",
     "中键 / 右键拖动": "平移画布",
     "空格 + 拖拽": "平移画布(备选)",
     "ESC (拖拽素材中)": "取消跨节点拖拽"

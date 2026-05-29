@@ -20,13 +20,23 @@ export default function DeletableEdge(props: EdgeProps) {
     style,
     markerEnd,
     selected,
+    source,
     target,
     data,
   } = props;
   const { setEdges, getNode } = useReactFlow();
+  const sourceNode = getNode(source);
   const targetNode = getNode(target);
   const isRhDuckEdge = Boolean((data as any)?.rhDuckEdge || (targetNode?.data as any)?.rhDuckDecoded);
-  const edgeClassName = isRhDuckEdge ? 'rh-duck-edge' : undefined;
+  const isYyhPortraitHiddenEdge = Boolean(
+    (data as any)?.yyhPortraitHiddenEdge ||
+      (sourceNode?.data as any)?.yyhPortraitHidden ||
+      (targetNode?.data as any)?.yyhPortraitHidden,
+  );
+  const edgeClassName = [
+    isRhDuckEdge ? 'rh-duck-edge' : '',
+    isYyhPortraitHiddenEdge ? 'yyh-portrait-hidden-edge' : '',
+  ].filter(Boolean).join(' ') || undefined;
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -70,6 +80,17 @@ export default function DeletableEdge(props: EdgeProps) {
         markerEnd={markerEnd}
         interactionWidth={24}
       />
+      {!isYyhPortraitHiddenEdge && (
+        <path
+          className="t8-edge-yyh-red-segment"
+          d={edgePath}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={0}
+          pointerEvents="none"
+          aria-hidden="true"
+        />
+      )}
       {/* 透明的加宽 hit area,捕捉鼠标 hover (BaseEdge 的 interactionWidth 已自带,这里再补一层,确保事件有响应) */}
       <path
         d={edgePath}

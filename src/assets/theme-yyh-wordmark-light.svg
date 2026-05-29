@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" role="img" aria-label="Yu Yu Hakusho light wordmark">
+  <defs>
+    <linearGradient id="yyhLightTitle" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#316a86"/>
+      <stop offset="0.34" stop-color="#5f45a8"/>
+      <stop offset="0.66" stop-color="#2aa9b8"/>
+      <stop offset="1" stop-color="#c95b70"/>
+    </linearGradient>
+    <linearGradient id="yyhLightFrame" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#2bbac5"/>
+      <stop offset="0.52" stop-color="#7b54d8"/>
+      <stop offset="1" stop-color="#de5d75"/>
+    </linearGradient>
+    <pattern id="yyhLightGrid" width="38" height="38" patternUnits="userSpaceOnUse">
+      <path d="M38 0H0V38" fill="none" stroke="#2aa9b8" stroke-opacity=".18" stroke-width="1"/>
+      <circle cx="19" cy="19" r="1.3" fill="#7054c8" fill-opacity=".28"/>
+    </pattern>
+  </defs>
+
+  <g opacity=".62">
+    <path d="M78 64H972l82 82v318H160l-82-82Z" fill="url(#yyhLightGrid)" opacity=".24"/>
+    <path d="M78 64H972l82 82v318H160l-82-82Z" fill="none" stroke="url(#yyhLightFrame)" stroke-width="7" stroke-opacity=".52"/>
+    <path d="M112 96h814l70 70v258H182l-70-70Z" fill="none" stroke="#7655ca" stroke-width="2" stroke-opacity=".34"/>
+    <path d="M112 96H392M812 96h114l70 70v50M996 348v76H820" fill="none" stroke="#cf596d" stroke-width="5" stroke-opacity=".34"/>
+  </g>
+
+  <g font-family="'Microsoft YaHei', 'Noto Sans SC', 'PingFang SC', sans-serif" opacity=".7">
+    <text x="132" y="158" fill="#2aa9b8" font-size="22" font-weight="800" letter-spacing="4">SYSTEM STATUS: REI MAP OPS</text>
+    <text x="132" y="188" fill="#6953b7" font-size="18" font-weight="700" letter-spacing="2">SPIRIT DETECTIVE CANVAS / LIGHT FIELD</text>
+    <text x="130" y="322" fill="url(#yyhLightTitle)" font-size="170" font-weight="950" letter-spacing="-8">幽游白书</text>
+    <text x="148" y="374" fill="#2aa9b8" font-size="42" font-weight="900" letter-spacing="3">REI MAP OPS</text>
+    <text x="438" y="374" fill="#cf596d" font-size="30" font-weight="900" letter-spacing="2">区域 04 · 灵界之门</text>
+  </g>
+
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".58">
+    <path d="M145 416C248 344 356 388 462 292S704 220 826 330s184 80 250 12" stroke="#2bbac5" stroke-width="5"/>
+    <path d="M145 438c112-46 208 8 312-68s214-68 330 22 204 58 292-20" stroke="#cf596d" stroke-width="4" stroke-opacity=".78"/>
+    <path d="M216 398l16-16 16 16-16 16Z" fill="#71bd8f" stroke="#f2fbfa" stroke-width="4"/>
+    <path d="M802 322l22-22 22 22-22 22Z" fill="#2bbac5" stroke="#f2fbfa" stroke-width="4"/>
+    <circle cx="984" cy="352" r="16" fill="#cf596d" stroke="#f2fbfa" stroke-width="5"/>
+  </g>
+
+  <g transform="translate(918 116)" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" opacity=".54">
+    <path d="M0 0h118l28 28v120H0Z" fill="none" stroke="#2bbac5" stroke-width="3"/>
+    <text x="14" y="30" fill="#2aa66f" font-size="16" font-weight="800">SYNC 92.7%</text>
+    <text x="14" y="56" fill="#2aa9b8" font-size="14" font-weight="700">YUSUKE</text>
+    <text x="14" y="82" fill="#cf596d" font-size="14" font-weight="700">HIEI ALERT</text>
+    <path d="M14 112h92" stroke="#71bd8f" stroke-width="5" stroke-opacity=".78"/>
+    <path d="M14 130h62" stroke="#cf596d" stroke-width="5" stroke-opacity=".7"/>
+  </g>
+</svg>

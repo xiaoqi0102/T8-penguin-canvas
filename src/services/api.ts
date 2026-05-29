@@ -55,8 +55,9 @@ export async function getCanvasData(id: string): Promise<CanvasData> {
   return res.data;
 }
 
-export async function saveCanvasData(id: string, data: CanvasData): Promise<void> {
-  await request(`${BASE}/canvas/${id}`, {
+export async function saveCanvasData(id: string, data: CanvasData, options?: { allowEmpty?: boolean }): Promise<void> {
+  const query = options?.allowEmpty ? '?allowEmpty=1' : '';
+  await request(`${BASE}/canvas/${id}${query}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });

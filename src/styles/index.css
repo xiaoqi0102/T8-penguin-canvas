@@ -6,6 +6,7 @@
 @import './theme-rh.css';
 @import './theme-naruto.css';
 @import './theme-eva.css';
+@import './theme-yyh.css';
 
 @tailwind base;
 @tailwind components;
@@ -102,6 +103,13 @@ html[data-theme-visual] .t8-canvas-shell::after,
 
 .t8-canvas-shell .react-flow__node {
   isolation: isolate;
+  overflow: visible !important;
+}
+
+.t8-canvas-shell .react-flow__node > .react-flow__handle,
+.t8-canvas-shell .react-flow__node .react-flow__handle {
+  z-index: 60 !important;
+  pointer-events: all;
 }
 
 html[data-theme-visual] .t8-canvas-shell .react-flow__controls,
@@ -770,6 +778,37 @@ html[data-theme-visual="op"] .t8-group-box__handle {
 .t8-mini-icon-button svg {
   flex: 0 0 auto;
   pointer-events: none;
+}
+
+.react-flow__node.t8-nearest-node-pulse {
+  z-index: 1000 !important;
+}
+
+.react-flow__node.t8-nearest-node-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border: 2px solid var(--t8-accent, #38bdf8);
+  border-radius: 18px;
+  pointer-events: none;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--t8-accent, #38bdf8) 44%, transparent);
+  animation: t8-nearest-node-pulse 1.15s ease-out both;
+}
+
+@keyframes t8-nearest-node-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--t8-accent, #38bdf8) 46%, transparent);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+    box-shadow: 0 0 0 14px color-mix(in srgb, var(--t8-accent, #38bdf8) 0%, transparent);
+  }
 }
 
 .t8-context-menu {

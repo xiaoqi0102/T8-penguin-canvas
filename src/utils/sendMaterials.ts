@@ -3,12 +3,13 @@ import type { ResourceItem, ResourceMaterialSetKind } from '../services/api';
 import { collectMaterialSetBucketsFromData, normalizeMaterialSetItems, type MaterialSetItem, type MaterialSetKind } from './materialSet';
 import { fileNameFromUrl, type MediaItem, type MediaKind } from './mediaCollection';
 
-export type SendTargetMode = 'auto' | 'material-set' | 'upload' | 'split-upload' | 'output';
+export type SendTargetMode = 'auto' | 'material-set' | 'upload' | 'split-upload' | 'output' | 'portrait-master';
 
 export interface SendableMaterial extends MaterialSetItem {
   sourceNodeId?: string;
   sourceCanvasId?: string;
   sourceType?: string;
+  sourceNodeData?: Record<string, any>;
 }
 
 export type SendableBuckets = Record<MaterialSetKind, SendableMaterial[]>;
@@ -16,15 +17,21 @@ export type SendableBuckets = Record<MaterialSetKind, SendableMaterial[]>;
 const MATERIAL_KINDS: MaterialSetKind[] = ['text', 'image', 'video', 'audio'];
 const MEDIA_KINDS: MediaKind[] = ['image', 'video', 'audio'];
 
-function toSendable(
-  item: MaterialSetItem,
-  meta: Pick<SendableMaterial, 'sourceNodeId' | 'sourceCanvasId' | 'sourceType'> = {},
-): SendableMaterial {
+function toSendable(item: MaterialSetItem, meta: Partial<SendableMaterial> = {}): SendableMaterial {
   return {
     ...item,
     name: item.name || (item.kind === 'text' ? (item.text || '').slice(0, 24) : fileNameFromUrl(item.url || '')),
     ...meta,
   };
+}
+
+function cloneNodeData(data: unknown): Record<string, any> | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch {
+    return { ...(data as Record<string, any>) };
+  }
 }
 
 function pushUnique(bucket: SendableMaterial[], seen: Set<string>, item: SendableMaterial) {
@@ -70,14 +77,34 @@ export function sendableMaterialSignature(materials: SendableMaterial[]): string
 export function collectSendableMaterialsFromNode(node: Node, sourceCanvasId?: string | null): SendableMaterial[] {
   const buckets = collectMaterialSetBucketsFromData(node.data);
   const out: SendableMaterial[] = [];
+  const sourceType = String(node.type || '');
+  const meta: Partial<SendableMaterial> = {
+    sourceNodeId: node.id,
+    sourceCanvasId: sourceCanvasId || undefined,
+    sourceType,
+    sourceNodeData: cloneNodeData(node.data),
+  };
   for (const kind of MATERIAL_KINDS) {
     for (const item of buckets[kind]) {
-      out.push(toSendable(item, {
-        sourceNodeId: node.id,
-        sourceCanvasId: sourceCanvasId || undefined,
-        sourceType: String(node.type || ''),
-      }));
+      out.push(toSendable(item, meta));
     }
+  }
+  if (sourceType === 'portrait-master' && !out.some((item) => item.kind === 'text')) {
+    const data = (node.data || {}) as Record<string, any>;
+    const text =
+      String(data.prompt || data.outputText || data.text || data.portraitSummary || '').trim() ||
+      '肖像大师配置';
+    out.push(
+      toSendable(
+        {
+          id: `portrait-master-${node.id}`,
+          kind: 'text',
+          text,
+          name: '肖像大师配置',
+        },
+        meta,
+      ),
+    );
   }
   return out;
 }
