@@ -244,6 +244,14 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 
 ## 十、变更记录 (Changelog)
 
+**更新规则**：每次代码修改提交后，必须在此表格中添加新行记录变更。
+
+**记录格式**：
+- 日期：`YYYY-MM-DD`
+- 变更：版本号（如有）+ 主要功能点简述
+
+**触发时机**：新增功能、修复重要 bug、合并 upstream、版本升级、架构调整、文档重大更新
+
 | 日期 | 变更 |
 |---|---|
 | 2026-05-27 | 初次生成 CLAUDE.md（根 + src + backend + electron）；扫描覆盖率 ~100%（所有源码模块） |
@@ -251,7 +259,7 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 | 2026-05-28 | v1.6.1：合并 upstream/main → upstream v1.5.8 主题图标 / 跨平台路径 + v1.5.9 EVA 主题 + v1.6.0 EVA 浅色 legacy adapter；fork phase77/78 与 upstream 撞 JSON key，重命名为 phase80/81 + 新增 phase82 anchor |
 | 2026-05-28 | v1.6.2：修复七牛 `gemini-3.1-flash-image-preview` 比例参数不生效（根因：`callQiniuImageUpstream` 把所有子模型按 OpenAI body 发，gemini 上游需要 `image_config.{aspect_ratio,image_size}` 嵌套对象，收到顶层 `size` 会静默忽略）。按 `model` 分流构造 body，gemini 走 image_config、openai/gpt-image-2 维持 size/quality；UI 让 gemini 也显示 1K/2K/4K 清晰度档 |
 | 2026-05-30 | 新增 LLM 推理专项文档 `docs/llm-inference.md`（覆盖前端节点/服务层/后端代理/配置项/类型定义） |
-| 2026-05-31 | v1.8.0：合并 upstream v1.7.0→v1.7.4（节点片段、任务完成音效、姿势大师、连接导航）+ fork 新增 Geeknow LLM 节点；建立 fork 版本策略（永远领先 upstream 至少一个版本号） |
+| 2026-05-31 | v1.8.0：合并 upstream v1.7.0→v1.7.4（节点片段、任务完成音效、姿势大师、连接导航）+ fork 新增 Geeknow LLM 节点；建立 fork 版本策略（永远领先 upstream 至少一个版本号）；添加变更记录更新规则 |
 
 ---
 
