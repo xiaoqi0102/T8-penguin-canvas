@@ -176,6 +176,7 @@ graph TD
 | 主题 / 视觉调整 | `src/theme/` · `src/styles/theme-*.css` · `docs/theme-design-guide.md` |
 | 端口连接语义 | `src/config/portTypes.ts`（NODE_PORTS） · `src/types/canvas.ts` |
 | 调试运行总线 | `src/stores/runBus.ts` · `src/hooks/useRunTrigger.ts` |
+| 修改 / 新增 LLM 推理接入 | [docs/llm-inference.md](./docs/llm-inference.md) §后端代理路由 · `src/components/nodes/LLMNode.tsx` · `src/providers/models.ts` |
 
 **注意事项**：
 - 不要随意 `git pull --rebase`（参考 `phase29` 灾难抢救历史），改用 merge 或新分支
@@ -193,6 +194,7 @@ graph TD
 | 2026-05-28 | v1.5.9：七牛 `openai/gpt-image-2` image-edits size 修复 + 1K/2K/4K 清晰度档；grsai `gpt-image-2-vip` 「比例 × 清晰度」双控件（`sizeMap` 按上游文档铺 14 比例 × 3 档预设表，1:3/3:1 在 2K 档由 `computeVipSize` 4MP 兜底；vip 比例列表去 auto + 加 1:3/3:1/2:1/1:2 共 4 项 vip 独有比例） |
 | 2026-05-28 | v1.6.1：合并 upstream/main → upstream v1.5.8 主题图标 / 跨平台路径 + v1.5.9 EVA 主题 + v1.6.0 EVA 浅色 legacy adapter；fork phase77/78 与 upstream 撞 JSON key，重命名为 phase80/81 + 新增 phase82 anchor |
 | 2026-05-28 | v1.6.2：修复七牛 `gemini-3.1-flash-image-preview` 比例参数不生效（根因：`callQiniuImageUpstream` 把所有子模型按 OpenAI body 发，gemini 上游需要 `image_config.{aspect_ratio,image_size}` 嵌套对象，收到顶层 `size` 会静默忽略）。按 `model` 分流构造 body，gemini 走 image_config、openai/gpt-image-2 维持 size/quality；UI 让 gemini 也显示 1K/2K/4K 清晰度档 |
+| 2026-05-30 | 新增 LLM 推理专项文档 `docs/llm-inference.md`（覆盖前端节点/服务层/后端代理/配置项/类型定义） |
 
 ---
 

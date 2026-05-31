@@ -74,6 +74,7 @@ import PlaceholderNode from './nodes/PlaceholderNode';
 import TextNode from './nodes/TextNode';
 import ImageNode from './nodes/ImageNode';
 import LLMNode from './nodes/LLMNode';
+import GeeknowLlmNode from './nodes/GeeknowLlmNode';
 import VideoNode from './nodes/VideoNode';
 import SeedanceNode from './nodes/SeedanceNode';
 import AudioNode from './nodes/AudioNode';
@@ -129,6 +130,8 @@ const SPECIFIC_NODES: Record<string, any> = {
   seedance: SeedanceNode, // 完全对齐 gpt-image-2-web Seedance2.0(独立 /seedance/v3 路径)
   audio: AudioNode,
   llm: LLMNode,
+  // v1.7.4 fork-only: Geeknow 中转站 LLM 推理节点（type 加 t8f- 前缀避让 upstream）
+  't8f-geeknow-llm': GeeknowLlmNode,
   runninghub: RunningHubNode,
   // RH 钱包应用：复用 RunningHubNode。v1.2.9.16 起与普通 RunningHub 节点统一使用 settings.rhApiKey
   'runninghub-wallet': RunningHubNode,
@@ -246,6 +249,16 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
     stream: true,
     history: [],
   },
+  // v1.7.4 fork-only: Geeknow 中转站 LLM（与 llm 节点的 data 形状一致以复用 Sidebar 拖拽流程）
+  't8f-geeknow-llm': {
+    model: 'gpt-4o-mini',
+    system: '',
+    prompt: '',
+    temperature: 0.7,
+    maxTokens: 4096,
+    stream: true,
+    history: [],
+  },
   upload: { uploadType: null },
   'material-set': { materialSetKind: null, materialSetItems: [] },
   // RH 工具节点（v1.2.10.1+）：启动器状态字段 + 运行状态字段（与 RunningHubNode 对齐）
@@ -283,7 +296,7 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
 const EXECUTABLE_NODE_TYPES = new Set<string>([
   'image', 'edit',
   'multi-angle-3d', 'panorama-720', 'penguin-portrait',
-  'video', 'seedance', 'audio', 'llm', 'runninghub', 'runninghub-wallet',
+  'video', 'seedance', 'audio', 'llm', 't8f-geeknow-llm', 'runninghub', 'runninghub-wallet',
   // v1.2.10.1: rh-tools 与 RunningHub 同质，同样可被批量运行调起
   'rh-tools',
   'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine', 'image-compare', 'drawing-board',

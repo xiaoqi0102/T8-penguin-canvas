@@ -10,6 +10,8 @@ export const DEFAULT_QINIU_BASE = 'https://openai.qiniu.com';
 // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
 // v1.5.6: Grsai 中转站默认 base URL（国内端点，用户可切到 https://grsaiapi.com 全球）
 export const DEFAULT_GRSAI_BASE = 'https://grsai.dakka.com.cn';
+// v1.7.4: Geeknow 中转站默认 base URL（OpenAI Chat Completions 兼容，覆盖 GPT/Claude/Gemini/DeepSeek/Qwen 多家文本推理）
+export const DEFAULT_GEEKNOW_BASE = 'https://www.geeknow.top';
 // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
 interface ApiKeysState {
@@ -36,6 +38,9 @@ const DEFAULT: ApiSettings = {
   // v1.5.6: Grsai 中转站独立 provider（自有协议，图像生成）
   grsaiApiKey: '',
   grsaiBaseUrl: DEFAULT_GRSAI_BASE,
+  // v1.7.4: Geeknow 中转站独立 provider（OpenAI Chat 兼容，LLM 推理）
+  geeknowApiKey: '',
+  geeknowBaseUrl: DEFAULT_GEEKNOW_BASE,
   // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   // 分类独立 Key（留空时 fallback 到 zhenzhenApiKey）
   gptImageApiKey: '',

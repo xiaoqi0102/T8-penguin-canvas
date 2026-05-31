@@ -1439,6 +1439,20 @@
         "fork 自有 v1.7.0 drawing-board、v1.7.1 upstream 同步、v1.7.2 单实例检测、七牛/Grsai provider、品牌 favicon 与接口文档全部保留；features.json themes 列表合并新增 5 条主题视觉守则、shortcuts 区采纳 upstream Z/G 快捷键。",
         "公开版本对外统一到 1.7.3：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs 三处、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次未重新打包 Electron，skill.md 仅本地更新。"
       ]
+    },
+    "phase96": {
+      "label": "v1.7.4 fork-only · 新增 Geeknow LLM 中转站独立节点（与 upstream LLMNode 完全隔离）",
+      "status": "complete",
+      "items": [
+        "动机：用户希望接入 Geeknow 中转站做 LLM 推理，同时保留贞贞工坊原 LLMNode 不动以便 upstream 合并。Geeknow 协议为标准 OpenAI Chat Completions 兼容（POST /v1/chat/completions + GET /v1/models + Bearer 鉴权 + SSE）。",
+        "节点 type='t8f-geeknow-llm'（fork 前缀避让 upstream 撞名），新增 src/components/nodes/GeeknowLlmNode.tsx；端口语义与 llm 一致 inputs:['text','image'] outputs:['text']；EXECUTABLE_NODE_TYPES、Canvas nodeTypes 注册表、DEFAULT_DATA 同步登记。",
+        "后端独立路由 POST /api/proxy/llm-geeknow（SSE 透传）+ GET /api/proxy/llm-geeknow/models（模型列表代理），位于 backend/src/routes/proxy.js 末尾的 FORK-GEEKNOW-LLM 围栏内，复用主 LLM endpoint 的 normalizeLlmMessageImages 处理 /files/* 多模态参考图。",
+        "前端服务 src/integrations/geeknow/runGeeknowLlm.ts：generateGeeknowLlm / generateGeeknowLlmStream / fetchGeeknowModels 三个导出，与 src/services/generation.ts 主线 generateLlm 完全解耦。",
+        "13 个内置模型 GEEKNOW_LLM_MODELS（providers/models.ts）：OpenAI 3 + Claude 4.x 全家桶 3 + Gemini 2.5/3.1 共 3 + DeepSeek 2 + Qwen 2，默认 gpt-4o-mini；节点 UI 提供「刷新模型列表」按钮调上游 /v1/models 写入 localStorage 't8f-geeknow-dynamic-models' 覆盖静态清单。",
+        "独立 Key 字段 geeknowApiKey + geeknowBaseUrl（默认 https://www.geeknow.top，用户可改自建中转），ApiSettings 类型与 apiKeys store 同步追加；ProviderType 联合类型新增 'geeknow'。",
+        "围栏注释：所有 fork 改动用 'v1.7.4 fork-only' 或 'FORK-GEEKNOW-LLM' 注释标记，便于 upstream 合并时定位。upstream LLMNode.tsx / generation.ts runLlm / 主 LLM endpoint 全部未动。",
+        "未来 upstream 若新增 LLM 节点：fork 已避让 type 命名空间（t8f- 前缀），最大冲突点是 nodeRegistry / EXECUTABLE_NODE_TYPES 数组并排，git merge 即可手动 OK。"
+      ]
     }
   },
   "categories": {
@@ -1465,7 +1479,7 @@
     },
     "core": {
       "label": "核心节点",
-      "count": 6,
+      "count": 7,
       "nodes": [
         {
           "type": "text",
@@ -1496,6 +1510,11 @@
           "type": "llm",
           "label": "LLM/Vision 节点",
           "description": "完全对齐 gpt-image-2-web chat:5 模型(gemini-3.1-flash-lite 默认/gpt-4o/gemini-3.1-pro/gpt-5/gpt-image-2-all) + temp/max_tokens + system 预设 + 多模态图片 + 多轮会话 + SSE 流式 + 独立 LLM Key"
+        },
+        {
+          "type": "t8f-geeknow-llm",
+          "label": "Geeknow LLM 节点（fork v1.7.4）",
+          "description": "fork-only 中转站推理节点：Geeknow OpenAI Chat Completions 兼容（POST /v1/chat/completions + GET /v1/models），独立 geeknowApiKey + 可改 geeknowBaseUrl，13 个内置模型覆盖 GPT/Claude 4.x/Gemini 2.5+3.1/DeepSeek/Qwen，节点内一键刷新模型列表（写入 localStorage），完整复用 LLMNode 的 SSE 流式 + 多模态 + 系统提示词 + 多轮会话 + 上游聚合体验。type 加 t8f- 前缀避让 upstream，后端独立路由 /api/proxy/llm-geeknow 用 FORK-GEEKNOW-LLM 围栏标记。"
         }
       ]
     },

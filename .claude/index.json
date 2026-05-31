@@ -1,6 +1,13 @@
 {
   "schema": "t8-claude-index@1",
   "generatedAt": "2026-05-27T18:35:23+08:00",
+  "lastSpecialScan": {
+    "topic": "llm-inference",
+    "scannedAt": "2026-05-30T09:05:52+08:00",
+    "outputDoc": "docs/llm-inference.md",
+    "codeVersionRef": "1.7.3",
+    "summary": "LLM 推理子系统专项扫描：1 个前端节点 + 1 个 endpoint + 5 个内置模型，全部走 https://ai.t8star.org/v1/chat/completions"
+  },
   "project": {
     "name": "T8-penguin-canvas",
     "displayName": "贞贞的无限画布（企鹅共创版）",
@@ -69,6 +76,8 @@
         "/api/proxy/seedance/*",
         "/api/proxy/audio/* (Suno) + /audio/upload",
         "/api/proxy/runninghub/* (submit / query / upload-asset / app-info)",
+        "/api/proxy/qiniu/image/* (七牛 独立图像 provider)",
+        "/api/proxy/grsai/image/* (Grsai 独立图像 provider)",
         "/api/resources/* (categories / items / sets / file / thumb)",
         "/api/themes/templates/* (import/export/edit/delete)",
         "/api/recharge/* + /pay/* (算力充值 VPS)"
@@ -184,8 +193,52 @@
     ],
     "moduleCoverage": {
       "src": { "structureKnown": true, "deepScanned": "partial", "gaps": ["Canvas.tsx 内部细节", "节点组件单个内部逻辑", "stores 中除 runBus/canvas 外的实现"] },
-      "backend": { "structureKnown": true, "deepScanned": "partial", "gaps": ["proxy.js ~2200 行细节", "resources.js / themes.js 内部逻辑"] },
+      "backend": { "structureKnown": true, "deepScanned": "partial", "gaps": ["proxy.js ~2200 行细节（LLM 部分已在 2026-05-30 LLM 专项扫描覆盖）", "resources.js / themes.js 内部逻辑"] },
       "electron": { "structureKnown": true, "deepScanned": "partial", "gaps": ["loader.cjs 加密细节", "_post_build.cjs 充值密钥扫描实现"] }
+    }
+  },
+  "specialScans": {
+    "llm-inference": {
+      "scannedAt": "2026-05-30T09:05:52+08:00",
+      "scanRatioPct": 100,
+      "filesScanned": [
+        "src/components/nodes/LLMNode.tsx (全文 852 行)",
+        "src/services/generation.ts (LLM 部分 347-446 行 + 全局结构)",
+        "src/services/api.ts (settings CRUD 相关)",
+        "src/providers/models.ts (LLM_MODELS / DEFAULT_LLM_MODEL / isImageOutputLlm 486-518)",
+        "src/stores/apiKeys.ts (全文 92 行)",
+        "src/types/canvas.ts (ApiSettings 112-150)",
+        "src/config/portTypes.ts (llm 端口语义 53)",
+        "src/config/nodeRegistry.ts (llm 注册 20)",
+        "backend/src/routes/proxy.js (LLM 部分 73-308 + 986-1096)",
+        "backend/src/config.js (全文 107 行)",
+        "backend/src/routes/settings.js (llmApiKey 处理点)"
+      ],
+      "upstreams": [
+        "https://ai.t8star.org/v1/chat/completions (硬编码于 proxy.js:1006，鉴权 Bearer ${llmApiKey})"
+      ],
+      "models": [
+        "gemini-3.1-flash-lite-preview (默认)",
+        "gpt-4o",
+        "gemini-3.1-pro-preview",
+        "gpt-5",
+        "gpt-image-2-all (出图，强制非流式)"
+      ],
+      "endpoints": [
+        "POST /api/proxy/llm (前端唯一入口) - body: {model, messages, temperature?, max_tokens?, stream?}"
+      ],
+      "envVarsRelated": [
+        "无（LLM Key 仅通过 data/settings.json 持久化，不读环境变量）"
+      ],
+      "settingsFields": [
+        "llmApiKey (独立，不 fallback 到 zhenzhenApiKey)",
+        "llmBaseUrl (前端展示用，后端硬编码 ZHENZHEN_BASE_URL)"
+      ],
+      "outputDoc": "docs/llm-inference.md",
+      "outputDocSections": 11,
+      "gaps": [
+        "无：本子系统已 100% 扫描覆盖（仅 1 节点 + 1 endpoint）"
+      ]
     }
   },
   "ignored": {
@@ -207,7 +260,7 @@
   },
   "truncated": false,
   "nextSteps": [
-    "如需深度补扫，建议优先: src/components/Canvas.tsx (~2000 行核心交互), backend/src/routes/proxy.js (~2200 行 30+ 代理路由), electron/loader.cjs (T8ENC1 加密细节)",
+    "如需深度补扫，建议优先: src/components/Canvas.tsx (~2000 行核心交互), backend/src/routes/proxy.js 中图像/视频/音频路由细节, electron/loader.cjs (T8ENC1 加密细节)",
     "如需节点级文档，可对 src/components/nodes/ 下 40+ 个节点逐一生成 sub-CLAUDE.md",
     "如需测试，建议从 src/utils/{topologicalSort,nodePlacement,textSplit}.ts 这类纯函数开始补单测",
     "features.json 有 515 行，本次仅扫描了前 173 行 phase0-43；如需历史 phase 完整索引，请补扫 174-515 行"
@@ -222,7 +275,9 @@
     "externalRefs": [
       "README.md",
       "features.json",
-      "docs/theme-design-guide.md"
+      "docs/theme-design-guide.md",
+      "docs/llm-inference.md",
+      "docs/zhenzhen-api-migration.md"
     ]
   }
 }

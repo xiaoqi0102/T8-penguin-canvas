@@ -12,6 +12,8 @@ export type NodeType =
   | 'seedance'
   | 'audio'
   | 'llm'
+  // v1.7.4 fork-only: Geeknow 中转站 LLM 推理节点（独立 provider，类型前缀 t8f- 与上游隔离）
+  | 't8f-geeknow-llm'
   | 'runninghub'
   | 'runninghub-wallet'
   | 'rh-config'
@@ -124,6 +126,9 @@ export interface ApiSettings {
   // v1.5.6: Grsai 中转站（独立 provider，自有协议，仅图像生成）
   grsaiApiKey?: string;
   grsaiBaseUrl?: string; // 默认 https://grsai.dakka.com.cn（国内），可切到 https://grsaiapi.com（全球）
+  // v1.7.4: Geeknow 中转站（独立 provider，OpenAI Chat Completions 兼容，LLM 推理）
+  geeknowApiKey?: string;
+  geeknowBaseUrl?: string; // 默认 https://www.geeknow.top，用户可切自建中转
   // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   // 分类 API Key（留空时 fallback 到 zhenzhenApiKey）
   gptImageApiKey?: string;

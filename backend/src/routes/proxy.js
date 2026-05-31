@@ -2685,4 +2685,155 @@ router.get('/grsai/image/status/:tid', async (req, res) => {
 });
 // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
+// >>> FORK-GEEKNOW-LLM-START (v1.7.4 fork-only, 与上游隔离)
+// Geeknow LLM 中转站代理（OpenAI Chat Completions 兼容）
+//   provider 与贞贞工坊主 LLM endpoint 完全解耦：独立 geeknowApiKey + 可配置 geeknowBaseUrl。
+//   协议要点（docs.geeknow.top）：
+//     - POST {base}/v1/chat/completions   兼容 OpenAI，stream/stream_options/tools/response_format 全支持
+//     - GET  {base}/v1/models             查询当前 Key 可用模型
+//     - 鉴权 Authorization: Bearer ${geeknowApiKey}
+//   路由（前端通过 Vite proxy 转发到此）：
+//     POST /api/proxy/llm-geeknow         主推理（流式/非流式按 body.stream）
+//     GET  /api/proxy/llm-geeknow/models  模型列表（用于节点 UI 刷新按钮）
+function getGeeknowConfig() {
+  const settings = loadRawSettings();
+  const apiKey = String(settings?.geeknowApiKey || '').trim();
+  if (!apiKey) {
+    return { error: '未配置 Geeknow 中转站 API Key（设置 → Geeknow API Key）' };
+  }
+  const baseUrl = String(settings?.geeknowBaseUrl || 'https://www.geeknow.top').replace(/\/+$/, '');
+  return { apiKey, baseUrl };
+}
+
+router.post('/llm-geeknow', async (req, res) => {
+  const cfg = getGeeknowConfig();
+  if (cfg.error) return res.status(400).json({ success: false, error: cfg.error });
+
+  const { model, messages, temperature, max_tokens, top_p, stream, response_format, tools, tool_choice } = req.body || {};
+  if (!model || !messages) {
+    return res.status(400).json({ success: false, error: 'model 和 messages 必填' });
+  }
+
+  // 复用主 LLM endpoint 的本地图片预处理（/files/* → base64 dataURL）
+  let normalizedMessages;
+  try {
+    normalizedMessages = await normalizeLlmMessageImages(messages);
+  } catch (e) {
+    return res.status(400).json({ success: false, error: e.message || '参考图预处理失败' });
+  }
+
+  const upstream = `${cfg.baseUrl}/v1/chat/completions`;
+  const payload = {
+    model,
+    messages: normalizedMessages,
+    temperature: temperature ?? 0.7,
+    max_tokens: max_tokens ?? 4096,
+    stream: !!stream,
+  };
+  if (typeof top_p === 'number') payload.top_p = top_p;
+  if (response_format) payload.response_format = response_format;
+  if (Array.isArray(tools) && tools.length) payload.tools = tools;
+  if (tool_choice !== undefined) payload.tool_choice = tool_choice;
+  if (payload.stream) payload.stream_options = { include_usage: true };
+
+  try {
+    const r = await fetch(upstream, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (payload.stream) {
+      if (!r.ok) {
+        const errText = await r.text();
+        return res.status(r.status).json({
+          success: false,
+          error: `Geeknow 上游 HTTP ${r.status}: ${errText.slice(0, 300)}`,
+        });
+      }
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      try {
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(decoder.decode(value, { stream: true }));
+        }
+      } catch (streamErr) {
+        console.error('proxy/llm-geeknow SSE 转发异常:', streamErr);
+      }
+      return res.end();
+    }
+
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return res.status(500).json({ success: false, error: 'Geeknow 上游响应非 JSON: ' + text.slice(0, 200) });
+    }
+    if (!r.ok) {
+      return res.status(r.status).json({
+        success: false,
+        error: data?.error?.message || data?.error || `Geeknow 上游 HTTP ${r.status}`,
+      });
+    }
+    const choice = data?.choices?.[0];
+    let content = choice?.message?.content || '';
+    const imageUrls = [];
+    if (Array.isArray(content)) {
+      let textParts = '';
+      content.forEach((part) => {
+        if (part?.type === 'text') textParts += part.text || '';
+        else if (part?.type === 'image_url' && part.image_url?.url) imageUrls.push(part.image_url.url);
+      });
+      content = textParts;
+    }
+    res.json({ success: true, data: { content, imageUrls, raw: data, model } });
+  } catch (e) {
+    console.error('proxy/llm-geeknow 错误:', e);
+    res.status(500).json({ success: false, error: e.message || '请求失败' });
+  }
+});
+
+router.get('/llm-geeknow/models', async (_req, res) => {
+  const cfg = getGeeknowConfig();
+  if (cfg.error) return res.status(400).json({ success: false, error: cfg.error });
+  try {
+    const r = await fetch(`${cfg.baseUrl}/v1/models`, {
+      headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return res.status(500).json({ success: false, error: 'Geeknow /v1/models 响应非 JSON: ' + text.slice(0, 200) });
+    }
+    if (!r.ok) {
+      return res.status(r.status).json({
+        success: false,
+        error: data?.error?.message || data?.error || `Geeknow 上游 HTTP ${r.status}`,
+      });
+    }
+    const list = Array.isArray(data?.data) ? data.data : [];
+    const models = list
+      .filter((m) => m && typeof m.id === 'string')
+      .map((m) => ({ id: m.id, owned_by: m.owned_by || '', created: m.created || 0 }));
+    res.json({ success: true, data: { models, raw: data } });
+  } catch (e) {
+    console.error('proxy/llm-geeknow/models 错误:', e);
+    res.status(500).json({ success: false, error: e.message || '查询失败' });
+  }
+});
+// <<< FORK-GEEKNOW-LLM-END
+
 module.exports = router;

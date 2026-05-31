@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Lock, Save, Settings2, X, FolderOpen } from 'lucide-react';
-import { useApiKeysStore, FIXED_ZHENZHEN_BASE, RH_BASE, DEFAULT_QINIU_BASE, DEFAULT_GRSAI_BASE } from '../stores/apiKeys';
+import { useApiKeysStore, FIXED_ZHENZHEN_BASE, RH_BASE, DEFAULT_QINIU_BASE, DEFAULT_GRSAI_BASE, DEFAULT_GEEKNOW_BASE } from '../stores/apiKeys';
 import { useThemeStore } from '../stores/theme';
 import type { ApiSettings } from '../types/canvas';
 import { getRawSettings } from '../services/api';
 // >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时，本块整体保留即可)
 import QiniuSettingsSection from '../integrations/qiniu/QiniuSettingsSection';
 import GrsaiSettingsSection from '../integrations/grsai/GrsaiSettingsSection';
+// >>> FORK-GEEKNOW-LLM-START (v1.7.4 fork-only: Geeknow 中转站 LLM 推理设置面板)
+import GeeknowSettingsSection from '../integrations/geeknow/GeeknowSettingsSection';
+// <<< FORK-GEEKNOW-LLM-END
 // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
 interface ApiSettingsModalProps {
@@ -21,6 +24,8 @@ type KeyField =
   | 'llmApiKey'
   | 'qiniuApiKey'
   | 'grsaiApiKey'
+  // v1.7.4 fork-only: Geeknow 中转站 LLM 独立 Key
+  | 'geeknowApiKey'
   | 'gptImageApiKey'
   | 'nanoBananaApiKey'
   | 'mjApiKey'
@@ -55,7 +60,8 @@ const CLASSIFIED_KEYS: KeySpec[] = [
 // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
 // 第三方 provider 自定义 Key（不走标准 KeySpec 渲染流程，UI 由 integrations/<name>/*SettingsSection 自管理）
 // 但仍纳入 ALL_FIELDS，让统一 handleSave/getRawSettings 流程透明覆盖。
-const CUSTOM_PROVIDER_FIELDS: KeyField[] = ['qiniuApiKey', 'grsaiApiKey'];
+// v1.7.4 fork: Geeknow 也并入第三方 provider 的统一保存流程
+const CUSTOM_PROVIDER_FIELDS: KeyField[] = ['qiniuApiKey', 'grsaiApiKey', 'geeknowApiKey'];
 // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
 const ALL_FIELDS: KeyField[] = [
@@ -66,11 +72,13 @@ const ALL_FIELDS: KeyField[] = [
 
 const emptyMap = (): Record<KeyField, string> => ({
   zhenzhenApiKey: '', rhApiKey: '', llmApiKey: '', qiniuApiKey: '', grsaiApiKey: '',
+  geeknowApiKey: '',
   gptImageApiKey: '', nanoBananaApiKey: '', mjApiKey: '', veoApiKey: '',
   grokApiKey: '', seedanceApiKey: '', sunoApiKey: '',
 });
 const emptyShow = (): Record<KeyField, boolean> => ({
   zhenzhenApiKey: false, rhApiKey: false, llmApiKey: false, qiniuApiKey: false, grsaiApiKey: false,
+  geeknowApiKey: false,
   gptImageApiKey: false, nanoBananaApiKey: false, mjApiKey: false, veoApiKey: false,
   grokApiKey: false, seedanceApiKey: false, sunoApiKey: false,
 });
@@ -95,6 +103,9 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
   // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
   const [qiniuBaseUrlInput, setQiniuBaseUrlInput] = useState<string>('');
   const [grsaiBaseUrlInput, setGrsaiBaseUrlInput] = useState<string>('');
+  // >>> FORK-GEEKNOW-LLM-START
+  const [geeknowBaseUrlInput, setGeeknowBaseUrlInput] = useState<string>('');
+  // <<< FORK-GEEKNOW-LLM-END
   // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   // 本地 Eagle API 地址
   const [eagleApiBaseInput, setEagleApiBaseInput] = useState<string>('');
@@ -123,6 +134,9 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
       // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
       setQiniuBaseUrlInput((settings as any)?.qiniuBaseUrl || DEFAULT_QINIU_BASE);
       setGrsaiBaseUrlInput((settings as any)?.grsaiBaseUrl || DEFAULT_GRSAI_BASE);
+      // >>> FORK-GEEKNOW-LLM-START
+      setGeeknowBaseUrlInput((settings as any)?.geeknowBaseUrl || DEFAULT_GEEKNOW_BASE);
+      // <<< FORK-GEEKNOW-LLM-END
       // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
       setEagleApiBaseInput((settings as any)?.eagleApiBase || '');
     }
@@ -195,6 +209,13 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     if (newGrsaiBase && newGrsaiBase !== oldGrsaiBase) {
       (patch as any).grsaiBaseUrl = newGrsaiBase;
     }
+    // >>> FORK-GEEKNOW-LLM-START
+    const newGeeknowBase = (geeknowBaseUrlInput || '').trim();
+    const oldGeeknowBase = (settings as any)?.geeknowBaseUrl || '';
+    if (newGeeknowBase && newGeeknowBase !== oldGeeknowBase) {
+      (patch as any).geeknowBaseUrl = newGeeknowBase;
+    }
+    // <<< FORK-GEEKNOW-LLM-END
     // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
     const newEagleApiBase = (eagleApiBaseInput || '').trim();
     const oldEagleApiBase = (settings as any)?.eagleApiBase || '';
@@ -445,6 +466,24 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             eyeBtnCls={eyeBtnCls}
             linkBtnCls={linkBtnCls}
           />
+          {/* >>> FORK-GEEKNOW-LLM-START (v1.7.4 fork-only: Geeknow 中转站 LLM 推理) */}
+          <GeeknowSettingsSection
+            rawSettings={settings}
+            geeknowApiKeyInput={inputs.geeknowApiKey}
+            showApiKey={shows.geeknowApiKey}
+            onApiKeyChange={(v) => setInputAt('geeknowApiKey', v)}
+            onToggleShow={() => handleToggleShow('geeknowApiKey')}
+            geeknowBaseUrlInput={geeknowBaseUrlInput}
+            onBaseUrlChange={setGeeknowBaseUrlInput}
+            isPixel={isPixel}
+            isDark={isDark}
+            inputCls={inputCls}
+            labelCls={labelCls}
+            hintCls={hintCls}
+            eyeBtnCls={eyeBtnCls}
+            linkBtnCls={linkBtnCls}
+          />
+          {/* <<< FORK-GEEKNOW-LLM-END */}
           {/* <<< CUSTOM-PROVIDER-INTEGRATIONS-END */}
 
           {/* 分类独立 Key（默认折叠，点击展开 —— 新手友好） */}
