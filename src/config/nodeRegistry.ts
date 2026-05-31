@@ -17,9 +17,7 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'video', label: '视频', category: 'core', description: 'Veo 3.1 / Grok Video', icon: 'Video', color: 'rose' },
   { type: 'seedance', label: 'SD2.0', category: 'core', description: 'Seedance 2.0 视频分镜', icon: 'Film', color: 'fuchsia' },
   { type: 'audio', label: '音频', category: 'core', description: 'Suno V5.5 全模式(生成/翻唱/续写)', icon: 'Music', color: 'violet' },
-  { type: 'llm', label: 'LLM', category: 'core', description: 'GPT-5 / Claude 4.5 / Gemini 2.5(独立 Key)', icon: 'Brain', color: 'emerald' },
-  // v1.7.4 fork-only: Geeknow 中转站 LLM 推理（独立 Key + 可改 baseUrl + 13 模型 + 一键刷新模型列表）
-  { type: 't8f-geeknow-llm', label: 'Geeknow LLM', category: 'core', description: 'Geeknow 中转站(GPT/Claude/Gemini/DeepSeek/Qwen 多家模型，OpenAI Chat 兼容)', icon: 'Sparkles', color: 'amber' },
+  { type: 'llm', label: 'LLM', category: 'core', description: '多提供商 LLM 推理（直连/Geeknow TAB 切换，支持 GPT/Claude/Gemini/DeepSeek/Qwen）', icon: 'Brain', color: 'emerald' },
 
   // ========== RH RunningHub 节点(3) ==========
   { type: 'runninghub', label: 'RunningHub', category: 'rh', description: 'RH 工作流主节点', icon: 'Workflow', color: 'cyan' },

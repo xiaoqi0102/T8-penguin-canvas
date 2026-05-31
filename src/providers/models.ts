@@ -593,24 +593,34 @@ export function isImageOutputLlm(modelId: string): boolean {
 // 同时让节点 UI 的"刷新模型列表"能直接覆盖本数组。
 // ========================================================================
 export const GEEKNOW_LLM_MODELS: LlmModelDef[] = [
-  // OpenAI 系
-  { id: 'gpt-4o-mini',  label: 'GPT-4o mini（默认 · 性价比）', provider: 'geeknow', vision: true, contextLength: 128_000 },
-  { id: 'gpt-4o',       label: 'GPT-4o',                     provider: 'geeknow', vision: true, contextLength: 128_000 },
-  { id: 'gpt-4.1',      label: 'GPT-4.1',                    provider: 'geeknow', vision: true, contextLength: 1_000_000 },
-  // Claude 4.x 系
-  { id: 'claude-opus-4-7',          label: 'Claude Opus 4.7',         provider: 'geeknow', vision: true, contextLength: 200_000 },
-  { id: 'claude-sonnet-4-6',        label: 'Claude Sonnet 4.6',       provider: 'geeknow', vision: true, contextLength: 200_000 },
-  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5',        provider: 'geeknow', vision: true, contextLength: 200_000 },
-  // Gemini 系
-  { id: 'gemini-2.5-pro',           label: 'Gemini 2.5 Pro',          provider: 'geeknow', vision: true, contextLength: 2_000_000 },
-  { id: 'gemini-2.5-flash',         label: 'Gemini 2.5 Flash',        provider: 'geeknow', vision: true, contextLength: 1_000_000 },
-  { id: 'gemini-3.1-pro-preview',   label: 'Gemini 3.1 Pro Preview',  provider: 'geeknow', vision: true, contextLength: 2_000_000 },
-  // DeepSeek 系
-  { id: 'deepseek-chat',     label: 'DeepSeek Chat',                provider: 'geeknow', contextLength: 128_000 },
-  { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner（推理增强）', provider: 'geeknow', contextLength: 128_000 },
-  // Qwen 系
-  { id: 'qwen-max',  label: 'Qwen Max',  provider: 'geeknow', contextLength: 32_000 },
-  { id: 'qwen3-max', label: 'Qwen3 Max', provider: 'geeknow', contextLength: 256_000 },
+  { id: 'gpt-5.5',                label: 'GPT-5.5',                provider: 'geeknow', vision: true },
+  { id: 'gemini-3-pro-preview',   label: 'Gemini 3 Pro Preview',   provider: 'geeknow', vision: true },
+  { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview', provider: 'geeknow', vision: true },
+  { id: 'gemini-3.5-flash',       label: 'Gemini 3.5 Flash',       provider: 'geeknow', vision: true },
+  { id: 'deepseek-v4-pro',        label: 'DeepSeek V4 Pro',        provider: 'geeknow' },
 ];
 
-export const DEFAULT_GEEKNOW_LLM_MODEL = 'gpt-4o-mini';
+export const DEFAULT_GEEKNOW_LLM_MODEL = 'gemini-3.1-pro-preview';
+
+// ========================================================================
+// 统一 LLM 模型列表（用于提供商切换）
+// ========================================================================
+export const ALL_LLM_MODELS: LlmModelDef[] = [
+  ...LLM_MODELS,
+  ...GEEKNOW_LLM_MODELS,
+];
+
+/** 按 provider 过滤模型 */
+export function getModelsByProvider(provider: ProviderType): LlmModelDef[] {
+  if (provider === 'llm-direct') {
+    return LLM_MODELS;
+  } else if (provider === 'geeknow') {
+    return GEEKNOW_LLM_MODELS;
+  }
+  return ALL_LLM_MODELS.filter(m => m.provider === provider);
+}
+
+/** 获取指定 provider 的默认模型 */
+export function getDefaultModelForProvider(provider: ProviderType): string {
+  return provider === 'geeknow' ? DEFAULT_GEEKNOW_LLM_MODEL : DEFAULT_LLM_MODEL;
+}

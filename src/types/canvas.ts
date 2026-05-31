@@ -12,8 +12,6 @@ export type NodeType =
   | 'seedance'
   | 'audio'
   | 'llm'
-  // v1.7.4 fork-only: Geeknow 中转站 LLM 推理节点（独立 provider，类型前缀 t8f- 与上游隔离）
-  | 't8f-geeknow-llm'
   | 'runninghub'
   | 'runninghub-wallet'
   | 'rh-config'

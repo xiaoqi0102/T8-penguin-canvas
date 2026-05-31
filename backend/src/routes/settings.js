@@ -25,6 +25,9 @@ const DEFAULT_SETTINGS = {
   // v1.5.6: Grsai 中转站独立 provider（自有协议，非 OpenAI 兼容）
   grsaiApiKey: '',
   grsaiBaseUrl: config.GRSAI_BASE_URL,
+  // v1.7.4: Geeknow LLM 中转站（OpenAI 兼容，独立 provider）
+  geeknowApiKey: '',
+  geeknowBaseUrl: 'https://www.geeknow.top',
   // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   // 分类 Key（留空时 fallback 到 zhenzhenApiKey）
   gptImageApiKey: '',
@@ -160,6 +163,7 @@ router.get('/', (_req, res) => {
     qiniuApiKey: maskKey(settings.qiniuApiKey),
     // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
     grsaiApiKey: maskKey(settings.grsaiApiKey),
+    geeknowApiKey: maskKey(settings.geeknowApiKey),
     // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
   };
   for (const f of CLASSIFIED_KEY_FIELDS) {

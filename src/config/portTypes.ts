@@ -51,8 +51,6 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   seedance: { inputs: ['text', 'image', 'video', 'audio'], outputs: ['video'] },
   audio: { inputs: ['text', 'audio'], outputs: ['audio'] },
   llm: { inputs: ['text', 'image'], outputs: ['text'] },
-  // v1.7.4 fork-only: Geeknow LLM 中转站节点（端口语义与 llm 完全一致，独立 endpoint/Key）
-  't8f-geeknow-llm': { inputs: ['text', 'image'], outputs: ['text'] },
 
   // ========== RH ==========
   runninghub: { inputs: ['text', 'image', 'video', 'audio', 'config'], outputs: ['image', 'video'] },

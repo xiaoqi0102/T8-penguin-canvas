@@ -2937,11 +2937,9 @@ router.get('/grsai/image/status/:tid', async (req, res) => {
 //   provider 与贞贞工坊主 LLM endpoint 完全解耦：独立 geeknowApiKey + 可配置 geeknowBaseUrl。
 //   协议要点（docs.geeknow.top）：
 //     - POST {base}/v1/chat/completions   兼容 OpenAI，stream/stream_options/tools/response_format 全支持
-//     - GET  {base}/v1/models             查询当前 Key 可用模型
 //     - 鉴权 Authorization: Bearer ${geeknowApiKey}
 //   路由（前端通过 Vite proxy 转发到此）：
 //     POST /api/proxy/llm-geeknow         主推理（流式/非流式按 body.stream）
-//     GET  /api/proxy/llm-geeknow/models  模型列表（用于节点 UI 刷新按钮）
 function getGeeknowConfig() {
   const settings = loadRawSettings();
   const apiKey = String(settings?.geeknowApiKey || '').trim();
@@ -3048,37 +3046,6 @@ router.post('/llm-geeknow', async (req, res) => {
   } catch (e) {
     console.error('proxy/llm-geeknow 错误:', e);
     res.status(500).json({ success: false, error: e.message || '请求失败' });
-  }
-});
-
-router.get('/llm-geeknow/models', async (_req, res) => {
-  const cfg = getGeeknowConfig();
-  if (cfg.error) return res.status(400).json({ success: false, error: cfg.error });
-  try {
-    const r = await fetch(`${cfg.baseUrl}/v1/models`, {
-      headers: { Authorization: `Bearer ${cfg.apiKey}` },
-    });
-    const text = await r.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return res.status(500).json({ success: false, error: 'Geeknow /v1/models 响应非 JSON: ' + text.slice(0, 200) });
-    }
-    if (!r.ok) {
-      return res.status(r.status).json({
-        success: false,
-        error: data?.error?.message || data?.error || `Geeknow 上游 HTTP ${r.status}`,
-      });
-    }
-    const list = Array.isArray(data?.data) ? data.data : [];
-    const models = list
-      .filter((m) => m && typeof m.id === 'string')
-      .map((m) => ({ id: m.id, owned_by: m.owned_by || '', created: m.created || 0 }));
-    res.json({ success: true, data: { models, raw: data } });
-  } catch (e) {
-    console.error('proxy/llm-geeknow/models 错误:', e);
-    res.status(500).json({ success: false, error: e.message || '查询失败' });
   }
 });
 // <<< FORK-GEEKNOW-LLM-END

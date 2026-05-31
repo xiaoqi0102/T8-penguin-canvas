@@ -14,7 +14,13 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { LLM_MODELS, DEFAULT_LLM_MODEL, isImageOutputLlm } from '../../providers/models';
+import {
+  DEFAULT_LLM_MODEL,
+  isImageOutputLlm,
+  getModelsByProvider,
+  getDefaultModelForProvider,
+  type ProviderType,
+} from '../../providers/models';
 import {
   fileToDataUrl,
   generateLlm,
@@ -22,6 +28,10 @@ import {
   type LlmContentPart,
   type LlmMessage,
 } from '../../services/generation';
+import {
+  generateGeeknowLlm,
+  generateGeeknowLlmStream,
+} from '../../integrations/geeknow/runGeeknowLlm';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { logBus } from '../../stores/logs';
@@ -59,17 +69,20 @@ interface ChatTurn {
 }
 
 const PRESET_KEY = 't8-llm-sys-presets';
+const GEEKNOW_PRESET_KEY = 't8f-geeknow-sys-presets';
 
-function loadPresets(): Record<string, string> {
+function loadPresets(provider: ProviderType = 'llm-direct'): Record<string, string> {
   try {
-    return JSON.parse(localStorage.getItem(PRESET_KEY) || '{}');
+    const key = provider === 'geeknow' ? GEEKNOW_PRESET_KEY : PRESET_KEY;
+    return JSON.parse(localStorage.getItem(key) || '{}');
   } catch {
     return {};
   }
 }
-function savePresets(map: Record<string, string>) {
+function savePresets(map: Record<string, string>, provider: ProviderType = 'llm-direct') {
   try {
-    localStorage.setItem(PRESET_KEY, JSON.stringify(map));
+    const key = provider === 'geeknow' ? GEEKNOW_PRESET_KEY : PRESET_KEY;
+    localStorage.setItem(key, JSON.stringify(map));
   } catch {
     /* noop */
   }
@@ -133,12 +146,11 @@ function splitAssistantReplyForScatter(input: string): string[] {
   return fallbacks.find((parts) => parts.length > 1) || [text];
 }
 
-const LLMNode = ({ id, data, selected }: NodeProps) => {
+const LLMNode = ({ id, data, type, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const { getEdges, getNodes, getNode, addNodes } = useReactFlow();
   const [error, setError] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState('');
-  const [presetMap, setPresetMap] = useState<Record<string, string>>(() => loadPresets());
   const [pickedFiles, setPickedFiles] = useState<{ name: string; dataUrl: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -150,7 +162,11 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
   const chatRef = useCallback((el: HTMLDivElement | null) => attachWheelBlock(el), []);
 
   const d = data as any;
-  const model: string = d?.model || DEFAULT_LLM_MODEL;
+  const provider: ProviderType = d?.provider || 'llm-direct';
+  const model: string = d?.model || (provider === 'geeknow' ? 'gemini-3.1-pro-preview' : DEFAULT_LLM_MODEL);
+
+  // 根据 provider 加载对应的预设
+  const [presetMap, setPresetMap] = useState<Record<string, string>>(() => loadPresets(provider));
   const status: 'idle' | 'generating' | 'success' | 'error' = d?.status || 'idle';
     // 用户输入框值: 改用 d.userPrompt 私有字段（避免与对下游开放的 d.prompt=助手回复 冲突，
     // 否则下游 useUpstreamMaterials 会同时 pushText(d.prompt) + pushText(d.reply) 出现两条文本）
@@ -166,6 +182,37 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
 
   const src = `LLM·${model}·#${id.slice(-4)}`;
   const isImgOut = isImageOutputLlm(model);
+
+  // 向后兼容：根据节点类型初始化 provider（新节点默认 llm-direct）
+  useLayoutEffect(() => {
+    if (!d?.provider) {
+      update({ provider: 'llm-direct' });
+    }
+  }, [d?.provider, update]);
+
+  // 提供商切换时重新加载预设
+  useLayoutEffect(() => {
+    setPresetMap(loadPresets(provider));
+  }, [provider]);
+
+  // 提供商切换函数
+  const switchProvider = useCallback((newProvider: ProviderType) => {
+    const availableModels = getModelsByProvider(newProvider);
+    const defaultModel = getDefaultModelForProvider(newProvider);
+
+    // 检查当前模型是否在新提供商的模型列表中
+    const currentModelExists = availableModels.some(m => m.id === model);
+
+    const patch: any = { provider: newProvider };
+
+    // 如果当前模型不在新提供商的列表中，重置为默认模型
+    if (!currentModelExists) {
+      patch.model = defaultModel;
+    }
+
+    update(patch);
+    logBus.info(`切换提供商: ${newProvider}`, src);
+  }, [model, src, update]);
 
   // 上游素材实时订阅(跟随上游 data 变化重渲染) —— 用于节点内预览。
   // 跟 ImageNode / SeedanceNode 同一套机制(useNodeConnections + useNodesData),
@@ -290,7 +337,10 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
         // ====== 流式 ======
         const ctrl = new AbortController();
         abortRef.current = ctrl;
-        const { content } = await generateLlmStream(
+
+        // 根据 provider 选择生成函数
+        const streamFn = provider === 'geeknow' ? generateGeeknowLlmStream : generateLlmStream;
+        const { content } = await streamFn(
           { model, messages, temperature, max_tokens: maxTokens },
           {
             onDelta: (chunk) => setStreamingText((s) => s + chunk),
@@ -315,7 +365,9 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
         taskCompletionSound.notifyComplete(id, 'llm');
       } else {
         // ====== 非流式(出图模型 或 关流式) ======
-        const res = await generateLlm({ model, messages, temperature, max_tokens: maxTokens });
+        // 根据 provider 选择生成函数
+        const generateFn = provider === 'geeknow' ? generateGeeknowLlm : generateLlm;
+        const res = await generateFn({ model, messages, temperature, max_tokens: maxTokens });
         const replyText = res.content || '';
         const imgs = res.imageUrls || [];
         const finalHistory: ChatTurn[] = [
@@ -373,13 +425,13 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
       return;
     }
     const map = { ...presetMap, [name]: systemPrompt };
-    savePresets(map);
+    savePresets(map, provider);
     setPresetMap(map);
   };
   const handleDeletePreset = (name: string) => {
     const { [name]: _del, ...rest } = presetMap;
     void _del;
-    savePresets(rest);
+    savePresets(rest, provider);
     setPresetMap(rest);
   };
 
@@ -527,7 +579,9 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-white truncate">LLM / Vision</div>
-          <div className="text-[10px] text-white/40 truncate">独立 Key · 5 模型 · 多模态 · 流式</div>
+          <div className="text-[10px] text-white/40 truncate">
+            {provider === 'geeknow' ? 'Geeknow · 5 模型 · 多模态 · 流式' : '直连 · 6 模型 · 多模态 · 流式'}
+          </div>
         </div>
         {history.length > 0 && (
           <button
@@ -541,6 +595,30 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
       </div>
 
       <div className="p-2.5 space-y-2" onMouseDown={(e) => e.stopPropagation()}>
+        {/* 提供商切换 TAB */}
+        <div className="flex gap-0.5 p-0.5 rounded bg-white/5">
+          <button
+            onClick={() => switchProvider('llm-direct')}
+            className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+              provider === 'llm-direct'
+                ? 'bg-emerald-500/30 text-emerald-200 font-medium'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+            }`}
+          >
+            直连
+          </button>
+          <button
+            onClick={() => switchProvider('geeknow')}
+            className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+              provider === 'geeknow'
+                ? 'bg-amber-500/30 text-amber-200 font-medium'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+            }`}
+          >
+            Geeknow
+          </button>
+        </div>
+
         {/* 模型 */}
         <div>
           <label className="text-[10px] text-white/50 block mb-1">模型</label>
@@ -549,7 +627,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
             onChange={(e) => update({ model: e.target.value })}
             className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
           >
-            {LLM_MODELS.map((m) => (
+            {getModelsByProvider(provider).map((m) => (
               <option key={m.id} value={m.id} className="bg-zinc-900">
                 {m.label}
               </option>

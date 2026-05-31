@@ -21,15 +21,14 @@ src/integrations/
 │   ├── runGrsaiImage.ts            # 提交 + 轮询；vip 在 submit 前用 sizeMap 按 (ratio, resolution) 转像素串
 │   ├── sizeMap.ts                  # 按 apiModel 的比例集合 + gpt-image-2-vip 三档 DOC_PRESETS_BY_RES 文档预设表（v1.5.6 单档 1MP · v1.5.9 三档完整）
 │   └── README.md                   # 上游协议镜像 + 模型清单
-└── geeknow/                        # Geeknow LLM 中转站（v1.7.4 fork-only 首个 LLM provider；OpenAI Chat Completions 兼容）
+└── geeknow/                        # Geeknow LLM 中转站（v1.7.4 fork-only；v1.8.0 合并到 LLMNode TAB 切换）
     ├── GeeknowSettingsSection.tsx  # API 设置弹窗中独立的 Key + baseUrl 块（amber 主题）
-    ├── runGeeknowLlm.ts            # 服务层：generateGeeknowLlm / generateGeeknowLlmStream / fetchGeeknowModels
-    └── （无 ImageTab / sizeMap）   # LLM 模式：独立节点而非 ImageNode 内 Tab，无尺寸映射需求
+    └── runGeeknowLlm.ts            # 服务层：generateGeeknowLlm / generateGeeknowLlmStream / fetchGeeknowModels
 ```
 
 > 📌 **图像 provider vs LLM provider 模式差异**：
 > - **图像 provider**（qiniu / grsai）通过「`ImageNode` 内嵌专属 Tab + sizeMap 比例转换」模式接入，复用 `ImageNode` 的运行链路与 UI 骨架
-> - **LLM provider**（geeknow）通过「独立节点 `t8f-geeknow-llm` + 独立 endpoint」模式接入，与上游 `LLMNode` 完全解耦，0 修改 `LLMNode.tsx`
+> - **LLM provider**（geeknow）通过「`LLMNode` 内嵌 TAB 切换」模式接入（v1.8.0 起），在同一个 LLM 节点内通过顶部 TAB 按钮组切换「直连 / Geeknow」提供商，共享 UI 骨架与运行链路
 > - 两种模式都保持 `integrations/<name>/` 目录边界与 sentinel 围栏隔离原则
 
 ---
@@ -57,9 +56,9 @@ src/integrations/
 
 **接入新 provider 时务必填一行进表**，让后续接入者能快速对比。
 
-### LLM 中转站协议对照（v1.7.4 起，与图像 provider 模式分离）
+### LLM 中转站协议对照（v1.7.4 起，v1.8.0 合并到 LLMNode TAB）
 
-| 维度 | geeknow（v1.7.4） |
+| 维度 | geeknow（v1.7.4 → v1.8.0） |
 |---|---|
 | 业务类型 | LLM 推理（chat completions），**非图像生成** |
 | 上游路径 | `/v1/chat/completions`（流式 + 非流式同端点，靠 body.stream 区分）+ `/v1/models`（拉全集） |
@@ -70,39 +69,38 @@ src/integrations/
 | 提交等待 | SSE 流式直接透传字节，无超时收口；非流式走 Node fetch 默认 5 分钟超时（LLM 一般 < 30 秒 OK） |
 | 端点切换 | 默认 `https://www.geeknow.top`，支持用户在设置面板自定义 baseUrl |
 | 认证 Header | `Authorization: Bearer sk-xxx`（独立 `geeknowApiKey`，**不 fallback 到 `llmApiKey` 也不与贞贞共用**） |
-| 节点 type | `t8f-geeknow-llm`（fork 类型前缀，与上游 `llm` 节点完全隔离） |
-| 端口语义 | `inputs:['text','image']` / `outputs:['text']`（同上游 `llm` 节点） |
+| 节点接入方式 | v1.8.0 起合并到 `llm` 节点内 TAB 切换（不再使用独立 `t8f-geeknow-llm` 节点类型） |
+| 端口语义 | `inputs:['text','image']` / `outputs:['text']`（与原生 `llm` 节点一致） |
 | 默认模型 | `gpt-4o-mini`（13 个静态默认：OpenAI + Claude + Gemini + DeepSeek + Qwen 五家族） |
 | 模型扩展 | 节点内「刷新模型」按钮调 `/v1/models` 拉全集，写入 `localStorage.t8f-geeknow-dynamic-models` |
 
 ---
 
-## 设计模式 · LLM 中转站独立节点接入（v1.7.4 起，与图像模式互补）
+## 设计模式 · LLM 中转站 TAB 切换接入（v1.8.0 起，与图像模式统一）
 
-**问题**：图像 provider 走「`ImageNode` 内嵌专属 Tab」模式（qiniu / grsai 的成熟方案），是因为 `ImageNode` 本身就承担多模型聚合的职责。但 `LLMNode` 是单模型组件，硬要在它内部塞「Geeknow Tab」会破坏 `LLMNode` 与上游主项目 `gpt-image-2-web` 的同构关系，导致合并冲突翻倍。
+**问题**：v1.7.4 时 LLM 中转站走「独立节点 `t8f-geeknow-llm`」模式，虽然与上游解耦，但用户需要在 Sidebar 中选择不同的节点卡片，UI 不够统一。
 
-**约定**（v1.7.4 fork-only）：
-- LLM 中转站走「独立节点 + 独立 endpoint + 独立目录」三独立模式
-- 节点 type 用 `t8f-` 前缀（fork-only 标识），完全不动 upstream 的 `llm` 节点
-- 后端在 `backend/src/routes/proxy.js` 文件末尾 sentinel 围栏 `>>> FORK-GEEKNOW-LLM-START/END <<<` 内追加 `/api/proxy/llm-geeknow` 路由
-- 共享文件改动 (`NodeType` / `ApiSettings` / `nodeRegistry` / `portTypes` / `Canvas`) 全部用「`v1.7.4 fork-only` 行注释」标注，每处只插 1-3 行
-- `integrations/geeknow/` 内只放 3 个文件（无 sizeMap、无 ImageTab），与图像 provider 的 4 件套保持差异化
+**v1.8.0 改进**：参考图像节点的多 provider TAB 切换模式，将 Geeknow 合并到 `LLMNode` 内部：
+- 节点顶部添加「直连 / Geeknow」TAB 按钮组
+- 根据选中的 provider 动态切换模型列表
+- Geeknow 模式下显示「刷新模型列表」按钮
+- 根据 provider 调用不同的后端路由（`/api/proxy/llm` vs `/api/proxy/llm-geeknow`）
 
 **实现位置**：
-- 服务层：`src/integrations/geeknow/runGeeknowLlm.ts` 导出 `generateGeeknowLlm` / `generateGeeknowLlmStream` / `fetchGeeknowModels`，复用 `LLMNode` 的 `LlmMessage` / `LlmContentPart` 类型
-- UI：`src/components/nodes/GeeknowLlmNode.tsx`（独立节点组件，从 `LLMNode.tsx` 复制后改 amber 主题 + 加「刷新模型」按钮）
-- 设置面板：`src/integrations/geeknow/GeeknowSettingsSection.tsx`，与 `QiniuSettingsSection` / `GrsaiSettingsSection` 同构
+- 服务层：`src/integrations/geeknow/runGeeknowLlm.ts` 导出 `generateGeeknowLlm` / `generateGeeknowLlmStream` / `fetchGeeknowModels`
+- UI：`src/components/nodes/LLMNode.tsx` 内嵌 TAB 切换（不再需要独立的 `GeeknowLlmNode.tsx`）
+- 设置面板：`src/integrations/geeknow/GeeknowSettingsSection.tsx`
+- 模型注册：`src/providers/models.ts` 导出 `getModelsByProvider()` / `getDefaultModelForProvider()`
 
 **与图像 provider 模式的对比**：
 
-| 维度 | 图像 provider 模式（qiniu / grsai） | LLM provider 模式（geeknow） |
+| 维度 | 图像 provider 模式（qiniu / grsai） | LLM provider 模式（geeknow v1.8.0） |
 |---|---|---|
-| 节点 type | 共用 `image`（多模型聚合） | 独立 type `t8f-<name>-llm` |
-| UI 接入点 | `ImageNode` 内嵌 `<XyzImageTab>` | 独立 `XyzLlmNode.tsx` 组件 |
-| 共享文件改动量 | `ImageNode.tsx` 6 处 sentinel + `ApiSettings.tsx` 6 处 sentinel + `models.ts` 1 处 | `Canvas.tsx` 3 处 + `ApiSettings.tsx` 1 处围栏 + `models.ts` 1 处 |
-| 上游合并风险 | 中（ImageNode 与上游有较多差异，需手动整理） | 低（fork-only 节点与上游完全解耦） |
+| 节点 type | 共用 `image`（多模型聚合） | 共用 `llm`（多 provider 聚合） |
+| UI 接入点 | `ImageNode` 内嵌 `<XyzImageTab>` | `LLMNode` 内嵌 TAB 按钮组 |
+| 切换方式 | 顶部 TAB 切换模型组 | 顶部 TAB 切换 provider |
 | 必备文件 | `<Name>SettingsSection` + `<Name>ImageTab` + `run<Name>Image` + `sizeMap` | `<Name>SettingsSection` + `run<Name>Llm`（无 sizeMap） |
-| 适用场景 | 图像生成多模型聚合 | LLM 推理 / Embedding / Audio 等单一职责的独立调用 |
+| 适用场景 | 图像生成多模型聚合 | LLM 推理多 provider 聚合 |
 
 ---
 
@@ -269,21 +267,17 @@ cp -r src/integrations/qiniu src/integrations/xyz
 | `ImageNode.tsx` JSX 面板 | `{isQiniu && <QiniuImageTab d={d} update={update} apiModel={apiModel} />}` | `{isGrsai && <GrsaiImageTab d={d} update={update} apiModel={apiModel} />}` |
 | `features.json` | `modelRegistry.image` 末尾加 qiniu 注册项 | 末尾再加 grsai 注册项 |
 
-### LLM provider 插入点速查表（geeknow）
+### LLM provider 插入点速查表（geeknow v1.8.0）
 
-| 文件 / 位置 | geeknow（v1.7.4 fork-only） |
+| 文件 / 位置 | geeknow（v1.8.0 TAB 切换模式） |
 |---|---|
-| `backend/src/routes/proxy.js` | 文件末尾追加 `>>> FORK-GEEKNOW-LLM-START/END <<<` 围栏，含 `getGeeknowConfig` + `POST /llm-geeknow`（SSE 透传）+ `GET /llm-geeknow/models`（拉全集） |
-| `src/types/canvas.ts` `NodeType` | 加 `'t8f-geeknow-llm'`（带 `v1.7.4 fork-only` 行注释） |
-| `src/types/canvas.ts` `ApiSettings` | 加 `geeknowApiKey?: string` + `geeknowBaseUrl?: string` |
-| `src/stores/apiKeys.ts` | 导出 `DEFAULT_GEEKNOW_BASE`；DEFAULT 加 2 字段 |
+| `backend/src/routes/proxy.js` | 文件末尾 `>>> FORK-GEEKNOW-LLM-START/END <<<` 围栏，含 `getGeeknowConfig` + `POST /llm-geeknow`（SSE 透传）+ `GET /llm-geeknow/models`（拉全集） |
+| `backend/src/routes/settings.js` | `DEFAULT_SETTINGS` 加 `geeknowApiKey` + `geeknowBaseUrl`；GET 路由加 `maskKey(geeknowApiKey)` |
 | `src/providers/models.ts` `ProviderType` | 加 `'geeknow'` |
-| `src/providers/models.ts` | 末尾导出 `GEEKNOW_LLM_MODELS`（13 个）+ `DEFAULT_GEEKNOW_LLM_MODEL` |
-| `src/config/nodeRegistry.ts` | 核心节点末尾加 `{ type: 't8f-geeknow-llm', ... icon:'Sparkles', color:'amber' }` |
-| `src/config/portTypes.ts` `NODE_PORTS` | 加 `'t8f-geeknow-llm': { inputs:['text','image'], outputs:['text'] }` |
-| `src/components/Canvas.tsx` | 3 处改动：import `GeeknowLlmNode` / `nodeTypes` map 加条目 / `DEFAULT_DATA` 加条目 / `EXECUTABLE_NODE_TYPES` Set 加条目 |
+| `src/providers/models.ts` | 导出 `GEEKNOW_LLM_MODELS`（13 个）+ `DEFAULT_GEEKNOW_LLM_MODEL` + `getModelsByProvider()` + `getDefaultModelForProvider()` |
+| `src/components/nodes/LLMNode.tsx` | 内嵌 TAB 按钮组（直连 / Geeknow）+ 动态模型列表 + 刷新按钮 + 根据 provider 选择生成函数 |
 | `src/components/ApiSettings.tsx` | `>>> FORK-GEEKNOW-LLM-START/END <<<` 围栏：import / `KeyField` 联合 / `CUSTOM_PROVIDER_FIELDS` / `emptyMap` / `emptyShow` / `geeknowBaseUrlInput` state / 加载 effect / handleSave / JSX 渲染 |
-| `features.json` | core 节点数 6→7；新增 phase96 phase 记录条目 |
+| `src/integrations/geeknow/` | `GeeknowSettingsSection.tsx` + `runGeeknowLlm.ts`（2 个文件） |
 
 ---
 
@@ -419,21 +413,23 @@ const body = { model, prompt, quality: quality || 'auto', size: size || 'auto' }
 - **旧画布兼容**：旧 gemini 节点 `qiniuSize: '1024x1024'`（v1.5.6 早期允许的像素串）→ runner 检测到不送 `aspect_ratio`，让上游默认；旧 gemini 节点无 `qiniuResolution` → runner 默认 `'1K'`
 - **gemini 不需要 quality**：UI 保留控件以保持与 openai/gpt-image-2 一致；`d.qiniuQuality` 仅 runner 在 openai 分支读取，gemini 分支彻底丢弃
 
-**Q15：v1.7.4 新增 LLM provider（geeknow）为什么不复用 image provider 模板？**
-两个原因：
-1. **业务实体不同**：image provider 是「ImageNode 的多模型一员」，沿用 ImageNode Tab 模式自然合理；LLM 在主项目里就是「`llm` 独立节点 + 独立 endpoint」，复制成 image 模式反而会破坏 `LLMNode` 与上游 `gpt-image-2-web` 的同构关系
-2. **合并风险**：fork-only 的 `t8f-geeknow-llm` 节点完全不动 `LLMNode.tsx`，上游对 `LLMNode` 的任何改动（新增模型、加预设、改 UI）都自动跟随，不会出现「上游 `LLMNode` 改了、fork 因为塞了 Geeknow Tab 必须重新合并」的尴尬。所以 v1.7.4 走「独立节点 + `t8f-` 类型前缀」模式，并写入本 README 作为后续 LLM provider 接入的标准模板
+**Q15：v1.7.4 新增 LLM provider（geeknow）为什么最初用独立节点，v1.8.0 又改成 TAB 切换？**
+v1.7.4 时考虑到与上游 `LLMNode` 解耦，采用独立节点 `t8f-geeknow-llm` 模式。但实际使用中发现：
+1. 用户需要在 Sidebar 中选择不同的节点卡片，UI 不够统一
+2. 两个节点功能高度重叠，维护成本翻倍
 
-未来若要接入第二个 LLM 中转站（如 `siliconflow` / `openrouter`），复制 `geeknow/` 三件套即可：
-- `src/integrations/<name>/<Name>SettingsSection.tsx`（API 设置面板独立块）
-- `src/integrations/<name>/run<Name>Llm.ts`（服务层 3 个导出）
-- `src/components/nodes/<Name>LlmNode.tsx`（独立节点组件，节点 type 用 `t8f-<name>-llm`）
+v1.8.0 参考图像节点的多 provider TAB 切换模式，将 Geeknow 合并到 `LLMNode` 内部：
+- 节点顶部添加「直连 / Geeknow」TAB 按钮组
+- 根据选中的 provider 动态切换模型列表和后端路由
+- 删除独立的 `GeeknowLlmNode.tsx` 和相关注册项
+- 保留 `integrations/geeknow/` 目录的服务层和设置面板
 
-**Q16：geeknow 与上游 LLMNode 节点能不能共用 `useUpstreamMaterials` / `useRunTrigger`？**
-能。`GeeknowLlmNode.tsx` 完全沿用 `LLMNode.tsx` 的 hooks 栈（`useRunTrigger` / `useUpstreamMaterials` / `useUpdateNodeData` / `MentionPromptInput` / `useMaterialDragSource` / `useMaterialDropTarget`），仅在如下两点差异化：
-- 入参字段名前缀 `t8f-geeknow-` （localStorage 命名空间隔离）
-- 调用 `runGeeknowLlm.ts` 而非 `generation.ts` 的 `generateLlm`
-其它行为（system 预设保存、多轮 history、SSE 流式、多模态图像、`@` 提及、停止按钮、错误展示）都与 `LLMNode` 一致。
+**Q16：geeknow 与原生 LLMNode 能不能共用 `useUpstreamMaterials` / `useRunTrigger`？**
+能。v1.8.0 合并后，Geeknow 模式完全复用 `LLMNode` 的 hooks 栈（`useRunTrigger` / `useUpstreamMaterials` / `useUpdateNodeData` / `MentionPromptInput` 等），仅在如下两点差异化：
+- localStorage 命名空间隔离（`t8f-geeknow-sys-presets` vs `t8-llm-sys-presets`）
+- 调用 `runGeeknowLlm.ts` 的生成函数而非 `generation.ts` 的 `generateLlm`
+
+其它行为（system 预设保存、多轮 history、SSE 流式、多模态图像、`@` 提及、停止按钮、错误展示）都与原生模式一致。
 
 **Q17：七牛提交为什么要单独做 60 分钟响应等待？**
 七牛 `openai/gpt-image-2` 的文生图 `/v1/images/generations` 与图生图 `/v1/images/edits` 文档返回结构都是同步 `ImageGenerationResponse`：`created + data[].b64_json`，**不会返回 `task_id`**。因此这一路不能假设“提交马上返回 taskId、然后前端轮询 60 分钟”；真实链路是上游可能长时间生成，最后一次性返回 `b64_json`。

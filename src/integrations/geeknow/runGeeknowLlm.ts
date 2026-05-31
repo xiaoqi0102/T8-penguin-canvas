@@ -30,12 +30,6 @@ export interface GeeknowLlmResult {
   model: string;
 }
 
-export interface GeeknowModelInfo {
-  id: string;
-  owned_by: string;
-  created: number;
-}
-
 /** 非流式推理 */
 export async function generateGeeknowLlm(req: GeeknowLlmRequest): Promise<GeeknowLlmResult> {
   const r = await fetch('/api/proxy/llm-geeknow', {
@@ -105,14 +99,4 @@ export async function generateGeeknowLlmStream(
     }
   }
   return { content: assembled };
-}
-
-/** 拉取 Geeknow 当前 Key 可用模型列表（用于节点 UI 的"刷新模型"按钮） */
-export async function fetchGeeknowModels(): Promise<GeeknowModelInfo[]> {
-  const r = await fetch('/api/proxy/llm-geeknow/models');
-  const data = await r.json();
-  if (!r.ok || !data.success) {
-    throw new Error(data?.error || `HTTP ${r.status}`);
-  }
-  return Array.isArray(data?.data?.models) ? data.data.models : [];
 }

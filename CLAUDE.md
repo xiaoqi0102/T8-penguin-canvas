@@ -177,6 +177,7 @@ graph TD
 | 端口连接语义 | `src/config/portTypes.ts`（NODE_PORTS） · `src/types/canvas.ts` |
 | 调试运行总线 | `src/stores/runBus.ts` · `src/hooks/useRunTrigger.ts` |
 | 修改 / 新增 LLM 推理接入 | [docs/llm-inference.md](./docs/llm-inference.md) §后端代理路由 · `src/components/nodes/LLMNode.tsx` · `src/providers/models.ts` |
+| 合并 upstream / 接入新 provider / API 协议查询 | [fork-maintenance-guide.md](./fork-maintenance-guide.md) — 三合一指南（fork 维护 + provider 接入 + API 规范） |
 
 **注意事项**：
 - 不要随意 `git pull --rebase`（参考 `phase29` 灾难抢救历史），改用 merge 或新分支
@@ -260,6 +261,9 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 | 2026-05-28 | v1.6.2：修复七牛 `gemini-3.1-flash-image-preview` 比例参数不生效（根因：`callQiniuImageUpstream` 把所有子模型按 OpenAI body 发，gemini 上游需要 `image_config.{aspect_ratio,image_size}` 嵌套对象，收到顶层 `size` 会静默忽略）。按 `model` 分流构造 body，gemini 走 image_config、openai/gpt-image-2 维持 size/quality；UI 让 gemini 也显示 1K/2K/4K 清晰度档 |
 | 2026-05-30 | 新增 LLM 推理专项文档 `docs/llm-inference.md`（覆盖前端节点/服务层/后端代理/配置项/类型定义） |
 | 2026-05-31 | v1.8.0：合并 upstream v1.7.0→v1.7.4（节点片段、任务完成音效、姿势大师、连接导航）+ fork 新增 Geeknow LLM 节点；建立 fork 版本策略（永远领先 upstream 至少一个版本号）；添加变更记录更新规则 |
+| 2026-05-31 | LLM 节点提供商切换：合并原生 LLM 与 Geeknow LLM 为统一组件，通过 TAB 按钮组切换提供商（直连/Geeknow），支持动态模型列表刷新；删除独立的 `t8f-geeknow-llm` 节点类型和 `GeeknowLlmNode.tsx`，保留 `integrations/geeknow/` 服务层 |
+| 2026-05-31 | Geeknow 模型瘦身：保留 5 个推理模型（gpt-5.5 / gemini-3-pro-preview / gemini-3.1-pro-preview / gemini-3.5-flash / deepseek-v4-pro），默认模型改为 gemini-3.1-pro-preview；移除「刷新模型列表」功能（前端按钮 + 后端 `/llm-geeknow/models` 路由 + `fetchGeeknowModels` 服务函数 + `localStorage.t8f-geeknow-dynamic-models` 缓存） |
+| 2026-05-31 | 新增 fork 维护指南 `fork-maintenance-guide.md`（替换原 `grsai-qiniu-api.md`），整合三部分：Fork 项目维护指南（合并 upstream 流程 + 共享文件改动清单 + 验收清单）+ Provider 接入规范（图像/LLM 三种接入模式对比）+ API 接口规范（grsai/qiniu/geeknow 协议详情） |
 
 ---
 
