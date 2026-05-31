@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { taskCompletionSound } from './taskCompletionSound';
 
 /**
  * 批量运行总线
@@ -42,13 +43,16 @@ export const useRunBusStore = create<RunBusState>((set) => ({
   mode: 'idle',
   batchTotal: 0,
   batchDoneCount: 0,
-  triggerRun: (id, mode = 'single') =>
+  triggerRun: (id, mode = 'single') => {
+    taskCompletionSound.primeAudio();
     set((s) => ({
       currentRunId: id,
       runningIds: s.runningIds.includes(id) ? s.runningIds : [...s.runningIds, id],
       mode: s.mode === 'batch' ? 'batch' : mode,
-    })),
-  triggerRunMany: (ids, mode = 'batch') =>
+    }));
+  },
+  triggerRunMany: (ids, mode = 'batch') => {
+    taskCompletionSound.primeAudio();
     set((s) => {
       // 并发模式：runningIds 合并去重，currentRunId 取首个 (仅为向后兼容订阅者)
       const merged = Array.from(new Set([...s.runningIds, ...ids]));
@@ -57,20 +61,27 @@ export const useRunBusStore = create<RunBusState>((set) => ({
         currentRunId: ids.length > 0 ? ids[0] : s.currentRunId,
         mode: s.mode === 'batch' ? 'batch' : mode,
       };
-    }),
-  markDone: (id, ok, error) =>
-    set((s) => ({
-      lastDone: { id, ok, ts: Date.now(), error },
-      currentRunId: s.currentRunId === id ? null : s.currentRunId,
-      runningIds: s.runningIds.filter((x) => x !== id),
-      // 单节点模式且无其他运行中节点时回到 idle;批量模式由 Canvas 控制
-      mode:
-        s.mode === 'batch'
-          ? 'batch'
-          : s.runningIds.filter((x) => x !== id).length > 0
-            ? s.mode
-            : 'idle',
-    })),
+    });
+  },
+  markDone: (id, ok, error) => {
+    const ts = Date.now();
+    if (ok) taskCompletionSound.notifyComplete(id, undefined, ts);
+    set((s) => {
+      const nextRunningIds = s.runningIds.filter((x) => x !== id);
+      return {
+        lastDone: { id, ok, ts, error },
+        currentRunId: s.currentRunId === id ? null : s.currentRunId,
+        runningIds: nextRunningIds,
+        // 单节点模式且无其他运行中节点时回到 idle;批量模式由 Canvas 控制
+        mode:
+          s.mode === 'batch'
+            ? 'batch'
+            : nextRunningIds.length > 0
+              ? s.mode
+              : 'idle',
+      };
+    });
+  },
   cancelAll: () =>
     set({ currentRunId: null, runningIds: [], mode: 'idle', batchTotal: 0, batchDoneCount: 0 }),
   setBatchProgress: (total, done) =>

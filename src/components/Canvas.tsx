@@ -52,6 +52,13 @@ import {
   type SendableMaterial,
 } from '../utils/sendMaterials';
 import {
+  buildSendNodeFragment,
+  instantiateSendNodeFragment,
+  summarizeSendNodeFragment,
+  type InstantiatedSendNodeFragment,
+  type SendNodeFragment,
+} from '../utils/sendNodeFragment';
+import {
   collectMaterialSetBucketsFromData,
   isMaterialSetKind,
   materialSetItemsToData,
@@ -89,6 +96,7 @@ import RemoveBgNode from './nodes/RemoveBgNode';
 import ImageCompareNode from './nodes/ImageCompareNode';
 import ToolboxParamNode from './nodes/ToolboxParamNode';
 import PortraitMasterNode from './nodes/PortraitMasterNode';
+import PoseMasterNode from './nodes/PoseMasterNode';
 import IdeaNode from './nodes/IdeaNode';
 import BpNode from './nodes/BpNode';
 import RelayNode from './nodes/RelayNode';
@@ -165,11 +173,12 @@ const SPECIFIC_NODES: Record<string, any> = {
   bp: BpNode,
   relay: RelayNode,
   'video-output': VideoOutputNode,
-  // Toolbox (4)
+  // Toolbox (5)
   cinematic: ToolboxParamNode,
   'video-motion': ToolboxParamNode,
   'multi-angle-visual': ToolboxParamNode,
   'portrait-master': PortraitMasterNode,
+  'pose-master': PoseMasterNode,
   // Input (1) - 上传素材
   upload: UploadNode,
   // Output (1) - 输出素材(文本/图像/视频/音频 预览 + 文本双击编辑)
@@ -202,6 +211,19 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
     portraitLocks: {},
     portraitWeights: {},
     portraitCustomText: '',
+    prompt: '',
+  },
+  'pose-master': {
+    kind: 'pose-master',
+    poseLanguage: 'en',
+    posePresetId: 'standing',
+    poseViewId: 'front',
+    poseShotId: 'full-body',
+    poseIntensityId: 'natural',
+    poseBatchCount: 4,
+    poseBatchMode: 'next',
+    poseFavorites: [],
+    poseCustomText: '',
     prompt: '',
   },
   'text-split': {
@@ -305,7 +327,7 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   // v1.2.8 工具节点 (循环器 / 从合集获取)
   'loop', 'pick-from-set',
   // v1.4.8: 工具箱文本节点也可点击 RUN 直接外挂 OutputNode
-  'cinematic', 'video-motion', 'multi-angle-visual', 'portrait-master',
+  'cinematic', 'video-motion', 'multi-angle-visual', 'portrait-master', 'pose-master',
 ]);
 
 // 网格吸附步长 / 对齐阈值(世界坐标)
@@ -496,6 +518,28 @@ function materialNodesFromSpecs(
   })) as Node[];
 }
 
+function placeInstantiatedNodeFragment(
+  instance: InstantiatedSendNodeFragment,
+  existingNodes: Node[],
+): InstantiatedSendNodeFragment {
+  if (instance.nodes.length === 0) return instance;
+  const desiredRects = instance.nodes.map((node) => rectOf(node));
+  const offset = placeBatchNodes(desiredRects, existingNodes, {
+    source: 'placement:send-node-fragment',
+  });
+  if (offset.dx === 0 && offset.dy === 0) return instance;
+  return {
+    ...instance,
+    nodes: instance.nodes.map((node) => ({
+      ...node,
+      position: {
+        x: (node.position?.x ?? 0) + offset.dx,
+        y: (node.position?.y ?? 0) + offset.dy,
+      },
+    })),
+  };
+}
+
 function sourceNodeIdsFromMaterials(materials: SendableMaterial[]): string[] {
   const ids = new Set<string>();
   materials.forEach((item) => {
@@ -649,6 +693,9 @@ const MEDIA_EXTENSIONS: Record<MediaKind, string[]> = {
   audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'],
 };
 
+const INTERNAL_NODE_PASTE_DELAY_MS = 120;
+const EXTERNAL_MEDIA_PASTE_DEDUPE_MS = 900;
+
 function inferCanvasMediaKind(file: File): MediaKind | null {
   const mime = file.type || '';
   if (mime.startsWith('image/')) return 'image';
@@ -695,7 +742,7 @@ function collectCanvasMediaFiles(dataTransfer: DataTransfer | null | undefined):
   const seen = new Set<string>();
   const push = (file: File | null) => {
     if (!file || !inferCanvasMediaKind(file)) return;
-    const key = `${file.name}|${file.size}|${file.type}|${file.lastModified}`;
+    const key = canvasMediaFileKey(file);
     if (seen.has(key)) return;
     seen.add(key);
     files.push(file);
@@ -705,6 +752,10 @@ function collectCanvasMediaFiles(dataTransfer: DataTransfer | null | undefined):
     if (item.kind === 'file') push(item.getAsFile());
   });
   return files;
+}
+
+function canvasMediaFileKey(file: File): string {
+  return `${file.name || 'clipboard-file'}|${file.size}|${file.type || 'application/octet-stream'}`;
 }
 
 function hasFileTransfer(dataTransfer: DataTransfer | null | undefined): boolean {
@@ -736,6 +787,58 @@ function isCanvasOverviewShortcutBlocked(target: EventTarget | null): boolean {
   );
 }
 
+const MODEL_USAGE_HELP_TEXT = `特别注意事项：
+
+如果不小心网页崩溃等，但是实际任务没失败，需要去网站异步任务看下，有个蓝色的TASKID，点进去可以看到下载地址，手动下载。另外fal模型会预扣3.4个币，生成结束后会多退少补。seedance2.0模型会预扣10个币，生成结束后多退少补
+
+图像模型注意事项：
+
+gpt-image-2-all模型（default分组）只能出1K图，速度最快，最稳定，审核最松
+gpt-image-2模型（default分组）可以出1K，2K，4K图，4K不一定稳定，如果提示系统错误，降低分辨率重试，超过1K，需要选择分辨率， auto不支持1K以上
+gpt-image-2-fal模型，兜底模型，支持2K，4K，价格较贵
+nano-banana-2和nano-banana-pro模型，需要用gemini优质分组，default分组不稳定（尤其4K）
+nano-banana-2-fal和nano-banana-pro-fal模型，兜底模型，支持4K，价格较贵
+grok-4.2-image模型（Default分组），审核最松，可以做各种姿势，支持多图编辑，保持一致性需要单独写保证脸部100%一致性不变
+MJ系列模型（Default分组），不同模型的用法都不一样，参考官方，推荐用fast模式，relax模式封号比较严重
+
+视频模型注意事项：
+seedance2.0（Default分组）非远景推荐480P+FAST模式，质量吊打快乐马，价格只要5个币15秒，后续用flashvsr放大即可，720P满血15秒大概15币，不排队，支持真人
+seedance2.0（sd-global分组）需要联系T8微信单独开通，只支持企业开通，由于除版权外基本无审核，防止有人搞色情，需要签协议才能开通，价格和上面一样
+veo3.1模型，需要看下网站左侧分类教程，有多个分组可用，目前比较稳的是veo&grok备用分组2的veo3.1模型和默认分组的fal模型
+grok-video模型，需要看下网站左侧分类教程，有多个分组可用，目前比较稳的是fal模型，其他分组等我们系统升级后修复
+sora-2模型，由于官方下架了，新的我还没测试，晚点总结，建议先不用
+
+音频模型注意事项：
+
+suno v5.5模型（Default分组）支持生成，翻唱，延长，一次生成两首歌，翻唱模式情况下，如果是版权歌曲大概率会失败，需要做各种前置处理，可以在网站异步任务查看。
+
+LLM模型注意事项：
+
+LLM模型有时候因为官方问题会出现速度慢，失败等现象，这时候换个模型即可，预置了多个模型。`;
+
+function getReactFlowHandleInfo(target: EventTarget | null): {
+  nodeId: string;
+  handleType: 'source' | 'target';
+  handleId: string | null;
+} | null {
+  if (!(target instanceof Element)) return null;
+  const handleEl = target.closest('.react-flow__handle') as HTMLElement | null;
+  if (!handleEl) return null;
+  const nodeId =
+    handleEl.getAttribute('data-nodeid') ||
+    handleEl.closest('.react-flow__node')?.getAttribute('data-id') ||
+    '';
+  const rawType =
+    handleEl.getAttribute('data-handletype') ||
+    (handleEl.classList.contains('source') ? 'source' : handleEl.classList.contains('target') ? 'target' : '');
+  if (!nodeId || (rawType !== 'source' && rawType !== 'target')) return null;
+  return {
+    nodeId,
+    handleType: rawType,
+    handleId: handleEl.getAttribute('data-handleid') || null,
+  };
+}
+
 interface CanvasInnerProps {
   onAddNodeRef?: React.MutableRefObject<AddNodeFn | null>;
 }
@@ -753,7 +856,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
   const isEva = visualStyle === 'eva';
   const isYyh = visualStyle === 'yyh';
   const themeTokens = getTemplateMode(currentTemplate, theme).tokens;
-  const { screenToFlowPosition, setCenter, getViewport, fitView } = useReactFlow();
+  const { screenToFlowPosition, setCenter, getViewport, setViewport, fitView } = useReactFlow();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -770,6 +873,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastCanvasPointerRef = useRef<{ x: number; y: number } | null>(null);
   const internalPasteTimerRef = useRef<number | null>(null);
+  const lastExternalMediaPasteRef = useRef<{ signature: string; at: number } | null>(null);
 
   // 拖线到空白处的候选节点菜单(connection picker)
   const [picker, setPicker] = useState<{
@@ -782,6 +886,25 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     nodeId: string;
     handleType: 'source' | 'target';
   } | null>(null);
+  const isConnectionDraggingRef = useRef(false);
+  const connectionPanModeRef = useRef(false);
+  const connectionPanPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const [connectionPanModeActive, setConnectionPanModeActive] = useState(false);
+  const [modelHelpOpen, setModelHelpOpen] = useState(false);
+
+  const setConnectionPanMode = useCallback((enabled: boolean) => {
+    connectionPanModeRef.current = enabled;
+    connectionPanPointerRef.current = null;
+    setConnectionPanModeActive((current) => (current === enabled ? current : enabled));
+    if (typeof document !== 'undefined') {
+      document.body.classList.toggle('connection-pan-mode', enabled);
+    }
+  }, []);
+
+  const resetConnectionPanMode = useCallback(() => {
+    isConnectionDraggingRef.current = false;
+    setConnectionPanMode(false);
+  }, [setConnectionPanMode]);
 
   // ===== SHIFT+拖拽 Handle 批量移线 =====
   // 按住 SHIFT 从节点入口(target handle)拖出，可一次性把所有入边移到另一个节点的入口。
@@ -822,14 +945,17 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     const onOpenSendMaterials = (event: Event) => {
       const detail = (event as CustomEvent<{
         materials?: SendableMaterial[];
+        nodeFragment?: SendNodeFragment;
         sourceLabel?: string;
         defaultMode?: SendTargetMode;
         atScreen?: { x: number; y: number };
       }>).detail || {};
       const materials = Array.isArray(detail.materials) ? detail.materials : [];
-      if (materials.length === 0) return;
+      const nodeFragment = detail.nodeFragment?.nodes?.length ? detail.nodeFragment : undefined;
+      if (materials.length === 0 && !nodeFragment) return;
       setSendModal({
         materials,
+        nodeFragment,
         sourceLabel: detail.sourceLabel || '素材',
         defaultMode: detail.defaultMode || 'auto',
         atScreen: detail.atScreen,
@@ -860,6 +986,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
   } | null>(null);
   const [sendModal, setSendModal] = useState<{
     materials: SendableMaterial[];
+    nodeFragment?: SendNodeFragment;
     sourceLabel: string;
     defaultMode: SendTargetMode;
     atScreen?: { x: number; y: number };
@@ -1094,9 +1221,18 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
 
   const createUploadNodesFromFiles = useCallback(
     async (rawFiles: File[], atScreen?: { x: number; y: number }) => {
+      const seenFiles = new Set<string>();
+      const dedupedFiles = rawFiles.filter((file) => {
+        const kind = inferCanvasMediaKind(file);
+        if (!kind) return true;
+        const key = canvasMediaFileKey(file);
+        if (seenFiles.has(key)) return false;
+        seenFiles.add(key);
+        return true;
+      });
       const buckets: Record<MediaKind, File[]> = { image: [], video: [], audio: [] };
       let skipped = 0;
-      rawFiles.forEach((file) => {
+      dedupedFiles.forEach((file) => {
         const kind = inferCanvasMediaKind(file);
         if (!kind) {
           skipped += 1;
@@ -1323,16 +1459,24 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
 
   const openSendMaterials = useCallback(
     (ids: string[], atScreen?: { x: number; y: number }) => {
-      const selectedNodes = nodesRef.current.filter((node) => ids.includes(node.id) && node.type !== 'groupBox');
+      const selectedNodes = nodesRef.current.filter((node) => ids.includes(node.id) && node.id !== BULK_PHANTOM_ID);
       const materials = collectSendableMaterialsFromNodes(selectedNodes, activeId);
-      if (materials.length === 0) {
-        logBus.warn('所选节点没有可发送素材', '发送素材');
+      const nodeFragment = buildSendNodeFragment(selectedNodes, edgesRef.current, activeId);
+      if (materials.length === 0 && nodeFragment.nodes.length === 0) {
+        logBus.warn('所选内容没有可发送的节点或素材', '发送');
         return;
       }
+      const defaultMode =
+        nodeFragment.nodes.length > 1 && nodeFragment.edges.length > 0
+          ? 'node-fragment'
+          : materials.length > 0
+            ? inferSendModeFromNodes(selectedNodes)
+            : 'node-fragment';
       setSendModal({
         materials,
-        sourceLabel: `选中 ${selectedNodes.length} 个节点`,
-        defaultMode: inferSendModeFromNodes(selectedNodes),
+        nodeFragment,
+        sourceLabel: `选中 ${nodeFragment.nodes.length} 个节点${nodeFragment.edges.length > 0 ? ` · ${nodeFragment.edges.length} 条连线` : ''}`,
+        defaultMode,
         atScreen,
       });
     },
@@ -1341,8 +1485,10 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
 
   const resolveSendMode = useCallback((mode: SendTargetMode): SendTargetMode => {
     if (mode !== 'auto') return mode;
-    return sendModal?.defaultMode && sendModal.defaultMode !== 'auto' ? sendModal.defaultMode : 'material-set';
-  }, [sendModal?.defaultMode]);
+    if (sendModal?.defaultMode && sendModal.defaultMode !== 'auto') return sendModal.defaultMode;
+    if (sendModal?.nodeFragment?.nodes.length && sendModal.materials.length === 0) return 'node-fragment';
+    return 'material-set';
+  }, [sendModal?.defaultMode, sendModal?.materials.length, sendModal?.nodeFragment?.nodes.length]);
 
   const basePositionForActiveSend = useCallback(() => {
     const atScreen = sendModal?.atScreen;
@@ -1358,12 +1504,74 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
 
   const handleSendMaterialsToCanvas = useCallback(
     async (targetCanvasId: string, mode: SendTargetMode, switchAfter: boolean) => {
-      if (!sendModal || sendModal.materials.length === 0) return;
+      if (!sendModal) return;
       const currentSend = {
         ...sendModal,
         materials: sendModal.materials.map((item) => ({ ...item })),
       };
       const effectiveMode = resolveSendMode(mode);
+      if (effectiveMode === 'node-fragment') {
+        const fragment = currentSend.nodeFragment;
+        if (!fragment || fragment.nodes.length === 0) {
+          logBus.warn('没有可发送到画布的节点片段', '发送节点');
+          return;
+        }
+
+        if (targetCanvasId === activeId) {
+          const base = basePositionForActiveSend();
+          const instance = placeInstantiatedNodeFragment(
+            instantiateSendNodeFragment(fragment, nodesRef.current, base),
+            nodesRef.current,
+          );
+          const focusCenter = centerOfMaterialNodes(instance.nodes);
+          if (activeId && focusCenter) {
+            const { zoom } = getViewport();
+            pendingSendFocusRef.current = {
+              canvasId: activeId,
+              center: focusCenter,
+              zoom: Math.min(Math.max(zoom || 0.9, 0.72), 1.05),
+            };
+          }
+          setEdges([...edgesRef.current.map((edge) => ({ ...edge, selected: false })), ...instance.edges]);
+          setNodes([...nodesRef.current.map((node) => ({ ...node, selected: false })), ...instance.nodes]);
+          setSendModal(null);
+          logBus.success(`已发送 ${summarizeSendNodeFragment(fragment)} 到当前画布`, '发送节点');
+          return;
+        }
+
+        const data = await api.getCanvasData(targetCanvasId);
+        const targetNodes = (Array.isArray(data.nodes) ? data.nodes : []) as Node[];
+        const targetEdges = (Array.isArray(data.edges) ? data.edges : []) as Edge[];
+        const instance = placeInstantiatedNodeFragment(
+          instantiateSendNodeFragment(fragment, targetNodes, basePositionForAppend(targetNodes)),
+          targetNodes,
+        );
+        const focusCenter = centerOfMaterialNodes(instance.nodes);
+        if (switchAfter && focusCenter) {
+          pendingSendFocusRef.current = {
+            canvasId: targetCanvasId,
+            center: focusCenter,
+            zoom: 0.88,
+          };
+        }
+        const payload = {
+          nodes: [...targetNodes, ...instance.nodes],
+          edges: [...targetEdges, ...instance.edges],
+          viewport: data.viewport || { x: 0, y: 0, zoom: 1 },
+        };
+        await api.saveCanvasData(targetCanvasId, payload);
+        api.autoSaveCanvasData(targetCanvasId, payload).catch(() => {});
+        await loadCanvases();
+        if (switchAfter) setActive(targetCanvasId);
+        setSendModal(null);
+        logBus.success(`已发送 ${summarizeSendNodeFragment(fragment)} 到目标画布`, '发送节点');
+        return;
+      }
+
+      if (currentSend.materials.length === 0) {
+        logBus.warn('当前发送方式需要素材；请选择“节点片段”发送选中节点和连线', '发送素材');
+        return;
+      }
       const specs = buildSendNodeSpecs(currentSend.materials, effectiveMode);
       if (specs.length === 0) {
         logBus.warn('没有可发送到画布的素材', '发送素材');
@@ -2293,6 +2501,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
 
   const onConnect = useCallback(
     (params: Connection) => {
+      resetConnectionPanMode();
       // 批量移线过程中禁止普通连接逻辑(不然会多一条重复边)
       if (bulkReconnectRef.current) return;
       const curNodes = nodesRef.current;
@@ -2361,7 +2570,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         )
       );
     },
-    []
+    [resetConnectionPanMode]
   );
 
   // ReactFlow 拖线连接时的实时校验(在连线处于“预览”阶段就拦截不兼容连接)
@@ -2380,6 +2589,8 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     (_e: any, params: { nodeId: string | null; handleType: 'source' | 'target' | null }) => {
       if (!params.nodeId || !params.handleType) return;
       connectingFromRef.current = { nodeId: params.nodeId, handleType: params.handleType };
+      isConnectionDraggingRef.current = true;
+      setConnectionPanMode(false);
 
       // SHIFT + target handle → 批量移动所有入边
       const evt = _e as MouseEvent;
@@ -2405,13 +2616,22 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         }
       }
     },
-    [edges]
+    [edges, setConnectionPanMode]
   );
 
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent) => {
       const from = connectingFromRef.current;
+      const target = event.target as HTMLElement | null;
+      const droppedOnHandle = getReactFlowHandleInfo(target);
+      if (connectionPanModeRef.current && from && !droppedOnHandle && !bulkReconnectRef.current) {
+        // Space 导航模式下，松开鼠标只是结束本次拖动画布；保留起点，
+        // 用户可以继续平移画布，随后点击目标接口完成连接。
+        connectionPanPointerRef.current = null;
+        return;
+      }
       connectingFromRef.current = null;
+      resetConnectionPanMode();
 
       // ===== SHIFT+批量移线处理 =====
       if (bulkReconnectRef.current) {
@@ -2491,7 +2711,6 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
       // 终点是否落在 Handle / 节点 / 连线上:任何一项命中都交给 ReactFlow 默认连接逻辑处理,不弹出候选菜单
       // 仅当鼠标释放在“空白画布”(pane / background 本体或其隔层子)时才弹菜单
       // 例外: 拖到 GroupBox(节点组)的内部空白区域也应该被视作“空白” → 弹菜单
-      const target = event.target as HTMLElement | null;
       if (!target) return;
       const onHandle = !!target.closest('.react-flow__handle');
       const nodeEl = target.closest('.react-flow__node') as HTMLElement | null;
@@ -2519,8 +2738,126 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         screenPos: { x: clientX, y: clientY },
       });
     },
-    [screenToFlowPosition, nodes]
+    [resetConnectionPanMode, screenToFlowPosition, nodes]
   );
+
+  // 拉线时按 Space 进入“连线导航”模式，适合远距离连线。
+  // 鼠标可松开；起点会保留到点击目标接口、再次按 Space 取消，或窗口失焦。
+  useEffect(() => {
+    const isSpaceKey = (event: KeyboardEvent) =>
+      event.code === 'Space' || event.key === ' ' || event.key === 'Spacebar';
+
+    const stopNativePointer = (event: PointerEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      (event as any).stopImmediatePropagation?.();
+    };
+
+    const connectPendingToHandle = (handle: ReturnType<typeof getReactFlowHandleInfo>) => {
+      const from = connectingFromRef.current;
+      if (!from || !handle || from.nodeId === handle.nodeId || from.handleType === handle.handleType) return false;
+      const params: Connection =
+        from.handleType === 'source'
+          ? {
+              source: from.nodeId,
+              sourceHandle: null,
+              target: handle.nodeId,
+              targetHandle: handle.handleId,
+            }
+          : {
+              source: handle.nodeId,
+              sourceHandle: handle.handleId,
+              target: from.nodeId,
+              targetHandle: null,
+            };
+      connectingFromRef.current = null;
+      onConnect(params);
+      return true;
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isConnectionDraggingRef.current) return;
+      if (!isSpaceKey(event)) return;
+      if (isTextEditingTarget(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.repeat) return;
+      if (connectionPanModeRef.current) {
+        connectingFromRef.current = null;
+        resetConnectionPanMode();
+        return;
+      }
+      setConnectionPanMode(true);
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!isConnectionDraggingRef.current || !connectionPanModeRef.current) return;
+      const target = event.target as Element | null;
+      if (target?.closest('[data-canvas-floating-ui], .t8-context-menu, input, textarea, select, [contenteditable="true"]')) return;
+
+      const handle = getReactFlowHandleInfo(event.target);
+      if (handle) {
+        stopNativePointer(event);
+        connectPendingToHandle(handle);
+        return;
+      }
+
+      if (event.button !== 0) return;
+      connectionPanPointerRef.current = { x: event.clientX, y: event.clientY };
+      stopNativePointer(event);
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!isConnectionDraggingRef.current || !connectionPanModeRef.current) return;
+      if (event.buttons === 0) {
+        connectionPanPointerRef.current = null;
+        return;
+      }
+      const current = { x: event.clientX, y: event.clientY };
+      const last = connectionPanPointerRef.current;
+      connectionPanPointerRef.current = current;
+      if (!last) return;
+      const dx = current.x - last.x;
+      const dy = current.y - last.y;
+      if (dx === 0 && dy === 0) return;
+      const viewport = getViewport();
+      void setViewport({ x: viewport.x + dx, y: viewport.y + dy, zoom: viewport.zoom }, { duration: 0 });
+      stopNativePointer(event);
+    };
+
+    const onPointerUp = () => {
+      connectionPanPointerRef.current = null;
+    };
+    const onBlur = () => resetConnectionPanMode();
+
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointermove', onPointerMove, true);
+    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('blur', onBlur);
+      document.body.classList.remove('connection-pan-mode');
+    };
+  }, [getViewport, onConnect, resetConnectionPanMode, setConnectionPanMode, setViewport]);
+
+  useEffect(() => {
+    if (!modelHelpOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target?.closest('.t8-canvas-shell')) return;
+      if (target.closest('[data-canvas-floating-ui="model-help-panel"], [data-canvas-floating-ui="model-help-toggle"]')) {
+        return;
+      }
+      setModelHelpOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => window.removeEventListener('pointerdown', onPointerDown, true);
+  }, [modelHelpOpen]);
 
   // ===== 全局 SHIFT+Handle 批量移线拦截器 =====
   // 原因: ReactFlow 的 multiSelectionKeyCode 包含 'Shift'，导致按住 SHIFT 在 handle 上 mousedown
@@ -3055,7 +3392,8 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
     // v1.2.8.2: 'pick-from-set' 是中转节点 (从合集取一个供下游), 不应被自动挂 OutputNode
     // v1.2.9.9: 'loop' 也加入 — 循环器自身不产出最终结果 (累积已由下游 EXEC→OutputNode 链路接管),
     //          autoOutput 若给 LoopNode 自动建 OutputNode 会让用户看到 “循环器自己生了 N 个素材” 的错误体验。
-    const SKIP_TYPES = new Set(['output', 'groupBox', 'bulkPhantom', 'upload', 'material-set', 'pick-from-set', 'loop']);
+    // PoseMaster 自己负责写入单张/合集 OutputNode；通用 autoOutput 再处理会把批量合集拆出重复单体。
+    const SKIP_TYPES = new Set(['output', 'groupBox', 'bulkPhantom', 'upload', 'material-set', 'pick-from-set', 'loop', 'pose-master']);
 
     const toAddNodes: Node[] = [];
     const toAddEdges: Edge[] = [];
@@ -3516,18 +3854,26 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       if (!activeId || isTextEditingTarget(e.target)) return;
+      if (document.querySelector('.img-edit-overlay')) return;
       const files = collectCanvasMediaFiles(e.clipboardData);
       if (files.length === 0) return;
       if (internalPasteTimerRef.current) {
         window.clearTimeout(internalPasteTimerRef.current);
         internalPasteTimerRef.current = null;
       }
+      const signature = files
+        .map(canvasMediaFileKey)
+        .join('||');
+      const now = Date.now();
+      const last = lastExternalMediaPasteRef.current;
       e.preventDefault();
       e.stopPropagation();
+      if (last?.signature === signature && now - last.at < EXTERNAL_MEDIA_PASTE_DEDUPE_MS) return;
+      lastExternalMediaPasteRef.current = { signature, at: now };
       void createUploadNodesFromFiles(files);
     };
-    window.addEventListener('paste', onPaste);
-    return () => window.removeEventListener('paste', onPaste);
+    window.addEventListener('paste', onPaste, true);
+    return () => window.removeEventListener('paste', onPaste, true);
   }, [activeId, createUploadNodesFromFiles]);
 
   const focusNearestNodeToViewport = useCallback(() => {
@@ -3582,11 +3928,14 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         e.preventDefault();
         handlePaste(true);
       } else if (ctrl && e.key.toLowerCase() === 'v') {
+        if (!clipboardRef.current?.nodes?.length) return;
         if (internalPasteTimerRef.current) window.clearTimeout(internalPasteTimerRef.current);
         internalPasteTimerRef.current = window.setTimeout(() => {
           internalPasteTimerRef.current = null;
+          const lastExternalPaste = lastExternalMediaPasteRef.current;
+          if (lastExternalPaste && Date.now() - lastExternalPaste.at < EXTERNAL_MEDIA_PASTE_DEDUPE_MS) return;
           handlePaste(false);
-        }, 0);
+        }, INTERNAL_NODE_PASTE_DELAY_MS);
       } else if (ctrl && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         handleDuplicate();
@@ -3732,7 +4081,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
 
   return (
     <div
-      className="t8-canvas-shell flex-1 relative"
+      className={`t8-canvas-shell flex-1 relative${connectionPanModeActive ? ' connection-pan-mode-active' : ''}`}
       data-theme-visual={visualStyle}
       style={{ background: bgColor }}
       onContextMenuCapture={onCanvasContextMenuCapture}
@@ -3760,6 +4109,13 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
         onToggleSnap={() => setSnapEnabled((v) => !v)}
       />
       <TerminalPanel />
+      {connectionPanModeActive && (
+        <div className="t8-connection-pan-hud" data-canvas-floating-ui="connection-pan-hud">
+          <span className="t8-connection-pan-hud__signal" aria-hidden="true" />
+          <span className="t8-connection-pan-hud__title">连线导航模式</span>
+          <span className="t8-connection-pan-hud__hint">拖动画布后点击目标接口连接，再按 Space 取消</span>
+        </div>
+      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -3849,6 +4205,20 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
           </ViewportPortal>
         )}
         <div className="t8-control-rail nodrag nopan" data-canvas-floating-ui="control-rail">
+          <button
+            type="button"
+            className={`t8-control-rail-help t8-mini-icon-button${modelHelpOpen ? ' is-active' : ''}`}
+            data-canvas-floating-ui="model-help-toggle"
+            aria-label="模型注意事项"
+            title="模型注意事项"
+            aria-expanded={modelHelpOpen}
+            onClick={(event) => {
+              event.stopPropagation();
+              setModelHelpOpen((value) => !value);
+            }}
+          >
+            <LucideIcons.CircleHelp size={16} />
+          </button>
           <ThemeMusicToggle template={currentTemplate} />
           <Controls
             style={{
@@ -3863,6 +4233,37 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
             }}
           />
         </div>
+        {modelHelpOpen && (
+          <div
+            className="t8-model-help-panel nodrag nopan"
+            data-canvas-floating-ui="model-help-panel"
+            role="dialog"
+            aria-modal="false"
+            aria-label="模型注意事项"
+          >
+            <div className="t8-model-help-panel__header">
+              <div>
+                <div className="t8-model-help-panel__eyebrow">MODEL NOTES</div>
+                <h2>模型注意事项</h2>
+              </div>
+              <button
+                type="button"
+                className="t8-model-help-panel__close t8-mini-icon-button"
+                aria-label="关闭说明"
+                title="关闭说明"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setModelHelpOpen(false);
+                }}
+              >
+                <LucideIcons.X size={16} />
+              </button>
+            </div>
+            <div className="t8-model-help-panel__body">
+              <div className="t8-model-help-panel__text">{MODEL_USAGE_HELP_TEXT}</div>
+            </div>
+          </div>
+        )}
         <MiniMap
           pannable
           zoomable
@@ -4013,6 +4414,7 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
       <SendMaterialsModal
         open={!!sendModal}
         materials={sendModal?.materials || []}
+        nodeFragment={sendModal?.nodeFragment}
         sourceLabel={sendModal?.sourceLabel || '素材'}
         defaultMode={sendModal?.defaultMode || 'auto'}
         canvases={canvases}
@@ -4038,6 +4440,16 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
           : [];
         const downloadableCount = getDownloadableItemsFromNodes(ids).length;
         const sendableCount = collectSendableMaterialsFromNodes(selNodes, activeId).length;
+        const nodeFragmentPreview = buildSendNodeFragment(selNodes, edges, activeId);
+        const sendNodeCount = nodeFragmentPreview.nodes.length;
+        const sendEdgeCount = nodeFragmentPreview.edges.length;
+        const canSendSelection = sendNodeCount > 0 || sendableCount > 0;
+        const sendMenuSummary =
+          sendEdgeCount > 0
+            ? `${sendNodeCount}节点/${sendEdgeCount}线`
+            : sendableCount > 0
+              ? `${sendableCount}素材`
+              : `${sendNodeCount}节点`;
         const menuItemCls = 't8-context-menu__item';
         return (
           <>
@@ -4134,15 +4546,19 @@ function CanvasInner({ onAddNodeRef }: CanvasInnerProps) {
               )}
               <button
                 className={menuItemCls}
-                disabled={sendableCount === 0}
-                title={sendableCount > 0 ? `把 ${sendableCount} 个素材发送到其他画布、资源库或 Eagle` : '所选节点没有可发送素材'}
+                disabled={!canSendSelection}
+                title={
+                  canSendSelection
+                    ? `发送选中节点片段到其他画布；其中 ${sendableCount} 个素材仍可保存到资源库或 Eagle`
+                    : '所选内容没有可发送节点或素材'
+                }
                 onClick={() => {
                   closeContextMenu();
                   openSendMaterials(ids, { x: contextMenu.x, y: contextMenu.y });
                 }}
               >
                 <SendIcon size={13} />
-                <span>发送到... ({sendableCount})</span>
+                <span>发送到... ({sendMenuSummary})</span>
               </button>
               <button
                 className={menuItemCls}

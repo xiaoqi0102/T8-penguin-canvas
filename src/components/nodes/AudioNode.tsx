@@ -16,6 +16,7 @@ import MentionPromptInput from './MentionPromptInput';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
+import { taskCompletionSound } from '../../stores/taskCompletionSound';
 
 /**
  * AudioNode - Suno (generate / cover / extend) — 完全对齐 gpt-image-2-web
@@ -186,6 +187,7 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
               progress: `${r.completed}/${r.total}`,
             });
             logBus.success(`完成 ${r.tracks.length} 轨: ${r.tracks.map((t) => t.audioUrl).join(' | ')}`, src);
+            taskCompletionSound.notifyComplete(id, 'audio');
             resolve();
           } else {
             update({ status: 'polling', progress: `${r.completed}/${r.total} · #${elapsed}` });
@@ -207,6 +209,7 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
       setError('请填写歌词 / 提示词');
       return;
     }
+    taskCompletionSound.primeAudio();
     update({ status: 'submitting', error: null, tracks: [], audioUrl: undefined });
     try {
       // cover/extend: 如预传 clipId 为空但上游有 audioUrl, 则自动上传
@@ -253,7 +256,7 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
   useRunTrigger(id, async () => {
     if (status === 'submitting' || status === 'polling') return;
     await handleGenerate();
-  });
+  }, 'audio');
 
   // === 跨节点拖拽: source (输出 tracks 可拖出) ===
   const startDrag = useDragMaterialStore((s) => s.start);

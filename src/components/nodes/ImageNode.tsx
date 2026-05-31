@@ -48,10 +48,11 @@ import { useThemeStore } from '../../stores/theme';
 import { logBus } from '../../stores/logs';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
+import { taskCompletionSound } from '../../stores/taskCompletionSound';
 
 /**
  * ImageNode - 图像生成(ZhenzhenMagic)
- * 多 TAB 切换:GPT2 / 香蕉2 / 香蕉Pro,参数与主项目 gpt-image-2-web 对齐
+ * 多 TAB 切换:GPT2 / 香蕉2 / 香蕉Pro / Grok / MJ,参数与主项目 gpt-image-2-web 对齐
  * 参数:模型 TAB / 比例 / 尺寸 / 多张参考图 / 本地 prompt
  * 上游 text 节点 → prompt(优先);上游 image 节点 → 参考图(并入 references)
  */
@@ -103,6 +104,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
 
   // ========== MJ 渠道识别及参数(完全对齐 gpt-image-2-web mj_* 控件 L1552~L1580) ==========
   const isMj = modelDef.paramKind === 'mj';
+  const isGrokImage = modelDef.paramKind === 'grok-image';
   const mjVersion: string = d?.mjVersion || DEFAULT_MJ_VERSION;
   const mjAr: string = d?.mjAr || DEFAULT_MJ_RATIO;
   const mjSpeed: MjSpeed = (d?.mjSpeed as MjSpeed) || DEFAULT_MJ_SPEED;
@@ -210,7 +212,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
     void getNodes;
     return {
       prompt: prompts.join('\n').trim(),
-      images: images.slice(0, modelDef.maxReferenceImages),
+      images: images.slice(0, maxRefs),
     };
   };
 
@@ -279,6 +281,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       logBus.error('生成中止: 缺少 prompt', src);
       return;
     }
+    taskCompletionSound.primeAudio();
     update({ status: 'generating', progress: '0%', error: null });
     try {
       // collectUpstream 已返回「本地上传 + 上游接入」按用户拖拽顺序合并后的列表,
@@ -375,6 +378,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
               lastPrompt: finalPrompt,
               usedI2I: allRefs.length > 0 || mjSrefImages.length > 0 || mjOrefImages.length > 0,
             });
+            taskCompletionSound.notifyComplete(id, 'image');
             return;
           }
         }
@@ -434,6 +438,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             lastPrompt: finalPrompt,
             usedI2I: allRefs.length > 0,
           });
+          taskCompletionSound.notifyComplete(id, 'image');
           return;
         }
 
@@ -464,6 +469,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
               lastPrompt: finalPrompt,
               usedI2I: allRefs.length > 0,
             });
+            taskCompletionSound.notifyComplete(id, 'image');
             return;
           }
           if (st === 'failed') {
@@ -502,9 +508,11 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           status: 'success',
           progress: '100%',
           imageUrl: submit.urls[0],
+          imageUrls: submit.urls,
           lastPrompt: finalPrompt,
           usedI2I: allRefs.length > 0,
         });
+        taskCompletionSound.notifyComplete(id, 'image');
         return;
       }
 
@@ -535,9 +543,11 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             status: 'success',
             progress: '100%',
             imageUrl: url,
+            imageUrls: q.urls,
             lastPrompt: finalPrompt,
             usedI2I: allRefs.length > 0,
           });
+          taskCompletionSound.notifyComplete(id, 'image');
           return;
         }
         if (st === 'failed' || st === 'failure' || st === 'error') {
@@ -554,7 +564,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   };
 
   // 接入运行总线,供批量运行调起
-  useRunTrigger(id, handleGenerate);
+  useRunTrigger(id, handleGenerate, 'image');
 
   // === 跨节点拖拽: source (从输出图 Ctrl+拖出) ===
   const startDrag = useDragMaterialStore((s) => s.start);
@@ -677,9 +687,9 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           </div>
         )}
 
-        {/* 比例 + 尺寸 并排(非 FAL 且非 MJ 且非七牛模型) */}
+        {/* 比例 + 尺寸 并排(非 FAL 且非 MJ 且非七牛/Grsai 模型);Grok Image 只需要比例 */}
         {!isFal && !isMj && !isQiniu && !isGrsai && (
-          <div className="grid grid-cols-2 gap-2">
+          <div className={`grid gap-2 ${isGrokImage || !modelDef.sizes.length ? 'grid-cols-1' : 'grid-cols-2'}`}>
             <div>
               <label className="text-[10px] text-white/50 block mb-1">比例</label>
               <select
@@ -693,19 +703,21 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="text-[10px] text-white/50 block mb-1">尺寸</label>
-              <select
-                value={sizeLevel}
-                onChange={(e) => update({ sizeLevel: e.target.value })}
-                style={{ background: '#18181b', color: '#ffffff' }}
-                className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
-              >
-                {modelDef.sizes.map((s) => (
-                  <option key={s} value={s} style={{ background: '#18181b', color: '#ffffff' }}>{s}</option>
-                ))}
-              </select>
-            </div>
+            {!isGrokImage && modelDef.sizes.length > 0 && (
+              <div>
+                <label className="text-[10px] text-white/50 block mb-1">尺寸</label>
+                <select
+                  value={sizeLevel}
+                  onChange={(e) => update({ sizeLevel: e.target.value })}
+                  style={{ background: '#18181b', color: '#ffffff' }}
+                  className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+                >
+                  {modelDef.sizes.map((s) => (
+                    <option key={s} value={s} style={{ background: '#18181b', color: '#ffffff' }}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
 

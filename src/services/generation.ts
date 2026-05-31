@@ -4,10 +4,10 @@
  */
 
 export interface GenerateImageRequest {
-  model: string;          // 节点 id (gpt-image-2 / nano-banana-2 / nano-banana-pro)
+  model: string;          // 节点 id (gpt-image-2 / nano-banana-2 / nano-banana-pro / grok-image)
   apiModel?: string;       // 上游真实模型名(优先使用)
   // paramKind 类型刻意放宽到 string —— 实际 ImageNode 走 /api/proxy/image 的只可能是
-  // 'gpt-size' | 'banana-ratio' | 'mj' 三种；自定义 provider（如 qiniu/grsai）会被
+  // 'gpt-size' | 'banana-ratio' | 'grok-image' | 'mj' 四种；自定义 provider（如 qiniu/grsai）会被
   // ImageNode 内 isXxx 分支提前拦截走独立 runner，不会调本接口。保留 string 避免
   // ImageParamKind 联合扩张时一路连改本文件。
   paramKind?: string;
@@ -468,12 +468,12 @@ export async function uploadFile(file: File): Promise<{ url: string; filename: s
 }
 
 // ========================================================================
-// Video FAL 渠道(独立提交 + 轮询,对齐 gpt-image-2-web runVeo3Fal / runGrokFal)
+// Video FAL 渠道(独立提交 + 轮询,对齐 gpt-image-2-web runVeo3Fal / runGrokFal / runSora2Fal)
 //   submitVideoFal 返 { sync, videoUrl? } 或 { sync:false, requestId, responseUrl, endpoint }
 //   queryVideoFal  返 { status: 'pending'|'completed'|'failed', videoUrl?, error? }
 // ========================================================================
 export interface VideoFalSubmitRequest {
-  /** 'veo3.1-fal' | 'grok-video-fal' */
+  /** 'veo3.1-fal' | 'grok-video-fal' | 'sora-2' */
   apiModel: string;
   prompt: string;
   /** 参考图(base64 dataURI 或本地 /files/* URL) */
@@ -494,6 +494,24 @@ export interface VideoFalSubmitRequest {
   gkDuration?: number;
   /** grok-fal: 比例 */
   gkRatio?: string;
+  /** grok-fal: 图生视频取首图; 参考生视频取最多 7 张参考图 */
+  gkMode?: 'image_to_video' | 'reference_to_video';
+  /** grok-fal reference_to_video: 额外公网参考图 URL */
+  gkReferenceUrls?: string[];
+  /** sora-fal: auto | text_to_video | image_to_video */
+  soraMode?: 'auto' | 'text_to_video' | 'image_to_video';
+  /** sora-fal: '16:9' | '9:16' | 'auto' */
+  soraRatio?: string;
+  /** sora-fal: 时长秒数 4/8/12/16/20 */
+  soraDuration?: number;
+  /** sora-fal: '720p' | 'auto' */
+  soraResolution?: string;
+  /** sora-fal: 是否删除上游视频缓存 */
+  soraDeleteVideo?: boolean;
+  /** sora-fal: detect_and_block_ip */
+  soraBlockIp?: boolean;
+  /** sora-fal: 最多 2 个 character id，逗号分隔 */
+  soraCharacterIds?: string;
 }
 
 export interface VideoFalSubmitResult {

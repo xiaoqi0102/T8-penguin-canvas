@@ -79,6 +79,7 @@ function pickApiKey(settings, hint = '') {
   if (m.includes('nano-banana') || m.includes('nano_banana') || m.includes('nanobanana')) return settings.nanoBananaApiKey || fb;
   if (m.includes('midjourney') || /\bmj[-_/]/.test(m) || m.startsWith('mj') || m === 'mj') return settings.mjApiKey || fb;
   if (m.includes('veo')) return settings.veoApiKey || fb;
+  if (m.includes('sora')) return settings.veoApiKey || fb;
   if (m.includes('grok')) return settings.grokApiKey || fb;
   if (m.includes('seedance')) return settings.seedanceApiKey || fb;
   if (m.includes('suno') || m.includes('chirp')) return settings.sunoApiKey || fb;
@@ -183,7 +184,9 @@ async function saveRemoteAudio(url) {
 // 处理 b64_json 格式
 function saveBase64Image(b64) {
   try {
-    const buf = Buffer.from(b64, 'base64');
+    const raw = String(b64 || '');
+    const clean = raw.includes(',') ? raw.split(',').pop() : raw;
+    const buf = Buffer.from(clean || '', 'base64');
     const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.png`;
     const filePath = path.join(config.OUTPUT_DIR, filename);
     fs.writeFileSync(filePath, buf);
@@ -274,6 +277,142 @@ async function refToBananaImage(ref) {
   return null;
 }
 
+// Grok Image 默认按 gpt-image-2-web 的 Base64 方式传参考图,最多 4 张。
+async function refToGrokImage(ref) {
+  if (typeof ref !== 'string' || !ref) return null;
+  if (ref.startsWith('data:')) return ref.startsWith('data:image') ? ref : null;
+  if (ref.startsWith('http://') || ref.startsWith('https://') || ref.startsWith('/files/')) {
+    try {
+      const url = ref.startsWith('/') ? `http://127.0.0.1:${config.PORT}${ref}` : ref;
+      const r = await fetch(url);
+      if (!r.ok) return ref.startsWith('http') ? ref : null;
+      const ct = r.headers.get('content-type') || 'image/png';
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (!String(ct).toLowerCase().startsWith('image/')) return null;
+      return `data:${ct};base64,${buf.toString('base64')}`;
+    } catch {
+      // 外网图片转 base64 失败时保留 URL,避免破坏已有可公网访问的上游图。
+      return ref.startsWith('http') ? ref : null;
+    }
+  }
+  return null;
+}
+
+function isImageTaskString(s) {
+  return /^[A-Za-z0-9_-]{8,256}$/.test(String(s || '').trim());
+}
+
+function imageTaskId(result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return '';
+  for (const k of ['task_id', 'id', 'request_id']) {
+    if (result[k]) return String(result[k]);
+  }
+  const d = result.data;
+  if (typeof d === 'string' && d.trim() && !/^https?:\/\//.test(d) && !d.startsWith('data:image')) return d.trim();
+  if (d && typeof d === 'object') {
+    for (const k of ['task_id', 'id', 'request_id']) {
+      if (d[k]) return String(d[k]);
+    }
+  }
+  return '';
+}
+
+function imageError(result) {
+  if (!result) return '';
+  if (typeof result === 'string') return result.substring(0, 500);
+  if (Array.isArray(result)) return JSON.stringify(result.slice(0, 3)).substring(0, 500);
+  if (typeof result !== 'object') return '';
+  for (const k of ['detail', 'fail_reason', 'error', 'message']) {
+    const v = result[k];
+    if (!v) continue;
+    if (typeof v === 'string') return v.substring(0, 500);
+    if (typeof v === 'object') return String(v.message || v.detail || JSON.stringify(v)).substring(0, 500);
+  }
+  const d = result.data;
+  if (d && typeof d === 'object') {
+    const nested = imageError(d);
+    if (nested) return nested;
+  }
+  return '';
+}
+
+function imageApiFailed(result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return false;
+  const code = String(result.code ?? '').toLowerCase();
+  if (code && !['success', 'ok', '0', '200'].includes(code)) return true;
+  if (result.detail || result.error) return true;
+  return false;
+}
+
+function imageStatus(result) {
+  if (!result || typeof result !== 'object') return '';
+  for (const k of ['status', 'task_status', 'state']) {
+    if (result[k]) return String(result[k]).toUpperCase();
+  }
+  const d = result.data;
+  if (d && typeof d === 'object') {
+    for (const k of ['status', 'task_status', 'state']) {
+      if (d[k]) return String(d[k]).toUpperCase();
+    }
+  }
+  return '';
+}
+
+function imageItems(result) {
+  if (!result) return [];
+  if (Array.isArray(result)) return result;
+  if (typeof result === 'string') {
+    const s = result.trim();
+    return s && !isImageTaskString(s) ? [s] : [];
+  }
+  if (typeof result !== 'object') return [];
+  if (result.url || result.image_url || result.b64_json || result.base64 || result.image_base64) return [result];
+  for (const k of ['data', 'images', 'result', 'results', 'output', 'outputs', 'image', 'url']) {
+    const v = result[k];
+    if (!v) continue;
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s || isImageTaskString(s)) continue;
+      return [s];
+    }
+    if (typeof v === 'object') {
+      const nested = imageItems(v);
+      if (nested.length) return nested;
+    }
+  }
+  return [];
+}
+
+function normalizeImageItems(result) {
+  return imageItems(result).map((item) => {
+    if (typeof item === 'string') {
+      return /^https?:\/\//.test(item) ? { url: item } : { b64_json: item.startsWith('data:image') ? item : item };
+    }
+    if (item && typeof item === 'object') {
+      const url = item.url || item.image_url || (typeof item.image === 'string' && /^https?:\/\//.test(item.image) ? item.image : '');
+      const b64 = item.b64_json || item.base64 || item.image_base64 || (!url && typeof item.image === 'string' ? item.image : '');
+      if (url) return { url };
+      if (b64) return { b64_json: b64 };
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+async function saveImageItemsFromResult(result) {
+  const urls = [];
+  for (const it of normalizeImageItems(result)) {
+    if (it?.b64_json) {
+      const u = saveBase64Image(it.b64_json);
+      if (u) urls.push(u);
+    } else if (it?.url) {
+      const u = await saveRemoteImage(it.url);
+      urls.push(u);
+    }
+  }
+  return urls;
+}
+
 // LLM 多模态 image_url 预处理:
 //   上游 LLM 服务(贞贞工坊)无法访问本地 /files/* 路径,需提前转成 base64 dataURL inline。
 //   - data: 保留
@@ -314,6 +453,7 @@ async function normalizeLlmMessageImages(messages) {
 //   - GPT2 字段: prompt/model/n/quality/moderation/size(像素串)/aspectRatio(camelCase)/resolution(1k|2k|4k)
 //   - nano-banana 文生图: JSON /generations?async=true { prompt, model, aspect_ratio, image_size }
 //   - nano-banana 图生图: multipart /edits?async=true 添加 image 多个
+//   - Grok Image: JSON /generations?async=true { model, prompt, aspect_ratio, image:[base64...]? }
 // ========================================================================
 async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt, n, aspect_ratio, image_size, refs, size, quality }) {
   const upstreamBase = `${config.ZHENZHEN_BASE_URL}/v1/images`;
@@ -323,6 +463,26 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
   const lvlLower = String(image_size || '1K').toLowerCase();
   const lvlUpper = String(image_size || '2K').toUpperCase();
   const hasRefs = Array.isArray(refs) && refs.length > 0;
+
+  // ===== Grok Image 路径(对齐 gpt-image-2-web Tab 12,默认参考图 Base64) =====
+  if (paramKind === 'grok-image') {
+    const grokRefs = [];
+    if (hasRefs) {
+      for (const ref of refs.slice(0, 4)) {
+        const converted = await refToGrokImage(ref);
+        if (converted) grokRefs.push(converted);
+      }
+    }
+    const body = { model: finalApiModel, prompt, aspect_ratio: isAuto ? '1:1' : ar };
+    if (grokRefs.length) body.image = grokRefs;
+    const url = `${upstreamBase}/generations?async=true`;
+    console.log('[upstream] Grok Image JSON → /generations?async=true model:', finalApiModel, 'aspect_ratio:', body.aspect_ratio, 'refs:', grokRefs.length);
+    return await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: auth },
+      body: JSON.stringify(body),
+    });
+  }
 
   // ===== GPT2 总走 multipart /edits?async=true(文生图加白图占位) =====
   if (paramKind === 'gpt-size') {
@@ -387,18 +547,13 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
 
 // 将上游响应 normalize 为 { kind: 'sync'|'async', urls?, taskId? }
 async function normalizeImageResponse(data) {
-  // 如果同步返回 data:[{url|b64_json}]
-  const items = Array.isArray(data?.data) ? data.data : [];
-  if (items.length && (items[0]?.url || items[0]?.b64_json)) {
-    const urls = [];
-    for (const it of items) {
-      if (it?.b64_json) { const u = saveBase64Image(it.b64_json); if (u) urls.push(u); }
-      else if (it?.url) { const u = await saveRemoteImage(it.url); urls.push(u); }
-    }
-    return { kind: 'sync', urls };
+  if (imageApiFailed(data)) {
+    return { kind: 'failed', error: imageError(data) || '上游图像 API 返回失败' };
   }
+  const urls = await saveImageItemsFromResult(data);
+  if (urls.length) return { kind: 'sync', urls };
   // 异步任务 task_id
-  const taskId = typeof data?.data === 'string' ? data.data : (data?.task_id || data?.data?.task_id || data?.id);
+  const taskId = imageTaskId(data);
   if (taskId) return { kind: 'async', taskId };
   return { kind: 'unknown' };
 }
@@ -415,7 +570,8 @@ router.post('/image', async (req, res) => {
   if (!ensureKey(settings, res, apiModel || model || '', '图像')) return;
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
   const m = String(apiModel || model || '');
-  const paramKind = paramKindIn || (m.includes('nano-banana') ? 'banana-ratio' : 'gpt-size');
+  const ml = m.toLowerCase();
+  const paramKind = paramKindIn || (ml.includes('grok') && ml.includes('image') ? 'grok-image' : (ml.includes('nano-banana') ? 'banana-ratio' : 'gpt-size'));
   const finalApiModel = apiModel || model;
   if (!finalApiModel) return res.status(400).json({ success: false, error: 'model 必填' });
   const refs = Array.isArray(images) ? images.filter(Boolean) : [];
@@ -437,6 +593,9 @@ router.post('/image', async (req, res) => {
       });
     }
     const norm = await normalizeImageResponse(data);
+    if (norm.kind === 'failed') {
+      return res.status(500).json({ success: false, error: norm.error || '上游图像任务失败', raw: data });
+    }
     if (norm.kind === 'sync') {
       return res.json({ success: true, data: { urls: norm.urls, raw: data, model: finalApiModel, prompt } });
     }
@@ -467,7 +626,8 @@ router.post('/image/submit', async (req, res) => {
     if (!ensureKey(settings, res, apiModel || model || '', '图像')) return;
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt 不得为空' });
     const m = String(apiModel || model || '');
-    const paramKind = paramKindIn || (m.includes('nano-banana') ? 'banana-ratio' : 'gpt-size');
+    const ml = m.toLowerCase();
+    const paramKind = paramKindIn || (ml.includes('grok') && ml.includes('image') ? 'grok-image' : (ml.includes('nano-banana') ? 'banana-ratio' : 'gpt-size'));
     const finalApiModel = apiModel || model;
     if (!finalApiModel) return res.status(400).json({ success: false, error: 'model 必填' });
     const refs = Array.isArray(images) ? images.filter(Boolean) : [];
@@ -485,6 +645,9 @@ router.post('/image/submit', async (req, res) => {
     }
 
     const norm = await normalizeImageResponse(data);
+    if (norm.kind === 'failed') {
+      return res.status(500).json({ success: false, error: norm.error || '上游图像任务失败', raw: data });
+    }
     if (norm.kind === 'sync') {
       return res.json({ success: true, data: { sync: true, status: 'completed', progress: '100%', urls: norm.urls, raw: data } });
     }
@@ -520,23 +683,21 @@ router.get('/image/status/:tid', async (req, res) => {
     if (!r.ok) {
       return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}`, raw: data });
     }
-    const inner = data?.data || {};
-    const status = String(inner.status || '').toLowerCase();
-    const progress = inner.progress || '0%';
-    const SUCCESS = ['success', 'completed', 'done'];
-    const FAILURE = ['failure', 'failed', 'error'];
-    if (SUCCESS.includes(status)) {
-      const rd = inner.data || {};
-      const arr = Array.isArray(rd.data) ? rd.data : (Array.isArray(inner.data) ? inner.data : []);
-      const urls = [];
-      for (const it of arr) {
-        if (it?.b64_json) { const u = saveBase64Image(it.b64_json); if (u) urls.push(u); }
-        else if (it?.url) { const u = await saveRemoteImage(it.url); urls.push(u); }
-      }
+    if (imageApiFailed(data)) {
+      return res.json({ success: false, data: { status: 'failed', progress: '0%', error: imageError(data) || '任务失败', raw: data } });
+    }
+    const statusRaw = imageStatus(data);
+    const status = String(statusRaw || '').toLowerCase();
+    const inner = data?.data && typeof data.data === 'object' ? data.data : {};
+    const progress = inner.progress || data?.progress || '0%';
+    const SUCCESS = ['success', 'completed', 'complete', 'done', 'finished'];
+    const FAILURE = ['failure', 'failed', 'error', 'cancelled', 'canceled'];
+    const urls = await saveImageItemsFromResult(data);
+    if (SUCCESS.includes(status) || urls.length) {
       return res.json({ success: true, data: { status: 'completed', progress: '100%', urls, raw: data } });
     }
     if (FAILURE.includes(status)) {
-      return res.json({ success: false, data: { status: 'failed', progress, error: inner.fail_reason || '任务失败' } });
+      return res.json({ success: false, data: { status: 'failed', progress, error: imageError(data) || inner.fail_reason || '任务失败', raw: data } });
     }
     res.json({ success: true, data: { status: status || 'pending', progress, raw: data } });
   } catch (e) {
@@ -557,17 +718,13 @@ async function pollImageTask(taskId, apiKey, maxRetries = 1800, interval = 2000)
       const text = await r.text();
       let data; try { data = JSON.parse(text); } catch { continue; }
       if (!r.ok) continue;
-      const inner = data?.data || {};
-      const st = String(inner.status || '').toLowerCase();
-      if (['success', 'completed', 'done'].includes(st)) {
-        const rd = inner.data || {};
-        const arr = Array.isArray(rd.data) ? rd.data : (Array.isArray(inner.data) ? inner.data : []);
-        const it = arr[0];
-        if (it?.b64_json) return saveBase64Image(it.b64_json);
-        if (it?.url) return await saveRemoteImage(it.url);
+      const st = String(imageStatus(data) || '').toLowerCase();
+      const urls = await saveImageItemsFromResult(data);
+      if (['success', 'completed', 'complete', 'done', 'finished'].includes(st) || urls.length) {
+        return urls[0] || null;
       }
-      if (['failure', 'failed', 'error'].includes(st)) {
-        console.error('[poll] 任务失败:', inner.fail_reason || st);
+      if (['failure', 'failed', 'error', 'cancelled', 'canceled'].includes(st) || imageApiFailed(data)) {
+        console.error('[poll] 任务失败:', imageError(data) || st);
         return null;
       }
     } catch (e) {
@@ -632,7 +789,10 @@ function fixFalResponseUrl(responseUrl, baseUrl, endpoint, requestId) {
     url = url.replace('https://queue.fal.run', `${baseUrl}/fal`);
   }
   if (!url) {
-    url = `${baseUrl}/fal/${endpoint}/requests/${requestId}`;
+    const requestEndpoint = String(endpoint || '').startsWith('fal-ai/sora-2/')
+      ? 'fal-ai/sora-2'
+      : endpoint;
+    url = `${baseUrl}/fal/${requestEndpoint}/requests/${requestId}`;
   }
   return url;
 }
@@ -1160,10 +1320,39 @@ const VIDEO_FAL_REGISTRY = {
   'grok-video-fal': {
     endpoint: 'xai/grok-imagine-video/text-to-video',
     i2vEndpoint: 'xai/grok-imagine-video/image-to-video',
+    referenceEndpoint: 'xai/grok-imagine-video/reference-to-video',
     paramKind: 'grok-fal',
+    maxRefImages: 7,
+  },
+  'sora-2': {
+    endpoint: 'fal-ai/sora-2/text-to-video',
+    i2vEndpoint: 'fal-ai/sora-2/image-to-video',
+    paramKind: 'sora-fal',
     maxRefImages: 1,
   },
 };
+
+function getFalVideoUrl(data) {
+  const video = data && data.video;
+  if (video && typeof video === 'object' && video.url) return video.url;
+  if (typeof video === 'string') return video;
+  return data?.video_url || data?.url || data?.output?.video?.url || data?.data?.video?.url || '';
+}
+
+function splitSoraCharacterIds(raw) {
+  return String(raw || '')
+    .split(/[,，\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
+function splitGrokReferenceUrls(raw) {
+  const values = Array.isArray(raw) ? raw : String(raw || '').split(/[,，\n]/);
+  return values
+    .map((s) => String(s || '').trim())
+    .filter((s) => /^https?:\/\//i.test(s));
+}
 
 // 保存远程视频到本地
 async function saveRemoteVideo(url) {
@@ -1190,18 +1379,23 @@ router.post('/video/fal/submit', async (req, res) => {
     // veo-fal
     aspect_ratio, duration, resolution, generate_audio, safety_tolerance, image_mode,
     // grok-fal
-    gkDuration, gkRatio,
+    gkDuration, gkRatio, gkMode, gkReferenceUrls,
+    // sora-fal
+    soraMode, soraRatio, soraDuration, soraResolution, soraDeleteVideo, soraBlockIp, soraCharacterIds,
   } = req.body || {};
+  const rawApiModel = String(apiModel || '').trim();
+  // 历史节点里可能保存过日期版 Sora2 选项；T8 现在只暴露稳定的 sora-2 FAL。
+  const effectiveApiModel = /^sora-2(?:-\d{4}-\d{2}-\d{2})?$/.test(rawApiModel) ? 'sora-2' : rawApiModel;
   // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, apiModel || '', '视频 FAL')) return;
+  if (!ensureKey(settings, res, effectiveApiModel || '', '视频 FAL')) return;
   const apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
 
-  if (!apiModel) return res.status(400).json({ success: false, error: 'apiModel 必填' });
+  if (!rawApiModel) return res.status(400).json({ success: false, error: 'apiModel 必填' });
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt 不得为空' });
 
-  const reg = VIDEO_FAL_REGISTRY[apiModel];
-  if (!reg) return res.status(400).json({ success: false, error: `未知的 Video FAL 模型: ${apiModel}` });
+  const reg = VIDEO_FAL_REGISTRY[effectiveApiModel];
+  if (!reg) return res.status(400).json({ success: false, error: `未知的 Video FAL 模型: ${rawApiModel}` });
 
   const refs = Array.isArray(images) ? images.filter(Boolean) : [];
   const trimmedRefs = refs.slice(0, reg.maxRefImages);
@@ -1239,32 +1433,83 @@ router.post('/video/fal/submit', async (req, res) => {
       }
     } else if (reg.paramKind === 'grok-fal') {
       // ===== Grok Video FAL (主项目 runGrokFal line 3787) =====
+      const mode = String(gkMode || 'image_to_video') === 'reference_to_video' ? 'reference_to_video' : 'image_to_video';
+      const extraReferenceUrls = splitGrokReferenceUrls(gkReferenceUrls);
       const hasImg = trimmedRefs.length > 0;
-      endpoint = hasImg ? (reg.i2vEndpoint || reg.endpoint) : reg.endpoint;
+      const effectiveRatio = (mode === 'reference_to_video' || !hasImg) && String(gkRatio || '16:9') === 'auto'
+        ? '16:9'
+        : String(gkRatio || '16:9');
       payload = {
         prompt,
         duration: parseInt(gkDuration ?? 6, 10) || 6,
-        aspect_ratio: String(gkRatio || '16:9'),
+        aspect_ratio: effectiveRatio,
         resolution: String(resolution || '720p'),
       };
-      // 图生视频模式: 单张 image_url
-      if (hasImg) {
-        const useBase64 = String(image_mode || 'image_url') === 'base64';
-        let imgData;
-        if (useBase64) {
-          imgData = await refToBananaImage(trimmedRefs[0]);
-        } else {
-          imgData = await uploadRefToZhenzhen(trimmedRefs[0], apiKey);
+      const useBase64 = String(image_mode || 'base64') === 'base64';
+      if (mode === 'reference_to_video') {
+        endpoint = reg.referenceEndpoint || reg.i2vEndpoint || reg.endpoint;
+        const referenceImageUrls = [];
+        const uploadRefs = trimmedRefs.slice(0, 7);
+        for (let i = 0; i < uploadRefs.length && referenceImageUrls.length < 7; i++) {
+          const imgData = useBase64
+            ? await refToBananaImage(uploadRefs[i])
+            : await uploadRefToZhenzhen(uploadRefs[i], apiKey);
+          if (imgData) referenceImageUrls.push(imgData);
+          else throw new Error(`Grok FAL 参考图 #${i + 1} 处理失败`);
         }
+        for (const url of extraReferenceUrls) {
+          if (referenceImageUrls.length >= 7) break;
+          referenceImageUrls.push(url);
+        }
+        if (!referenceImageUrls.length) throw new Error('Grok FAL 参考生视频需要至少 1 张参考图或 URL');
+        payload.reference_image_urls = referenceImageUrls;
+      } else {
+        endpoint = hasImg ? (reg.i2vEndpoint || reg.endpoint) : reg.endpoint;
+        // 图生视频模式: 单张 image_url；无图时保留文生视频 fallback。
+        if (hasImg) {
+          const imgData = useBase64
+            ? await refToBananaImage(trimmedRefs[0])
+            : await uploadRefToZhenzhen(trimmedRefs[0], apiKey);
+          if (imgData) payload.image_url = imgData;
+          else throw new Error('Grok FAL 参考图处理失败');
+        }
+      }
+    } else if (reg.paramKind === 'sora-fal') {
+      // ===== Sora2 FAL (主项目 runSora2Fal line 5341) =====
+      const hasImg = trimmedRefs.length > 0;
+      let mode = String(soraMode || 'auto');
+      if (!['auto', 'text_to_video', 'image_to_video'].includes(mode)) mode = 'auto';
+      if (mode === 'auto') mode = hasImg ? 'image_to_video' : 'text_to_video';
+      if (mode === 'image_to_video' && !hasImg) throw new Error('FAL Sora2 image-to-video requires one uploaded image');
+
+      const ratio = String(soraRatio || aspect_ratio || '16:9');
+      const reso = String(soraResolution || resolution || '720p');
+      endpoint = mode === 'image_to_video' ? (reg.i2vEndpoint || reg.endpoint) : reg.endpoint;
+      payload = {
+        prompt,
+        resolution: mode === 'text_to_video' && reso === 'auto' ? '720p' : reso,
+        aspect_ratio: mode === 'text_to_video' && ratio === 'auto' ? '16:9' : ratio,
+        duration: parseInt(soraDuration ?? duration ?? 4, 10) || 4,
+        delete_video: soraDeleteVideo !== false,
+        model: effectiveApiModel,
+        detect_and_block_ip: soraBlockIp === true,
+      };
+      const ids = splitSoraCharacterIds(soraCharacterIds);
+      if (ids.length) payload.character_ids = ids;
+      if (mode === 'image_to_video') {
+        const useBase64 = String(image_mode || 'base64') === 'base64';
+        const imgData = useBase64
+          ? await refToBananaImage(trimmedRefs[0])
+          : await uploadRefToZhenzhen(trimmedRefs[0], apiKey);
         if (imgData) payload.image_url = imgData;
-        else throw new Error('Grok FAL 参考图处理失败');
+        else throw new Error('Sora2 FAL 参考图处理失败');
       }
     } else {
       return res.status(400).json({ success: false, error: `不支持的 Video FAL paramKind: ${reg.paramKind}` });
     }
 
     const falUrl = `${baseUrl}/fal/${endpoint}`;
-    console.log('[video/fal/submit]', apiModel, '→', falUrl, '| payload keys:', Object.keys(payload), '| refs:', trimmedRefs.length);
+    console.log('[video/fal/submit]', effectiveApiModel, '→', falUrl, '| payload keys:', Object.keys(payload), '| refs:', trimmedRefs.length);
 
     const resp = await fetch(falUrl, {
       method: 'POST',
@@ -1286,9 +1531,10 @@ router.post('/video/fal/submit', async (req, res) => {
       return res.status(400).json({ success: false, error: `FAL 错误: ${JSON.stringify(data.detail).slice(0, 300)}` });
     }
 
-    // 同步返回: result.video.url
-    if (data?.video && data.video.url) {
-      const local = await saveRemoteVideo(data.video.url);
+    // 同步返回: result.video.url 或同类 video_url/url 字段
+    const syncVideoUrl = getFalVideoUrl(data);
+    if (syncVideoUrl) {
+      const local = await saveRemoteVideo(syncVideoUrl);
       return res.json({ success: true, data: { sync: true, videoUrl: local, endpoint, raw: data } });
     }
 
@@ -1340,9 +1586,10 @@ router.post('/video/fal/query', async (req, res) => {
     if (!data) {
       return res.status(500).json({ success: false, error: 'FAL Poll 响应非 JSON: ' + text.slice(0, 200) });
     }
-    // 完成: video.url
-    if (data.video && data.video.url) {
-      const local = await saveRemoteVideo(data.video.url);
+    // 完成: video.url 或同类 video_url/url 字段
+    const finishedVideoUrl = getFalVideoUrl(data);
+    if (finishedVideoUrl) {
+      const local = await saveRemoteVideo(finishedVideoUrl);
       return res.json({ success: true, data: { status: 'completed', videoUrl: local, raw: data } });
     }
     const st = String(data.status || '').toUpperCase();

@@ -36,10 +36,11 @@ import MentionPromptInput from './MentionPromptInput';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { splitText } from '../../utils/textSplit';
 import { defaultSizeOf, placeBatchNodes, type Rect as PlacementRect } from '../../utils/nodePlacement';
+import { taskCompletionSound } from '../../stores/taskCompletionSound';
 
 /**
  * LLM / Vision 节点 —— 完全对齐 gpt-image-2-web Chat (index.html L1600 / L8128~L8400)
- *  - 5 个模型: gemini-3.1-flash-lite-preview(默认) / gpt-4o / gemini-3.1-pro-preview / gpt-5 / gpt-image-2-all
+ *  - 6 个模型: gemini-3.1-flash-lite-preview(默认) / gemini-3.5-flash / gpt-4o / gemini-3.1-pro-preview / gpt-5 / gpt-image-2-all
  *  - temperature(0~2) + max_tokens(100~128000)
  *  - 系统提示词 + localStorage 预设保存/加载
  *  - 图像上传(多模态 vision)
@@ -275,6 +276,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
       return;
     }
 
+    taskCompletionSound.primeAudio();
     update({ status: 'generating', error: null });
     logBus.info(`发送到 ${model} · ${useStream && !isImgOut ? 'SSE' : '非流式'} · imgs=${userImages.length}`, src);
 
@@ -310,6 +312,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
         setStreamingText('');
         setPickedFiles([]);
         logBus.success(`完成 · ${replyText.length} 字`, src);
+        taskCompletionSound.notifyComplete(id, 'llm');
       } else {
         // ====== 非流式(出图模型 或 关流式) ======
         const res = await generateLlm({ model, messages, temperature, max_tokens: maxTokens });
@@ -332,6 +335,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
         setPickedFiles([]);
         if (imgs.length) logBus.success(`完成 · ${replyText.length} 字 + ${imgs.length} 图`, src);
         else logBus.success(`完成 · ${replyText.length} 字`, src);
+        taskCompletionSound.notifyComplete(id, 'llm');
         // 注意:主项目还会进一步检测 streamed text 中的 generate_image JSON 块自动调
         // /v1/images/generations。本节点版用户可通过下游 ImageNode 直接消费 prompt 输出实现等价能力。
         if (isImgOut && /"generate_image"\s*:/.test(replyText) && imgs.length === 0) {
@@ -447,7 +451,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
   }, [addNodes, getNode, getNodes, id, src]);
 
   // 接入运行总线
-  useRunTrigger(id, handleSend);
+  useRunTrigger(id, handleSend, 'llm');
 
   // === 跨节点拖拽: source (生成图可拖出) ===
   const startDrag = useDragMaterialStore((s) => s.start);

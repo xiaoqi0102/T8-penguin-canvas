@@ -1,7 +1,21 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import { AlertCircle, Loader2, Video as VideoIcon, Sparkles, Square, X } from 'lucide-react';
-import { VIDEO_MODELS, isFalVideoModel, VIDEO_FAL_REGISTRY, VEO_FAL_RATIOS, VEO_FAL_DURATIONS, VEO_FAL_RESOLUTIONS, GROK_FAL_RATIOS, GROK_FAL_RESOLUTIONS } from '../../providers/models';
+import {
+  VIDEO_MODELS,
+  isFalVideoModel,
+  VIDEO_FAL_REGISTRY,
+  VEO_FAL_RATIOS,
+  VEO_FAL_DURATIONS,
+  VEO_FAL_RESOLUTIONS,
+  GROK_FAL_RATIOS,
+  GROK_FAL_RESOLUTIONS,
+  GROK_FAL_MODES,
+  SORA2_FAL_MODES,
+  SORA2_FAL_RATIOS,
+  SORA2_FAL_DURATIONS,
+  SORA2_FAL_RESOLUTIONS,
+} from '../../providers/models';
 import { submitVideo, queryVideo, submitVideoFal, queryVideoFal, type VideoSubmitRequest, type VideoFalSubmitRequest } from '../../services/generation';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useHasAutoOutput } from './useHasAutoOutput';
@@ -15,15 +29,23 @@ import MentionPromptInput from './MentionPromptInput';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
+import { taskCompletionSound } from '../../stores/taskCompletionSound';
 
 /**
  * VideoNode - 异步视频生成(完全对齐 gpt-image-2-web)
  * 支持:
  *   - Veo 3.1   (kind=veo)      — 13 个子模型 / aspect_ratio(16:9|9:16) / seed / enhance_prompt / enable_upsample / images(≤3)
  *   - Grok Video(kind=grok)     — grok-video-3 / ratio / duration(s) / resolution(480P|720P) / seed / images(≤7)
+ *   - Sora2 FAL (kind=sora)     — 文生/图生视频 / Base64 参考图(≤1) / duration / resolution
  *   - Seedance  (kind=seedance) — 零破坏兼容旧 veo 字段
  * 流程: submit → poll(5s 间隔) → 转存 → 展示
  */
+const splitGrokFalRefUrls = (raw: string): string[] =>
+  String(raw || '')
+    .split(/[\n,，]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
 const VideoNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const hasAutoOutput = useHasAutoOutput(id);
@@ -39,7 +61,9 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
 
   const d = data as any;
   // 主模型 id (对应 VIDEO_MODELS 项)
-  const mainId = d?.mainId || (d?.model && VIDEO_MODELS.find((m) => m.id === d.model || m.apiModelOptions.some((o) => o.value === d.model))?.id) || VIDEO_MODELS[0].id;
+  const rawModel = typeof d?.model === 'string' ? d.model : '';
+  const isLegacySora2Model = /^sora-2(?:-\d{4}-\d{2}-\d{2})?$/.test(rawModel);
+  const mainId = d?.mainId || (isLegacySora2Model ? 'sora-2' : (d?.model && VIDEO_MODELS.find((m) => m.id === d.model || m.apiModelOptions.some((o) => o.value === d.model))?.id)) || VIDEO_MODELS[0].id;
   const modelDef = useMemo(() => VIDEO_MODELS.find((m) => m.id === mainId) || VIDEO_MODELS[0], [mainId]);
   // 子模型(上游真实 model 名)
   const apiModel: string = d?.model && modelDef.apiModelOptions.some((o) => o.value === d.model) ? d.model : modelDef.apiModelOptions[0].value;
@@ -61,9 +85,19 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   const vfAudio: boolean = d?.vfAudio ?? false;
   const vfSafety: number = d?.vfSafety ?? 4;
   // grok-fal 专属
+  const gkfMode: 'image_to_video' | 'reference_to_video' = d?.gkfMode === 'image_to_video' ? 'image_to_video' : 'reference_to_video';
   const gkfRatio: string = d?.gkfRatio || '16:9';
   const gkfDuration: number = d?.gkfDuration ?? 6;
   const gkfResolution: string = d?.gkfResolution || '720p';
+  const gkfReferenceUrls: string = d?.gkfReferenceUrls || '';
+  // sora-fal 专属(图片传入默认 base64,与 gpt-image-2-web srf_imgway 默认一致)
+  const soraMode: 'auto' | 'text_to_video' | 'image_to_video' = d?.soraMode || 'auto';
+  const soraRatio: string = d?.soraRatio || '16:9';
+  const soraDuration: number = d?.soraDuration ?? 4;
+  const soraResolution: string = d?.soraResolution || '720p';
+  const soraDeleteVideo: boolean = d?.soraDeleteVideo ?? true;
+  const soraBlockIp: boolean = d?.soraBlockIp ?? false;
+  const soraCharacterIds: string = d?.soraCharacterIds || '';
 
   const status: 'idle' | 'submitting' | 'polling' | 'success' | 'error' = d?.status || 'idle';
   const taskId: string | undefined = d?.taskId;
@@ -95,7 +129,12 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
       })),
     [localRefImages, id],
   );
-  const maxMentionRefs = isFal && falReg ? falReg.maxRefImages : modelDef.maxRefImages;
+  const maxMentionRefs =
+    isFal && falReg
+      ? falReg.paramKind === 'grok-fal' && gkfMode !== 'reference_to_video'
+        ? 1
+        : falReg.maxRefImages
+      : modelDef.maxRefImages;
   const mentionMaterials = useMemo(
     () => [...orderedImages, ...localRefImageMaterials].slice(0, maxMentionRefs),
     [orderedImages, localRefImageMaterials, maxMentionRefs],
@@ -183,6 +222,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
             stopPoll();
             update({ status: 'success', videoUrl: r.videoUrl, progress: '100%' });
             logBus.success(`任务完成 → ${r.videoUrl}`, src);
+            taskCompletionSound.notifyComplete(id, 'video');
             resolve();
           } else if (r.status === 'FAILURE') {
             stopPoll();
@@ -229,6 +269,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
             stopPoll();
             update({ status: 'success', videoUrl: r.videoUrl, progress: '100%' });
             logBus.success(`FAL 视频完成 → ${r.videoUrl}`, src);
+            taskCompletionSound.notifyComplete(id, 'video');
             resolve();
           } else if (r.status === 'failed') {
             stopPoll();
@@ -257,11 +298,13 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
       logBus.error('生成中止: 缺少 prompt', src);
       return;
     }
+    taskCompletionSound.primeAudio();
     update({ status: 'submitting', error: null, videoUrl: null, taskId: null });
     try {
       // === FAL 分支 ===
       if (isFal && falReg) {
-        const refs = imageUrls.slice(0, falReg.maxRefImages);
+        const falMaxRefs = falReg.paramKind === 'grok-fal' && gkfMode !== 'reference_to_video' ? 1 : falReg.maxRefImages;
+        const refs = imageUrls.slice(0, falMaxRefs);
         let images: string[] | undefined;
         if (refs.length > 0) {
           // FAL 参考图直传 URL 或 base64，后端会处理上传
@@ -278,17 +321,38 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           falReq.generate_audio = vfAudio;
           falReq.safety_tolerance = vfSafety;
         } else if (falReg.paramKind === 'grok-fal') {
-          falReq.gkRatio = gkfRatio;
+          const pastedReferenceUrls = splitGrokFalRefUrls(gkfReferenceUrls).slice(0, Math.max(0, 7 - (images?.length || 0)));
+          if (gkfMode === 'reference_to_video' && (!images || images.length === 0) && pastedReferenceUrls.length === 0) {
+            throw new Error('Grok FAL 参考生视频需要至少 1 张参考图或 URL');
+          }
+          falReq.gkMode = gkfMode;
+          falReq.gkRatio = gkfMode === 'reference_to_video' && gkfRatio === 'auto' ? '16:9' : gkfRatio;
           falReq.gkDuration = gkfDuration;
           falReq.resolution = gkfResolution;
+          falReq.image_mode = 'base64';
+          if (pastedReferenceUrls.length) falReq.gkReferenceUrls = pastedReferenceUrls;
+        } else if (falReg.paramKind === 'sora-fal') {
+          if (soraMode === 'image_to_video' && (!images || images.length === 0)) {
+            throw new Error('Sora2 图生视频需要 1 张参考图');
+          }
+          falReq.soraMode = soraMode;
+          falReq.soraRatio = soraRatio;
+          falReq.soraDuration = soraDuration;
+          falReq.soraResolution = soraResolution;
+          falReq.soraDeleteVideo = soraDeleteVideo;
+          falReq.soraBlockIp = soraBlockIp;
+          falReq.soraCharacterIds = soraCharacterIds;
+          falReq.image_mode = 'base64';
         }
 
-        logBus.info(
-          `提交 FAL 视频: ${apiModel} ` +
-          (falReg.paramKind === 'veo-fal'
+        const falInfo =
+          falReg.paramKind === 'veo-fal'
             ? `ratio=${vfRatio} dur=${vfDuration} res=${vfResolution} audio=${vfAudio}`
-            : `ratio=${gkfRatio} dur=${gkfDuration}s res=${gkfResolution}`) +
-          ` refs=${images?.length || 0} prompt="${finalPrompt.slice(0, 30)}…"`,
+            : falReg.paramKind === 'grok-fal'
+              ? `mode=${gkfMode} ratio=${gkfMode === 'reference_to_video' && gkfRatio === 'auto' ? '16:9' : gkfRatio} dur=${gkfDuration}s res=${gkfResolution} image=base64 urls=${splitGrokFalRefUrls(gkfReferenceUrls).length}`
+              : `mode=${soraMode} ratio=${soraRatio} dur=${soraDuration}s res=${soraResolution} image=base64`;
+        logBus.info(
+          `提交 FAL 视频: ${apiModel} ${falInfo} refs=${images?.length || 0} prompt="${finalPrompt.slice(0, 30)}…"`,
           src,
         );
 
@@ -296,6 +360,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         if (r.sync && r.videoUrl) {
           update({ status: 'success', videoUrl: r.videoUrl, lastPrompt: finalPrompt, progress: '100%' });
           logBus.success(`FAL 同步完成 → ${r.videoUrl}`, src);
+          taskCompletionSound.notifyComplete(id, 'video');
         } else {
           falPollRef.current = { responseUrl: r.responseUrl, endpoint: r.endpoint, requestId: r.requestId };
           update({ status: 'polling', lastPrompt: finalPrompt, progress: '15%' });
@@ -371,7 +436,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   useRunTrigger(id, async () => {
     if (status === 'submitting' || status === 'polling') return;
     await handleGenerate();
-  });
+  }, 'video');
 
   // === 跨节点拖拽: source (输出视频可拖出) ===
   const startDrag = useDragMaterialStore((s) => s.start);
@@ -504,21 +569,110 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           <>
             <div className="grid grid-cols-2 gap-1.5">
               <div>
+                <label className="text-[10px] text-white/50 block mb-1">模式 (FAL)</label>
+                <select
+                  value={gkfMode}
+                  onChange={(e) => {
+                    const next = e.target.value as 'image_to_video' | 'reference_to_video';
+                    update({
+                      gkfMode: next,
+                      ...(next === 'reference_to_video' && gkfRatio === 'auto' ? { gkfRatio: '16:9' } : {}),
+                    });
+                  }}
+                  className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+                >
+                  {GROK_FAL_MODES.map((m) => <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="text-[10px] text-white/50 block mb-1">比例 (FAL)</label>
                 <select value={gkfRatio} onChange={(e) => update({ gkfRatio: e.target.value })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
                   {GROK_FAL_RATIOS.map((r) => <option key={r} value={r} className="bg-zinc-900">{r}</option>)}
                 </select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
               <div>
                 <label className="text-[10px] text-white/50 block mb-1">时长(s)</label>
                 <input type="number" value={gkfDuration} min={1} max={30} onChange={(e) => update({ gkfDuration: Number(e.target.value) || 6 })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30" />
               </div>
+              <div>
+                <label className="text-[10px] text-white/50 block mb-1">分辨率</label>
+                <select value={gkfResolution} onChange={(e) => update({ gkfResolution: e.target.value })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
+                  {GROK_FAL_RESOLUTIONS.map((r) => <option key={r} value={r} className="bg-zinc-900">{r}</option>)}
+                </select>
+              </div>
+            </div>
+            {gkfMode === 'reference_to_video' && (
+              <div>
+                <label className="text-[10px] text-white/50 block mb-1">公开参考 URL(可选)</label>
+                <textarea
+                  value={gkfReferenceUrls}
+                  onChange={(e) => update({ gkfReferenceUrls: e.target.value })}
+                  placeholder="每行或逗号分隔，最多补足到 7 张"
+                  className="w-full h-12 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+                />
+              </div>
+            )}
+            <div className="text-[10px] text-white/45 leading-relaxed">
+              {gkfMode === 'reference_to_video'
+                ? '参考生视频最多 7 张，优先使用上游/本地图，再补充 URL。'
+                : '图生视频只取第 1 张参考图；无图时保留文生视频 fallback。'}
+            </div>
+          </>
+        )}
+
+        {isFal && falReg?.paramKind === 'sora-fal' && (
+          <>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="text-[10px] text-white/50 block mb-1">FAL Mode</label>
+                <select value={soraMode} onChange={(e) => update({ soraMode: e.target.value })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
+                  {SORA2_FAL_MODES.map((m) => <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-white/50 block mb-1">比例</label>
+                <select value={soraRatio} onChange={(e) => update({ soraRatio: e.target.value })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
+                  {SORA2_FAL_RATIOS.map((r) => <option key={r} value={r} className="bg-zinc-900">{r}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="text-[10px] text-white/50 block mb-1">时长</label>
+                <select value={String(soraDuration)} onChange={(e) => update({ soraDuration: Number(e.target.value) || 4 })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
+                  {SORA2_FAL_DURATIONS.map((d) => <option key={d} value={d} className="bg-zinc-900">{d}s</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-white/50 block mb-1">分辨率</label>
+                <select value={soraResolution} onChange={(e) => update({ soraResolution: e.target.value })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
+                  {SORA2_FAL_RESOLUTIONS.map((r) => <option key={r} value={r} className="bg-zinc-900">{r}</option>)}
+                </select>
+              </div>
             </div>
             <div>
-              <label className="text-[10px] text-white/50 block mb-1">分辨率</label>
-              <select value={gkfResolution} onChange={(e) => update({ gkfResolution: e.target.value })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
-                {GROK_FAL_RESOLUTIONS.map((r) => <option key={r} value={r} className="bg-zinc-900">{r}</option>)}
-              </select>
+              <label className="text-[10px] text-white/50 block mb-1">Character IDs</label>
+              <input
+                value={soraCharacterIds}
+                onChange={(e) => update({ soraCharacterIds: e.target.value })}
+                placeholder="id1, id2"
+                className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30 placeholder:text-white/25"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <label className="flex items-center gap-1 text-[10px] text-white/60 cursor-pointer">
+                <input type="checkbox" checked={soraDeleteVideo} onChange={(e) => update({ soraDeleteVideo: e.target.checked })} className="accent-rose-400" />
+                Delete Video
+              </label>
+              <label className="flex items-center gap-1 text-[10px] text-white/60 cursor-pointer">
+                <input type="checkbox" checked={soraBlockIp} onChange={(e) => update({ soraBlockIp: e.target.checked })} className="accent-rose-400" />
+                Block IP
+              </label>
+            </div>
+            <div className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] leading-relaxed text-white/45">
+              默认用 Base64 传入第 1 张参考图；Auto 无图时走文生视频。
             </div>
           </>
         )}
@@ -624,7 +778,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
             isDark={isDark}
             isPixel={isPixel}
             groups={previewGroups}
-            title={`上游素材 · 参考图 ${Math.min(refsCount, modelDef.maxRefImages)}/${modelDef.maxRefImages}`}
+            title={`上游素材 · 参考图 ${Math.min(refsCount, maxMentionRefs)}/${maxMentionRefs}`}
           />
         )}
 

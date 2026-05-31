@@ -58,6 +58,7 @@ const OP_ICON_BY_TYPE: Record<string, string> = {
   relay: 'ArrowRightLeft',
   cinematic: 'Clapperboard',
   'video-motion': 'Sailboat',
+  'pose-master': 'PersonStanding',
 };
 
 const NARUTO_ICON_BY_TYPE: Record<string, string> = {
@@ -87,6 +88,7 @@ const NARUTO_ICON_BY_TYPE: Record<string, string> = {
   'text-split': 'Scissors',
   'image-compare': 'ScanSearch',
   'material-set': 'Package',
+  'pose-master': 'PersonStanding',
 };
 
 const EVA_ICON_BY_TYPE: Record<string, string> = {
@@ -116,6 +118,7 @@ const EVA_ICON_BY_TYPE: Record<string, string> = {
   'text-split': 'Scissors',
   'image-compare': 'ScanSearch',
   'material-set': 'Package',
+  'pose-master': 'PersonStanding',
 };
 
 const YYH_ICON_BY_TYPE: Record<string, string> = {
@@ -147,6 +150,7 @@ const YYH_ICON_BY_TYPE: Record<string, string> = {
   'material-set': 'Package',
   'drawing-board': 'PenTool',
   'portrait-master': 'UserRoundCog',
+  'pose-master': 'PersonStanding',
 };
 
 interface SidebarProps {

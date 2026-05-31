@@ -216,6 +216,40 @@ function App() {
     };
   }, [aixOpen]);
 
+  useEffect(() => {
+    const hasOpenTopSurface = cloudOpen || videoOpen || zhenOpen || appOpen || aixOpen || resourceOpen;
+    if (!hasOpenTopSurface) return;
+
+    const onDocPointerDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (
+        target.closest('.t8-topbar') ||
+        target.closest('.resource-library-drawer') ||
+        target.closest('[data-canvas-floating-ui]') ||
+        target.closest('.react-flow__node') ||
+        target.closest('.react-flow__edge') ||
+        target.closest('.react-flow__controls') ||
+        target.closest('.react-flow__minimap') ||
+        target.closest('.t8-control-rail')
+      ) {
+        return;
+      }
+
+      setCloudOpen(false);
+      setVideoOpen(false);
+      setZhenOpen(false);
+      setAppOpen(false);
+      setAixOpen(false);
+      setResourceOpen(false);
+    };
+
+    document.addEventListener('pointerdown', onDocPointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', onDocPointerDown, true);
+    };
+  }, [cloudOpen, videoOpen, zhenOpen, appOpen, aixOpen, resourceOpen]);
+
   const handleCopyWx = async () => {
     try {
       await navigator.clipboard.writeText('Lovexy_0222');

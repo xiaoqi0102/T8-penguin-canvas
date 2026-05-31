@@ -106,6 +106,8 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   'video-motion': { inputs: [], outputs: ['text'] },
   'multi-angle-visual': { inputs: ['image'], outputs: ['text'] },
   'portrait-master': { inputs: ['text', 'metadata'], outputs: ['text', 'metadata'] },
+  // 姿势大师二阶段: 兼容上游肖像/运镜文本与参考图。未连接时保持旧版独立输出行为。
+  'pose-master': { inputs: ['text', 'image', 'metadata'], outputs: ['image', 'text', 'metadata'] },
 
   // ========== 上传素材节点 (NEW) ==========
   // 动态:由 data.uploadType 决定具体输出。未上传时 outputs=[],不允许连出。

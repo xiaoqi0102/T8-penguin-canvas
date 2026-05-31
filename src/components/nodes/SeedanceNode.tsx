@@ -18,6 +18,7 @@ import MentionPromptInput from './MentionPromptInput';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
+import { taskCompletionSound } from '../../stores/taskCompletionSound';
 
 /**
  * SeedanceNode — 字节 Seedance 2.0 视频分镜节点
@@ -191,6 +192,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
             stopPoll();
             update({ status: 'success', videoUrl: r.videoUrl, progress: '100%' });
             logBus.success(`任务完成 → ${r.videoUrl}`, src);
+            taskCompletionSound.notifyComplete(id, 'seedance');
             resolve();
           } else if (r.status === 'failed') {
             stopPoll();
@@ -220,6 +222,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
       logBus.error('生成中止: 缺少 prompt', src);
       return;
     }
+    taskCompletionSound.primeAudio();
     update({ status: 'submitting', error: null, videoUrl: null, taskId: null });
 
     try {
@@ -294,7 +297,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
   useRunTrigger(id, async () => {
     if (status === 'submitting' || status === 'polling') return;
     await handleGenerate();
-  });
+  }, 'seedance');
 
   // === 跨节点拖拽: source (输出视频可拖出) ===
   const startDrag = useDragMaterialStore((s) => s.start);

@@ -64,6 +64,33 @@ html[data-theme-template] ::selection {
   outline: none;
 }
 
+html[data-theme-template] select,
+html[data-theme-template] .t8-select {
+  color-scheme: dark;
+}
+
+html[data-theme-template][data-theme-mode="light"] select,
+html[data-theme-template][data-theme-mode="light"] .t8-select {
+  color-scheme: light;
+}
+
+html[data-theme-template] select option,
+html[data-theme-template] .t8-select option {
+  background-color: var(--t8-bg-panel-elevated) !important;
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-template] select option:checked,
+html[data-theme-template] .t8-select option:checked {
+  background-color: color-mix(in srgb, var(--t8-accent) 24%, var(--t8-bg-panel-elevated)) !important;
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-template] select option:disabled,
+html[data-theme-template] .t8-select option:disabled {
+  color: var(--t8-text-dim) !important;
+}
+
 .t8-input::placeholder,
 .t8-textarea::placeholder {
   color: var(--t8-text-dim);

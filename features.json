@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.7.3",
-  "lastUpdated": "2026-05-29-v1.7.3-merge-upstream-v1.6.6-to-v1.6.9",
+  "version": "1.7.4",
+  "lastUpdated": "2026-05-31-v1.7.4-merge-upstream-and-geeknow-llm",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,15 +16,15 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.7.3",
-    "semverVersion": "1.7.3",
-    "versionNote": "v1.7.3 合并 upstream v1.6.6→v1.6.9 全部内容到 fork v1.7.2 之上：吸收肖像大师角色库与高级随机批量 (v1.6.6)、画布最近节点 G 定位快捷键 (v1.6.6-hotfix)、幽游白书官方主题与浅色水印 (v1.6.7/v1.6.8)、幽游白书隐藏高级词库 (v1.6.8)、肖像大师批量随机生成修复 (v1.6.9)；继续保留 fork 自有 v1.7.1 upstream 同步、v1.7.2 Electron 单实例检测、drawing-board、七牛/Grsai provider 与品牌配置。fork phase87/88 重命名为 phase93/94 避让 upstream 撞 key，新增 phase95 记录本次合并。已通过 npm run build；本次未重新打包 Electron。",
+    "version": "1.7.4",
+    "semverVersion": "1.7.4",
+    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.7.4：跨画布发送支持节点片段并保留选中节点内部连线；新增独立任务完成提示音，默认开启，图像 / 视频 / SD2.0 / 音频 / LLM 成功完成后 5 秒内最多提示一次；同步收口主题 select/帮助面板样式。本次未重新打包 Electron。",
     "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
       "backend/src/ 任何文件修改后必须重新 npm run encrypt 再打包",
       "main.cjs 的窗口标题 / log 窗口 / IPC version 三处版本号，以及 backend/src/config.js APP_VERSION 必须与 package.json 同步",
-      "_post_build.cjs 验证 11 个 .t8c 必存在: server/config + routes/{canvas,settings,proxy,files,imageOps,recharge,resources,themes} + utils/duckPayload",
+      "_post_build.cjs 验证 12 个 .t8c 必存在: server/config + routes/{canvas,settings,proxy,files,imageOps,recharge,resources,themes,eagle} + utils/duckPayload",
       "_post_build.cjs 验证 resources/frontend/index.html + assets/ 必存在",
       "_post_build.cjs 必须让 src/assets/theme-music/*.mp3 经 Vite 输出到 resources/frontend/assets，主题音乐默认静音且随前端资源一起打包",
       "_post_build.cjs 自动清除任何意外混入的 resources/{app,backend}/src 明文目录",
@@ -67,9 +67,13 @@
         "小型纯图标按钮必须使用 t8-mini-icon-button 或等价固定尺寸类，不能直接复用大号胶囊 t8-btn/px-btn，否则 OP、像素糖果等强风格主题会把按钮撑大变形",
         "本地保存、资源库、主题模板等默认路径必须由 backend/src/config.js 统一按平台计算，前端不得再次硬编码 D:\\zhenzhen；非 Windows 旧默认值由 settings 路由迁移，用户自定义路径不得覆盖",
         "官方主题浅色模式必须检查并覆盖老节点内部暗色工具类，如 text-white/*、bg-white/*、border-white/*、cyan/violet 标签和状态色，避免只改外壳导致字段、参数或实际发送文字不可读",
+        "原生 select 的弹出层不会完全继承节点外壳样式；theme-core.css 必须提供基于 --t8-* 的基础 option 兜底，官方主题必须显式覆盖 select、.t8-select 以及 select option / option:checked 的背景、文字和 color-scheme，尤其浅色模式不能依赖旧节点 option.bg-zinc-900 或 text-white。",
+        "默认科技风浅色模式同样必须保留 legacy node adapter；新增节点若使用 text-white/bg-zinc/bg-white 等暗色工具类或 inline 深色背景，必须同步接入主题变量或在 adapter 中兜底，避免经典白天模式残留黑卡片",
         "主题风格化元素使用 visuals.style / iconPack / canvasPattern / nodeFrame / headerMark 表达，避免把某个 IP 或图案写死在业务组件里",
         "自定义模板导入时必须通过 validateTheme/后端 normalizeTemplate，过滤未知枚举、过长字段和非法音乐 URL",
         "ThemeMusicToggle 与 ReactFlow Controls 必须同置于 .t8-control-rail，由全局变量统一定位和堆叠；主题 CSS 只能覆盖尺寸、颜色和视觉样式，不得分别硬编码 left/top/bottom 造成喇叭与缩放条漂移",
+        "ReactFlow Controls 必须继承 .t8-canvas-shell 的 --t8-flow-controls-* 变量，主题只覆盖变量，不得让内置 controls 回退为白底白字或脱离 .t8-control-rail；新增主题必须同时检查音乐按钮、控制条和连线导航 HUD",
+        "拖线中 Space 连线导航模式属于全局主题反馈：HUD、画布边缘脉冲、Controls 色值都必须跟随 --t8-flow-controls-accent，禁止在单主题里硬编码固定 cyan / white",
         "画布背景水印必须放在 .t8-canvas-shell::before/::after 背景层，z-index:0 且 pointer-events:none；ReactFlow 节点、边、浮层和 GroupBox 内容必须盖住水印，不能让装饰穿透到素材预览或画板内容上方",
         "强风格官方主题可为 light/dark 分别提供水印资产；若深色水印包含黑底终端、警告面板或厚重贴片，浅色模式必须改用透明底线稿 / 印章 / HUD 版本，避免浅色画布出现突兀深色块",
         "框选/节点右键菜单、空白右键快速添加菜单、拖线候选菜单和选中节点右上角 RUN/关闭浮动条都属于全局主题控件，必须使用 t8-context-menu / t8-node-action-bar 语义类和 visuals.style 作为视觉判断来源，禁止仅按 legacyStyle=像素/科技分支导致 OP、火影、EVA 等主题残留白底或绿色按钮",
@@ -101,7 +105,7 @@
     "styles": {
       "tech": {
         "label": "科技风",
-        "description": "玻璃拟态、细边框、冷色发光、circuit 画布纹理，内置默认音乐 One Summer's Day",
+        "description": "玻璃拟态、细边框、冷色发光、circuit 画布纹理，内置默认音乐 One Summer's Day；v1.7.1 起科技风浅色模式内置 legacy node adapter，统一修正旧节点暗色工具类残留",
         "default": false
       },
       "pixel": {
@@ -218,7 +222,7 @@
     ]
   },
   "repository": "https://github.com/T8mars/T8-penguin-canvas",
-  "totalNodes": 39,
+  "totalNodes": 40,
   "phases": {
     "phase0": {
       "label": "基础设施",
@@ -414,7 +418,7 @@
         "NODE_GROUPS 各分类 filter 补充 && !n.hidden 过滤隐藏节点",
         "Canvas.tsx 端口拖出后的候选选择器(candidateMetas) 首行补充 if (meta.hidden) return [] 过滤",
         "隐藏节点清单(13 个)——特殊节点 5: multi-angle-3d/panorama-720/penguin-portrait/portrait-metadata/storyboard-grid; 工具节点 6: drawing-board/browser/image-compare/frame-extractor/remove-bg/upscale; 辅助节点 2: edit/video-output",
-        "可见节点清单——input(2): upload/output; core(6): text/image/video/seedance/audio/llm; rh(2): runninghub/rh-config; utility(3): resize/combine/grid-crop; auxiliary(3): idea/bp/relay; toolbox(2): cinematic/video-motion —— 合计 18 个可见",
+        "历史可见节点清单记录：该段为 v1.0 隐藏节点阶段的快照；当前权威清单以 features.json categories 与 src/config/nodeRegistry.ts 为准。",
         "左侧侧边栏、右键画布空白区快添加(QUICK_NODES=input+core)、从 Handle 拖出后出现的能力匹配候选菜单三个入口均不再出现隐藏节点",
         "需要重新启用某个节点时,只需在 nodeRegistry.ts 对应行删除 hidden: true 即可,零代码改动"
       ]
@@ -1255,68 +1259,67 @@
       ]
     },
     "phase80": {
-      "label": "七牛云 / Grsai 图像 provider 接入与比例化 size 选择（fork 自有 · 原 phase77 · v1.5.8 fork 自增 / 注：与 upstream v1.5.8 phase77 主题图标按钮 同号不同事）",
+      "label": "画板节点开放与主题浮动控件层级规范 (v1.6.1)",
       "status": "complete",
       "items": [
-        "fork 自有特性，原以 v1.5.6 编号本地开发；合并上游 v1.5.7 后整体上行到 v1.5.8 对外。v1.6.1 merge upstream 时本 phase 从 phase77 重命名为 phase80，避免与 upstream phase77 撞 JSON key。",
-        "新增七牛云图像 provider：独立 qiniuApiKey + qiniuBaseUrl（与贞贞工坊完全解耦），走 OpenAI 兼容协议（POST /v1/images/generations 文生图，POST /v1/images/edits 图生图，GET /v1/images/tasks/:tid 异步轮询），子模型 gemini-3.1-flash-image-preview（默认）与 openai/gpt-image-2；前端 src/integrations/qiniu/ 独立 runner 与参数面板，后端 /api/proxy/qiniu/image[/submit|/status/:tid] 三条代理路由（pollMaxRetries=1800/2s = 60 分钟上限）。",
-        "新增 Grsai 中转站图像 provider：独立 grsaiApiKey + grsaiBaseUrl，自有协议（非 OpenAI 兼容）POST /v1/api/generate → GET /v1/api/result，11 个子模型（9 个 nano-banana 系列 + 2 个 gpt-image-2 系列），前端 src/integrations/grsai/ 独立 runner 与参数面板，后端 /api/proxy/grsai/image[/submit|/status/:tid] 三条代理路由。",
-        "Grsai 默认子模型从 nano-banana-2 改为 gpt-image-2，apiModelOptions 标签同步加 (默认) 标记。",
-        "size / 比例下拉统一改为比例显示（auto + 14 个），不再向用户暴露像素串；新增 integrations/qiniu/sizeMap.ts 与 integrations/grsai/sizeMap.ts 各自维护按 apiModel 分组的比例集合 + 比例 → 像素串映射器。",
-        "七牛云比例集合按子模型分组：gemini-3.1-flash-image-preview 全 14 个 + auto；openai/gpt-image-2 仅 10 个 ≤3:1 比例 + auto（文档约束「长边/短边 ≤ 3:1」，排除 1:4 / 4:1 / 1:8 / 8:1）。",
-        "Grsai 比例集合按子模型分组：nano-banana / nano-banana-pro 系列 11 通用比例；nano-banana-2 系列 11 + 4 极端（1:4 / 4:1 / 1:8 / 8:1）；gpt-image-2 / gpt-image-2-vip 11 通用比例（gpt-image-2-vip 上游强制像素串，runner 提交前完成 ratio → 像素串转换）。",
-        "比例 → 像素串转换规则：5 个文档「常用 size」直接映射（1:1 → 1024x1024，3:2 → 1536x1024，2:3 → 1024x1536，16:9 → 2048x1152，9:16 → 1152x2048），其它比例按 1MP 目标 + 16px 对齐 + 长边 ≤3840 计算；'auto' 透传；旧画布的像素串值兼容直通；vip 路径下 'auto' 退化到 1024x1024。",
-        "ImageNode 子模型 onChange 与 switchModel 同时按新 apiModel 的允许集合校验已存比例值，越界则迁移到 DEFAULT_QINIU_RATIO / DEFAULT_GRSAI_RATIO，避免跨子模型残留非法选项触发上游报错。",
-        "七牛 / Grsai 参数面板 UI 与 GPT2 面板对齐：去掉外层 sky / violet 颜色边框，使用 grid grid-cols-2 简洁布局；标签全部中文化（Quality → 质量，Size → 比例，AspectRatio → 比例，ImageSize → 尺寸）。",
-        "fork 公开版本对外统一到 1.5.8：package.json、package-lock.json、vite.config.ts、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/CLAUDE.md、src/integrations/README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+        "工具分类正式开放 drawing-board 画板节点，并加入可执行节点集合与顶部 RUN / 批量运行能力；默认尺寸同步为 1120×760，适合左侧设置、右侧创作画布的双列布局。",
+        "DrawingBoardNode 升级为图层式创作画板：默认空白图层，支持新建图层、新建组、图层组折叠、图层可见/锁定、上移/下移/删除、当前图层命名，画笔和图形只写入当前可编辑图层。",
+        "画板支持 1:1、16:9、9:16、4:3、3:4 与自由尺寸，支持载入本地图片或上游图像为独立图层，图片和图形可拖动、四角缩放、顶部旋转，箭头方向保持用户拖拽方向。",
+        "画板节点补齐导入画板 / 导出画板 JSON 与运行输出 PNG；Delete/Backspace 只在焦点仍位于画板节点内时删除内部元素，点击主画布或其他节点后会清空画板内部选中，避免误删。",
+        "Canvas 将 ThemeMusicToggle 与 ReactFlow Controls 合并到 .t8-control-rail，同一轨道负责左下角定位和纵向堆叠，主题只覆盖视觉变量，彻底避免火影 / EVA / OP 等主题喇叭与缩放条漂移。",
+        "index.css 统一主题水印层级合同：.t8-canvas-shell::before/::after 只能作为 pointer-events:none 的背景层，ReactFlow 节点、边、浮层必须在其上方；Naruto / EVA 主题水印不再覆盖画板图片或普通节点。",
+        "EVA 深色模式 NERV 背景水印提高不透明度并取消混合导致的过暗效果，让深色画布也能看出主题标识，同时保持节点内容可读。",
+        "全局右键 / 框选 / 快速添加 / 拖线候选菜单与选中节点 RUN/关闭浮动条纳入主题合同，统一使用 t8-context-menu / t8-node-action-bar，修复 OP、RH、火影、EVA 等主题下菜单不可读或绿色按钮残留。",
+        "LLM/Vision 助手回复右上角新增双打散入口：文档图标会把完整回复生成一个文本节点，剪刀图标保留原智能打散，可按宫格 / 镜头 / 分镜 / 场景 / 序号结构拆成多个独立文本节点；批量选择节点右键新增批量下载，可跳过无素材节点并收集 image/video/audio 与素材集媒体项。",
+        "编辑图片弹窗的宫格切分默认从 2×2 调整为 3×3，并在预设宫格与自定义切线两种模式中给 gap 去缝间距补充滑杆；数字框与滑杆实时互相同步，方便用户快速感知缝隙大小。",
+        "公开版本同步到 1.6.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 与 docs/theme-design-guide.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
       ]
     },
     "phase81": {
-      "label": "七牛 image-edits size 修复 + Grsai gpt-image-2-vip 双控件（fork 自有 · 原 phase78 · v1.5.9 fork 自增 / 注：与 upstream v1.5.9 phase78 EVA 主题 同号不同事）",
+      "label": "跨画布素材 / 节点发送与 Eagle 入库 (v1.6.2+)",
       "status": "complete",
       "items": [
-        "v1.6.1 merge upstream 时本 phase 从 phase78 重命名为 phase81，避免与 upstream phase78 撞 JSON key。",
-        "修复七牛 openai/gpt-image-2 图生图 size 字段被守卫过滤的问题（backend/src/routes/proxy.js 的 callQiniuImageUpstream 历史实现 if (!hasRefs) body.size = ... 把图生图分支的 size 显式拦下了），改为无条件 body.size = size || 'auto'；日志占位符 body.size || '(edit)' 换为直接打印 body.size。",
-        "新增七牛 openai/gpt-image-2 的 1K/2K/4K 清晰度档：QiniuImageTab 在该 apiModel 下显示第三列下拉，sizeMap 三档独立 DOC_PRESETS_BY_RES 预设表，未命中按目标像素 + 16 对齐 + 长边 ≤3840 + 总像素 ≤8.29MP 兜底；旧画布无 qiniuResolution 默认 1K。",
-        "新增 Grsai gpt-image-2-vip 的「比例 × 清晰度」双控件：sizeMap 新增 GrsaiResolution / RES_TO_TARGET_PIXELS / DOC_PRESETS_BY_RES（按上游文档铺 14 比例 × 3 档完整预设表，1:3 / 3:1 在 2K 档由 computeVipSize 4MP 兜底）；vip 比例列表新增 1:3 / 3:1 / 2:1 / 1:2 共 4 个 vip 独有比例并去掉 auto（旧画布残留 'auto' → 1024x1024）；GrsaiImageTab 触发条件改为 nano-banana 系列 + isGptImage2VipModel；runGrsaiImage 把 imageSize 透传给 resolveGrsaiAspectRatio，日志同时打印 ratio 与 imageSize。",
-        "fork 公开版本对外统一到 1.5.9（fork 自增）：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/integrations/README.md、src/integrations/grsai/README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+        "新增 SendMaterialsModal 发送素材弹窗，框选上传素材、输出素材、素材集或从资源库卡片触发时，会汇总图像 / 视频 / 音频 / 文本并显示素材概览。",
+        "选中多个节点发送到其他画布时，新增“节点片段”模式：复制选中节点本体并保留选中节点之间的内部连线，目标画布仍保持原工作流关系；资源库和 Eagle 入口继续只处理图像 / 视频 / 音频 / 文本素材。",
+        "发送方式支持智能保持、合并素材集、上传素材、拆成多个上传、输出素材；目标画布支持搜索与明确选中态，底部展示当前选择，发送 / 保存 / Eagle 操作都有忙碌反馈。",
+        "Canvas 跨画布写入目标画布 JSON 后刷新画布列表；勾选发送后切换时，会在目标画布加载完成后自动定位到新建素材节点中心，当前画布发送也会聚焦新节点。",
+        "顶部工具条新增任务完成提示音开关，默认开启；仅图像 / 视频 / SD2.0(seedance) / 音频 / LLM 节点成功完成时播放独立轻提示音，和 ThemeMusicToggle 主题音乐通道分开，主题音乐静音不影响提示音，并通过全局 5 秒节流避免批量运行频繁响铃。",
+        "同批素材发送写入 sendBridgeSignature / sendBridgeMode / sendBridgeSourceCanvasId；重复向同一画布发送相同素材时会先替换旧批次，旧版无签名但由发送功能创建的同素材节点也会被清理，避免 2 个素材多次累计成 8 个节点。",
+        "新增后端 /api/eagle/status 与 /api/eagle/import，本地 Eagle API 只允许 localhost / 127.0.0.1 / ::1，支持本地 input/output 文件、资源库文件、资源库素材集文件与文本临时 txt 入库。",
+        "设置页新增 Eagle 本地接口地址，默认 http://127.0.0.1:41595；_post_build.cjs 增加 routes/eagle.t8c 检查，确保 Electron 打包不会漏掉 Eagle 路由。",
+        "公开版本同步到 1.6.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
       ]
     },
     "phase82": {
-      "label": "合并 upstream v1.6.0 → fork v1.6.1（EVA 主题三合一 + fork 七牛/grsai 自有）",
+      "label": "跨画布素材发送体验优化 (v1.6.3)",
       "status": "complete",
       "items": [
-        "fetch upstream T8mars/T8-penguin-canvas，pull 上游 2 个新 commit：3c23dcd v1.5.8 主题图标按钮 / 跨平台默认路径 / 火影悬浮控件，bd29a27 v1.6.0 EVA 浅色对比度修复；含 upstream v1.5.9 EVA 官方主题首发。",
-        "merge upstream/main → 出 8 个冲突文件（package.json / package-lock.json / vite.config.ts/js / electron/main.cjs / backend/src/config.js / features.json / README.md），其它业务文件 100% auto-merge 成功。",
-        "版本号决策 v1.6.1：fork 自增模式（与 v1.5.7→v1.5.8 一致），fork 永远高 upstream 半档便于追溯。",
-        "phase JSON key 撞号修复：fork 原 phase77（七牛/Grsai 接入 v1.5.8）重命名为 phase80；fork 原 phase78（七牛 size 修复 + grsai 双控件 v1.5.9）重命名为 phase81；新增本 phase82 作为合并 anchor。",
-        "fork 自有目录 100% 保留：src/integrations/qiniu/ + src/integrations/grsai/ + 中转站/ + CLAUDE.md 根/子目录 + 七牛/grsai 子 README 完全未触及。",
-        "公开版本对外统一到 1.6.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+        "SendMaterialsModal 新增本机发送历史，最多保留 12 条成功发送记录，记录目标画布、发送方式、素材摘要、素材签名与发送时间。",
+        "发送弹窗左侧展示最近 4 条发送历史，点击历史可恢复目标画布与发送方式；目标画布区域新增最近发送画布快捷入口，减少多画布项目中的搜索成本。",
+        "同一批素材再次发送到同一目标画布时，弹窗会显示重复素材提示，提醒用户本次会优先复用既有 sendBridgeSignature 去重替换机制，避免旧发送节点反复堆叠。",
+        "发送目标初始化增加兜底：如果历史中的旧目标画布已不存在，会自动回退到当前画布或第一个可用画布，避免空目标导致用户迷惑。",
+        "公开版本同步到 1.6.3：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
       ]
     },
     "phase83": {
-      "label": "修复七牛 gemini-3.1-flash-image-preview 比例参数不生效（image_config 协议适配）· v1.6.2",
+      "label": "肖像大师基础可用版 (roadmap phase 1)",
       "status": "complete",
       "items": [
-        "根因：callQiniuImageUpstream 对两个七牛子模型用同一份 OpenAI 兼容 body（body.size + body.quality），而 gemini-3.1-flash-image-preview 上游协议根本不接受顶层 size/quality 字段，比例/清晰度必须通过嵌套 image_config:{aspect_ratio, image_size} 表达。gemini 收到 OpenAI body 后静默忽略 size，因此回退默认 1:1。phase81 的 if(!hasRefs) 守卫修复只让 openai/gpt-image-2 受益。",
-        "修复方案（按文件由内向外）：backend/src/routes/proxy.js callQiniuImageUpstream 新增 aspectRatio/imageSize 形参，按 model === 'gemini-3.1-flash-image-preview' 分支：gemini 写 body.image_config.{aspect_ratio,image_size}（auto 不送，让上游默认）；openai 维持 body.size + body.quality；同步 /qiniu/image 与 /qiniu/image/submit 两条路由解构透传新字段。",
-        "前端：src/services/generation.ts QiniuImageSubmitRequest 接口加 aspectRatio?: string 与 imageSize?: '512'|'1K'|'2K'|'4K' 两个可选字段。",
-        "runner: src/integrations/qiniu/runQiniuImage.ts 按 isGemini 分流 —— gemini 路径直接送原始比例字符串 + resolution（auto 与像素串残留 /^\\d+x\\d+$/ 不送 aspectRatio 让上游默认）；openai 维持 ratioToQiniuSize；logBus 输出按子模型区分。",
-        "UI: src/integrations/qiniu/QiniuImageTab.tsx supportsResolution 扩展为 openai/gpt-image-2 + gemini-3.1-flash-image-preview 都支持，gemini 也显示清晰度档；quality 控件保持显示（gemini 上游忽略，UI 一致性优先）。",
-        "sizeMap: src/integrations/qiniu/sizeMap.ts 顶部注释补 v1.6.2 协议分流说明，结构不动 —— ratioToQiniuSize 仅服务 openai 子模型，gemini 不经过此映射。",
-        "features.json: qiniu 注册项 params 改写为按子模型分流的描述；版本号 1.6.1 → 1.6.2。",
-        "公开版本对外统一到 1.6.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、src/integrations/README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+        "新增 roadmap.md，记录肖像大师四阶段开发要求：基础可用版、Avatar 可视预览、角色库与复用、高级随机与批量角色；负面约束暂不开发。",
+        "工具箱分类新增「肖像大师」节点，类型 portrait-master，节点只输出 prompt/text/metadata，不直接生成图片。",
+        "肖像大师内置基础人物、五官、头发、妆容、身体标记、服装、配饰、气质神情、画面控制 9 大类词库，每个小参数自动补齐到 100 个可选词条，支持不选、锁定随机、权重与自定义补充。",
+        "节点默认输出英文 prompt，同时保留中文 UI 摘要；运行按钮复用工具箱输出协议，会创建或更新下游 OutputNode，也可手动连线给图像、视频、SD2.0、LLM、RunningHub 等节点消费。",
+        "UI 使用 t8-node / t8-card / t8-btn / t8-input / t8-mini-icon-button 主题语义类，随现有多主题模板自动适配。"
       ]
     },
     "phase84": {
-      "label": "合并 upstream main → fork v1.7.0（drawing-board 开放 + 主题控件统一 + LLM 双打散 + 宫格 gap 滑杆）",
+      "label": "肖像大师 Avatar 可视预览 (roadmap phase 2)",
       "status": "complete",
       "items": [
-        "fetch upstream T8mars/T8-penguin-canvas main 后多 3 个 commit：8e25fcc release drawing board + stabilize theme controls (v1.6.1)、955c4d7 polish themed canvas actions、daf3e0a refine grid split and llm scatter；fork 已在 v1.6.2，merge --no-ff 后出 8 个版本号/元数据冲突文件（package.json / package-lock.json / vite.config.ts/js / electron/main.cjs / backend/src/config.js / features.json / README.md），所有节点代码 / 主题 CSS / DrawingBoardNode +1805 行重写、Canvas.tsx polish、LLMNode 双打散、ResourceLibraryDrawer 批量下载、ImageEditModal gap 滑杆等业务文件 100% auto-merge 成功。",
-        "版本号决策 v1.7.0：upstream 引入 drawing-board 正式开放 + 主题悬浮控件层级合同（.t8-control-rail） + LLM 文档/智能双打散 + ImageEditModal 宫格 3×3 默认 + gap 滑杆 等多项重大功能，按 CLAUDE.md 「下一阶段 1.(x+1).0」规则升 1.7.0；upstream 自身 8e25fcc 是 v1.6.1（与 fork 的 v1.6.1 撞号），fork v1.7.0 永远高于 upstream 半档便于追溯。",
-        "冲突解决策略：features.json 与 package-lock.json 直接 git checkout --ours（含 fork phase80~83 七牛/grsai 完整保留），然后单独把 version/lastUpdated 字段升到 1.7.0；其余 6 个版本号文件逐处 Edit 改成 v1.7.0。",
-        "fork 自有目录 100% 保留：src/integrations/qiniu/ + src/integrations/grsai/ + 中转站/ + CLAUDE.md 根/子目录 + 七牛/grsai 子 README 完全未触及。",
-        "公开版本对外统一到 1.7.0：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 全部同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+        "肖像大师节点的 Avatar 占位预览升级为轻量 SVG 分层预览，显示头发、脸型、肤色、眼睛、眉毛、嘴型、服装、发饰、眼镜/面饰、体表标记和氛围背景。",
+        "portraitMasterOptions 词库新增 previewTag / preview 元数据，并通过 resolvePortraitPreview(selection) 统一汇总预览状态，避免在 UI 里为每个词条写绘图分支。",
+        "配饰大类补充「眼镜/面饰」分组，所有小参数统一扩展为 100 项，既参与 prompt 也驱动 Avatar 可视层。",
+        "Avatar 预览只提供创作方向感，不生成真实图片、不调用后端、不消耗 API；运行输出 metadata 会携带 preview 快照，方便后续角色库阶段复用。"
       ]
     },
     "phase85": {
@@ -1406,59 +1409,119 @@
       ]
     },
     "phase93": {
-      "label": "合并 upstream v1.6.5 → fork v1.7.1（肖像大师修复 + 跨画布素材发送增强）",
+      "label": "姿势大师单人线稿基础版 (v1.6.9)",
       "status": "complete",
       "items": [
-        "fork 原 phase87，因 upstream v1.6.6 起占用 phase87/88 而重命名为 phase93（v1.7.3 合并时迁移）。",
-        "fetch upstream T8mars/T8-penguin-canvas main 后多 4 个 commit：e3ed1f8 跨画布素材发送、feb6eb8 发送历史增强、baafd38 v1.6.4、2288718 v1.6.5 肖像大师与 LLM 默认模型修复。",
-        "merge upstream/main 时手工融合版本号、features.json、ApiSettings、Electron/backend/Vite 配置冲突；fork 自有七牛/Grsai provider、品牌 favicon、接口文档和 v1.7.0 drawing-board/主题控件改动继续保留。",
-        "版本号决策 v1.7.1：fork 已是 1.7.0，本次吸收 upstream 1.6.5 后按补丁版本递增，避免回退到 upstream 版本号。",
-        "features.json 同步补入 upstream phase85/phase86、portrait-master 工具箱节点、drawing-board 与 portrait-master 可执行清单，并移除 drawing-board 的非执行标记以匹配当前代码。",
-        "公开版本对外统一到 1.7.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次未重新打包 Electron。"
+        "工具箱分类新增「姿势大师」节点，类型 pose-master，第一版先支持单人人体体块线稿姿态编辑，不做图片识别和多人姿态。",
+        "姿势大师内置 100 种不同常用姿势预设，覆盖站立、行走、跑跳、坐躺、战斗、舞蹈、运动、日常动作与镜头姿态；每个预设都有独立关节点坐标和姿态线稿，不使用镜像凑数。用户可在节点内拖动关节点继续微调，预览与导出会显示更修长的人体比例、头部、躯干、四肢体块、手脚和结构分段线，并提供更宽的姿态白布方便展开动作。",
+        "节点支持视角、景别和中英文 prompt 切换，默认 English prompt；可导入/导出 t8-pose-master JSON，便于复用姿态。",
+        "运行姿势大师会生成 768×1056 PNG 线稿参考图，并同步输出 prompt/text 与 metadata；若下游已有 OutputNode 则更新结果，否则自动创建输出素材节点。",
+        "端口协议为 outputs: image/text/metadata，可把姿势参考图接给图像/视频类节点，把 prompt 接给文本、LLM 或其他可执行节点。已通过 npm run build。"
       ]
     },
     "phase94": {
-      "label": "Electron 客户端单实例检测与新版构建 (v1.7.2)",
+      "label": "姿势大师姿势库与批量分镜增强 (v1.6.9)",
       "status": "complete",
       "items": [
-        "fork 原 phase88，因 upstream v1.6.6-hotfix 起占用 phase88 而重命名为 phase94（v1.7.3 合并时迁移）。",
-        "Electron 主进程在启动早期调用 app.requestSingleInstanceLock() 获取单实例锁；未获取锁的第二个进程立即退出，避免重复拉起 Express 后端和多个主窗口。",
-        "主实例监听 second-instance 事件，若用户再次打开程序，会优先聚焦主窗口；若主窗口尚未创建则聚焦启动日志窗口，最小化状态会先 restore。",
-        "版本号同步到 1.7.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs 三处显示、backend/src/config.js APP_VERSION、features.json、README.md。",
-        "本版本目标为重新构建 Windows 客户端安装包。"
+        "姿势大师在不改变旧版 RUN 单姿势输出的前提下，新增姿势收藏、收藏列表快速套用、当前姿势 JSON 导入/导出，以及 t8-pose-master-library 姿势库 JSON 导入/导出。",
+        "新增多姿势批量输出：支持从当前预设开始连续生成、随机常用姿势、复制当前姿态三种模式，最多一次输出 8 张姿势参考图与对应 prompt/textSegments，适合分镜动作草案。",
+        "新增姿势强度：自然、夸张、漫画感、战斗感、舞台感；默认 English prompt，仍可切换中文 prompt。",
+        "姿势大师可兼容上游 text/image/metadata：肖像大师或视频运镜的文本会自动合并为完整角色动作 prompt，上游图片作为姿态画布淡底参考图显示但不写入导出的参考 PNG，避免污染控制图。",
+        "端口协议扩展为 inputs: text/image/metadata、outputs: image/text/metadata；未连接上游时保持原独立姿势工具行为，旧画布不需要迁移。"
       ]
     },
     "phase95": {
-      "label": "合并 upstream v1.6.6→v1.6.9 → fork v1.7.3（肖像大师批量随机 + 幽游白书主题 + G 快捷键）",
+      "label": "姿势大师识别与高阶控制 (v1.6.9)",
       "status": "complete",
       "items": [
-        "fetch upstream T8mars/T8-penguin-canvas main 后多 3 个 commit：83b9a0c v1.6.6 肖像大师角色库 + 跨画布素材发送增强、913f1c3 幽游白书主题打磨、8336346 v1.6.9 肖像大师批量随机修复；以及 v1.6.7/v1.6.8 中间 phase 全部纳入。",
-        "merge upstream/main 时所有源码冲突均由 git 自动合并（PortraitMasterNode、Canvas、SendMaterialsModal、sendMaterials 等）；手工融合的仅 8 个元数据文件：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs（3 处）、backend/src/config.js APP_VERSION、README.md、features.json。",
-        "版本号决策 v1.7.3：fork 已是 1.7.2，本次吸收 upstream 1.6.6→1.6.9 后按补丁版本递增，延续「不回退到 upstream 版本号」的 fork 历史惯例。",
-        "features.json phase 编号策略：upstream phase87-92 保持原号；fork 原 phase87/88 重命名为 phase93/phase94 避让，新增 phase95 记录本次合并。延续 v1.6.1 合并时「fork phase77/78 重命名为 phase80/81」的处理方式。",
-        "fork 自有 v1.7.0 drawing-board、v1.7.1 upstream 同步、v1.7.2 单实例检测、七牛/Grsai provider、品牌 favicon 与接口文档全部保留；features.json themes 列表合并新增 5 条主题视觉守则、shortcuts 区采纳 upstream Z/G 快捷键。",
-        "公开版本对外统一到 1.7.3：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs 三处、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次未重新打包 Electron，skill.md 仅本地更新。"
+        "新增 MediaPipe Pose 前端识别：可导入人物图片，识别 33 个姿态点后转换为姿势大师可编辑骨架；识别只在用户主动导入图片时触发。",
+        "新增多人物姿态：同一姿势画布最多保留 3 个人物骨架，可新增、复制、删除并切换当前编辑人物；输出 PNG 与 metadata 会保留多人结构。",
+        "新增 OpenPose / COCO keypoints JSON 导出，供 ComfyUI / ControlNet 等用户复用；导出内容跟随当前多人姿态与画布坐标。",
+        "新增手部简化控制：左右手分别支持手掌方向、握拳、张开、指向和放松等轻量设置，并自动补充到 prompt 中。",
+        "新增 A/B 关键帧插值：可保存当前姿势为 A/B，设置帧数后输出一组姿态序列参考图，用于视频生成前的动作过渡规划。",
+        "批量分镜和关键帧序列现在只创建或更新一个姿势分镜合集 OutputNode，不再额外生成多个单体输出节点，避免画布重复素材。"
       ]
     },
     "phase96": {
-      "label": "v1.7.4 fork-only · 新增 Geeknow LLM 中转站独立节点（与 upstream LLMNode 完全隔离）",
+      "label": "设置页总导入导出 (v1.6.9)",
       "status": "complete",
       "items": [
-        "动机：用户希望接入 Geeknow 中转站做 LLM 推理，同时保留贞贞工坊原 LLMNode 不动以便 upstream 合并。Geeknow 协议为标准 OpenAI Chat Completions 兼容（POST /v1/chat/completions + GET /v1/models + Bearer 鉴权 + SSE）。",
-        "节点 type='t8f-geeknow-llm'（fork 前缀避让 upstream 撞名），新增 src/components/nodes/GeeknowLlmNode.tsx；端口语义与 llm 一致 inputs:['text','image'] outputs:['text']；EXECUTABLE_NODE_TYPES、Canvas nodeTypes 注册表、DEFAULT_DATA 同步登记。",
-        "后端独立路由 POST /api/proxy/llm-geeknow（SSE 透传）+ GET /api/proxy/llm-geeknow/models（模型列表代理），位于 backend/src/routes/proxy.js 末尾的 FORK-GEEKNOW-LLM 围栏内，复用主 LLM endpoint 的 normalizeLlmMessageImages 处理 /files/* 多模态参考图。",
-        "前端服务 src/integrations/geeknow/runGeeknowLlm.ts：generateGeeknowLlm / generateGeeknowLlmStream / fetchGeeknowModels 三个导出，与 src/services/generation.ts 主线 generateLlm 完全解耦。",
-        "13 个内置模型 GEEKNOW_LLM_MODELS（providers/models.ts）：OpenAI 3 + Claude 4.x 全家桶 3 + Gemini 2.5/3.1 共 3 + DeepSeek 2 + Qwen 2，默认 gpt-4o-mini；节点 UI 提供「刷新模型列表」按钮调上游 /v1/models 写入 localStorage 't8f-geeknow-dynamic-models' 覆盖静态清单。",
-        "独立 Key 字段 geeknowApiKey + geeknowBaseUrl（默认 https://www.geeknow.top，用户可改自建中转），ApiSettings 类型与 apiKeys store 同步追加；ProviderType 联合类型新增 'geeknow'。",
-        "围栏注释：所有 fork 改动用 'v1.7.4 fork-only' 或 'FORK-GEEKNOW-LLM' 注释标记，便于 upstream 合并时定位。upstream LLMNode.tsx / generation.ts runLlm / 主 LLM endpoint 全部未动。",
-        "未来 upstream 若新增 LLM 节点：fork 已避让 type 命名空间（t8f- 前缀），最大冲突点是 nodeRegistry / EXECUTABLE_NODE_TYPES 数组并排，git merge 即可手动 OK。"
+        "API Key 设置弹窗底部在「取消」左侧新增「导入设置」和「导出设置」按钮，作为更换版本时的一键配置备份入口。",
+        "导出设置会读取 /api/settings/raw 明文配置，并生成 t8-penguin-canvas-settings JSON，覆盖贞贞工坊 / RunningHub / LLM 通用 Key、7 类分类独立 Key、文件自动保存路径、画布自动保存路径、资源库路径、主题模板路径和 Eagle 本地接口。",
+        "导入设置只接受白名单字段，自动跳过空值、未知字段和 ****1234 这类脱敏 Key；导入后先回填表单，用户确认后点击「保存」才写入后端，避免误选文件直接覆盖本地设置。",
+        "导出的 JSON 标记 containsSecrets=true 并提示包含明文 API Key，属于私密备份，不能上传 GitHub 或公开分享。"
+      ]
+    },
+    "phase97": {
+      "label": "姿势大师 OpenPose/COCO 输出与 Grok/Sora FAL 模型扩展 (v1.7.0)",
+      "status": "complete",
+      "items": [
+        "图像节点新增 Grok Image TAB，复用 gpt-image-2-web 的 Grok Image 调用方式，参考图默认按 base64 传入，并保持 GPT2 / 香蕉 / FAL / MJ 原有链路不变。",
+        "视频节点新增 Sora2 FAL TAB，只保留稳定的 sora-2 (FAL) 模型入口，支持 auto / 文生视频 / 图生视频模式、时长、分辨率、比例、角色 ID 和 IP 阻断等参数，参考图默认 base64 传入。",
+        "Grok Video FAL 从单一图生视频扩展为图生视频 / 参考生视频两种模式；参考生视频支持多张上游参考图和额外 URL，保持普通 Grok、Veo、Seedance、Sora2 互不破坏。",
+        "姿势大师新增线稿图 / OpenPose图 / COCO图三种可见预览与运行输出模式；OpenPose/COCO JSON 导出仍作为独立 keypoints 复用入口保留。",
+        "姿势大师横向画布扩展为多人构图更友好的宽画布，并通过 pointVersion 兼容旧姿势；新增清空按钮、修复最后一个人物无法删除、增加抓取模式，用户可直接拖动整个人物主体。"
+      ]
+    },
+    "phase98": {
+      "label": "科技风浅色主题一致性与交互热修 (v1.7.1)",
+      "status": "complete",
+      "items": [
+        "科技风浅色模式新增 legacy node adapter，统一覆盖老节点内部 text-white、bg-zinc/bg-neutral/bg-black、bg-white/5、border-white/cyan/blue、暗色输入框与 placeholder 等硬编码样式，修复经典白天模式下图像 / 文本 / 旧生成节点仍显示黑卡片或浅字的问题。",
+        "顶部栏推广入口、资源库抽屉、设置弹窗和主题模板弹窗支持点击画布空白处关闭，保留充值弹窗既有交互，减少必须二次点击图标关闭的割裂感。",
+        "画布 Ctrl+V 媒体粘贴增加快捷键与原生 paste 事件去重，避免复制截图或文件时同一批素材被创建两次，同时保留节点内部复制粘贴逻辑。",
+        "LLM/Vision 模型列表新增 gemini-3.5-flash，默认模型和其他 LLM 链路保持不变。"
+      ]
+    },
+    "phase99": {
+      "label": "连线导航模式与媒体默认值热修 (v1.7.2)",
+      "status": "complete",
+      "items": [
+        "拖线过程中按 Space 可进入连线导航模式：松开鼠标不会取消起点，用户可拖动画布后点击目标接口完成远距离连接，再次按 Space 或窗口失焦会取消；快捷键面板同步新增说明。",
+        "连线导航模式增加画布边缘脉冲与 HUD 提示，视觉色值跟随 --t8-flow-controls-* 主题变量，避免用户无法感知当前是否处于特殊连接状态。",
+        "ReactFlow Controls 统一接入 t8-control-rail 主题变量，修复科技风黑夜模式下缩放控制条和按钮回退为白色导致不可读的问题，并纳入主题设计合同。",
+        "Ctrl+V 媒体粘贴在快捷键与原生 paste 两条路径都按 name/size/type 去重，修复复制截图或文件时偶发创建两个相同上传节点的问题。",
+        "Grok Video FAL 默认模式改为参考生视频；GPT2 图像参考图上限提升到 9 张，满足多图参考工作流。"
+      ]
+    },
+    "phase100": {
+      "label": "Sora2 FAL 模型入口热修 (v1.7.3)",
+      "status": "complete",
+      "items": [
+        "视频节点 Sora2 只保留稳定 sora-2 (FAL) 一个具体模型入口，不再显示 sora-2-2025-12-08 / sora-2-2025-10-06 日期版模型，避免用户误选后任务失败。",
+        "前端 VideoNode 会把历史画布里保存的 sora-2-2025-* 自动识别为 Sora2 主模型，避免旧节点因为模型选项被移除而回退到其他视频模型。",
+        "后端 /api/proxy/video/fal/submit 会在校验、选路和 payload 组装前把日期版 Sora2 模型名归一为 sora-2；实际仍走 fal-ai/sora-2/text-to-video 或 fal-ai/sora-2/image-to-video，参考图默认 base64。",
+        "README、features.json 与版本文件同步到 v1.7.3；skill.md 仅本地记录，不参与 GitHub 推送。"
+      ]
+    },
+    "phase101": {
+      "label": "节点片段发送与任务完成提示音 (v1.7.4)",
+      "status": "complete",
+      "items": [
+        "跨画布发送弹窗新增「节点片段」模式，框选多个节点发送到其他画布时会复制选中节点自身数据，并保留选中节点之间的内部连线关系；素材 / 资源库 / Eagle 发送仍保持原有素材模式。",
+        "节点片段落到目标画布时会重新映射节点和连线 id，保持相对布局并避开目标画布已有节点；发送后切换目标画布和定位新内容继续可用。",
+        "顶部工具栏新增任务完成提示音开关，默认开启并持久化，提示音与主题音乐分离，主题音乐静音时仍可播放。",
+        "提示音只覆盖图像、视频、SD2.0、音频和 LLM 五类核心生成节点，手动点击节点生成和顶部 RUN / 批量运行都在真实成功完成后触发；5 秒内最多响一次，避免连续任务造成干扰。",
+        "主题 CSS 补充 select / option 兜底、幽游白书 select 样式和模型帮助面板样式，保持多主题下表单与帮助浮层可读。"
+      ]
+    },
+    "phase102": {
+      "label": "新增 Geeknow 中转站 LLM 推理节点 (v1.7.4 fork)",
+      "status": "complete",
+      "items": [
+        "新增 GeeknowLlmNode 节点（type: t8f-geeknow-llm），支持 Geeknow API 中转站的 LLM 推理服务，集成 gpt-4o-mini、gpt-4o、o1-mini、o1 等模型。",
+        "后端代理：backend/src/routes/proxy.js 新增 /api/geeknow/llm 路由，支持流式与非流式响应，自动注入 API Key。",
+        "前端节点：src/components/nodes/GeeknowLlmNode.tsx 复用 LLMNode 的 UI 结构，集成模块 src/integrations/geeknow/ 提供配置与运行逻辑。",
+        "API 配置：ApiSettings 新增 Geeknow API Key 配置项，模型注册 providers/models.ts 新增 Geeknow 模型列表。",
+        "文档更新：新增 docs/llm-inference.md LLM 推理专项文档，更新 src/integrations/README.md 集成说明，更新 CLAUDE.md 变更记录。",
+        "节点 type 使用 t8f- 前缀（t8-fork）避让 upstream，features.json 新增 phase102 记录，Canvas 注册表与可执行清单同步更新。"
       ]
     }
   },
   "categories": {
     "input": {
       "label": "素材资源",
-      "count": 3,
+      "count": 5,
       "nodes": [
         {
           "type": "upload",
@@ -1479,7 +1542,7 @@
     },
     "core": {
       "label": "核心节点",
-      "count": 7,
+      "count": 6,
       "nodes": [
         {
           "type": "text",
@@ -1509,12 +1572,7 @@
         {
           "type": "llm",
           "label": "LLM/Vision 节点",
-          "description": "完全对齐 gpt-image-2-web chat:5 模型(gemini-3.1-flash-lite 默认/gpt-4o/gemini-3.1-pro/gpt-5/gpt-image-2-all) + temp/max_tokens + system 预设 + 多模态图片 + 多轮会话 + SSE 流式 + 独立 LLM Key"
-        },
-        {
-          "type": "t8f-geeknow-llm",
-          "label": "Geeknow LLM 节点（fork v1.7.4）",
-          "description": "fork-only 中转站推理节点：Geeknow OpenAI Chat Completions 兼容（POST /v1/chat/completions + GET /v1/models），独立 geeknowApiKey + 可改 geeknowBaseUrl，13 个内置模型覆盖 GPT/Claude 4.x/Gemini 2.5+3.1/DeepSeek/Qwen，节点内一键刷新模型列表（写入 localStorage），完整复用 LLMNode 的 SSE 流式 + 多模态 + 系统提示词 + 多轮会话 + 上游聚合体验。type 加 t8f- 前缀避让 upstream，后端独立路由 /api/proxy/llm-geeknow 用 FORK-GEEKNOW-LLM 围栏标记。"
+          "description": "LLM/Vision 模型(gemini-3.1-flash-lite 默认/gemini-3.5-flash/gpt-4o/gemini-3.1-pro/gpt-5/gpt-image-2-all) + temp/max_tokens + system 预设 + 多模态图片 + 多轮会话 + SSE 流式 + 独立 LLM Key"
         }
       ]
     },
@@ -1705,6 +1763,11 @@
           "type": "portrait-master",
           "label": "肖像大师",
           "description": "捏人 Prompt 设计器：9 大类词库，每个小参数 100 个可选词条；支持 Avatar 分层预览、不选、锁定、权重、自定义补充、默认英文 prompt、角色库收藏、JSON 导入导出、资源库角色分类、跨画布发送配置/Prompt、高级随机、种子复现、风格包与批量输出文本节点/文本素材集"
+        },
+        {
+          "type": "pose-master",
+          "label": "姿势大师",
+          "description": "人体线稿姿态编辑器：可拖动关节点或抓取移动整个人物、套用常用姿势、MediaPipe 识别人物图、多人姿态、手部控制、A/B 关键帧、预览并输出线稿/OpenPose/COCO 参考图，同时导出 OpenPose/COCO keypoints JSON、prompt/text 与 metadata"
         }
       ]
     }
@@ -1841,52 +1904,6 @@
           "oref": "≤2张上传换URL"
         },
         "note": "严格对齐 gpt-image-2-web runMJ;无 FAL 渠道"
-      },
-      {
-        "id": "qiniu",
-        "label": "七牛云图像",
-        "provider": "qiniu",
-        "endpoint": "/v1/images/generations|/v1/images/edits|/v1/images/tasks/:tid",
-        "paramKind": "qiniu",
-        "models": [
-          "gemini-3.1-flash-image-preview",
-          "openai/gpt-image-2"
-        ],
-        "params": [
-          "按子模型分流上送字段",
-          "openai/gpt-image-2: quality(auto|low|medium|high) + size(UI 显示比例 auto+10 个 ≤3:1，runner 经 sizeMap 转像素串)",
-          "gemini-3.1-flash-image-preview: aspectRatio(UI 显示比例 auto+14 个 含 1:4/4:1/1:8/8:1，'auto' 不送让上游默认) + imageSize(1K|2K|4K) → 后端转 image_config.{aspect_ratio,image_size} 嵌套对象",
-          "qiniuResolution(1K|2K|4K, 默认 1K, 两个子模型 v1.6.2 起都显示清晰度档)"
-        ],
-        "baseUrl": "https://openai.qiniu.com (国内) | https://openai.sufy.com (海外)",
-        "note": "v1.5.6 新增 · 独立 qiniuApiKey + qiniuBaseUrl · 与贞贞工坊完全解耦 · openai/gpt-image-2 走 OpenAI 兼容协议(v1.5.9 起 size 字段在文生图/图生图两端共用 + 1K/2K/4K) · gemini-3.1-flash-image-preview v1.6.2 起按上游真实协议走 image_config 嵌套(此前一直发送 OpenAI size 字段被上游静默忽略导致回退 1:1) · 两个子模型共用 callQiniuImageUpstream，按 model 分流构造 body"
-      },
-      {
-        "id": "grsai",
-        "label": "Grsai 图像",
-        "provider": "grsai",
-        "endpoint": "/v1/api/generate|/v1/api/result?id=",
-        "paramKind": "grsai",
-        "models": [
-          "nano-banana",
-          "nano-banana-fast",
-          "nano-banana-2",
-          "nano-banana-2-cl",
-          "nano-banana-2-4k-cl",
-          "nano-banana-pro",
-          "nano-banana-pro-cl",
-          "nano-banana-pro-vip",
-          "nano-banana-pro-4k-vip",
-          "gpt-image-2(默认)",
-          "gpt-image-2-vip"
-        ],
-        "params": [
-          "aspectRatio(UI 显示比例；按子模型分组 — nano-banana-2 系列含 1:4/4:1/1:8/8:1，nano-banana / gpt-image-2 仅 ≤3:1 的 11 个含 auto，gpt-image-2-vip 14 个去 auto 加 1:3/3:1/2:1/1:2；gpt-image-2-vip 在 runner 内 ratio×resolution→像素串)",
-          "grsaiImageSize(1K|2K|4K, nano-banana 系列 + gpt-image-2-vip 显示, 默认 1K；nano-banana 上送上游 imageSize 字段，gpt-image-2-vip 本地查 DOC_PRESETS_BY_RES 三档预设表)",
-          "replyType(后端固定 async)"
-        ],
-        "baseUrl": "https://grsai.dakka.com.cn (国内) | https://grsaiapi.com (全球)",
-        "note": "v1.5.6 新增 · 独立 grsaiApiKey + grsaiBaseUrl · grsai 自有协议(非 OpenAI 兼容) · 文/图生图统一 /v1/api/generate · 状态枚举 succeeded/running/failed/violation · 默认子模型 gpt-image-2 · size 仅比例化显示 · gpt-image-2-vip 上游强制像素串由 sizeMap 按 ratio × resolution 转换(v1.5.9 起双控件)"
       }
     ],
     "video": [
@@ -1960,6 +1977,14 @@
       {
         "id": "gemini-3.1-flash-lite-preview",
         "label": "Gemini 3.1 Flash Lite (默认)",
+        "provider": "llm-direct",
+        "endpoint": "/v1/chat/completions",
+        "vision": true,
+        "stream": true
+      },
+      {
+        "id": "gemini-3.5-flash",
+        "label": "Gemini 3.5 Flash",
         "provider": "llm-direct",
         "endpoint": "/v1/chat/completions",
         "vision": true,
@@ -2132,8 +2157,8 @@
       ],
       "settings": [
         "GET /api/settings — 三套 Key 设置(脱敏)",
-        "GET /api/settings/raw — 内部明文(代理调用使用)",
-        "POST /api/settings — 更新设置（fileSavePath 变动后后端自动 ensureDir）",
+        "GET /api/settings/raw — 内部明文(代理调用使用；设置总导出会用作私密备份源)",
+        "POST /api/settings — 更新设置（fileSavePath/canvasAutoSavePath/resourceLibraryPath/themeTemplatePath 变动后后端自动 ensureDir；设置总导入回填后仍通过此接口保存）",
         "GET/POST/PUT/DELETE /api/settings/rh-tool-categories[/:id] — RH 超市分类 CRUD（v1.2.10）",
         "POST /api/settings/rh-tool-categories/reorder — RH 超市分类排序（v1.2.10）",
         "GET/POST/PUT/DELETE /api/settings/rh-tool-apps[/:id] — RH 超市应用 CRUD（v1.2.10）",
@@ -2164,6 +2189,10 @@
         "GET /api/resources/thumb/:id — 图片资源或素材集首图缩略图",
         "GET /api/resources/set/:id — 素材集 JSON manifest",
         "GET /api/resources/set-file/:id/:index — 素材集内第 index 个媒体文件"
+      ],
+      "eagle": [
+        "GET /api/eagle/status — 检查本机 Eagle API 可达性，仅允许 127.0.0.1/localhost",
+        "POST /api/eagle/import — 将上传素材、输出素材、素材集或文本发送到本机 Eagle，支持 /files/input、/files/output、资源库文件、素材集文件和 http(s) URL"
       ],
       "proxy": [
         "POST /api/proxy/image — 图像生成(贞贞工坊,自动转存)",
@@ -2224,7 +2253,8 @@
     "cinematic",
     "video-motion",
     "multi-angle-visual",
-    "portrait-master"
+    "portrait-master",
+    "pose-master"
   ],
   "nonExecutableNodeTypes": {
     "description": "不参与批量运行的节点(纯展示 / 参数记录 / 隐藏配置)",

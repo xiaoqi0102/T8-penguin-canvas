@@ -543,6 +543,9 @@ export default function ThemeTemplateManager({ open, onClose }: ThemeTemplateMan
     <div
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm px-modal-mask"
       style={{ zIndex: 10000 }}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className="w-[min(1120px,94vw)] h-[min(760px,92vh)] t8-panel overflow-hidden flex flex-col">
         <div className="shrink-0 flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: 'var(--t8-border)' }}>

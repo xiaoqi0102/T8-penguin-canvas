@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, KeyRound, Loader2, Lock, Save, Settings2, X, FolderOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, ExternalLink, Eye, EyeOff, FileUp, KeyRound, Loader2, Lock, Save, Settings2, X, FolderOpen } from 'lucide-react';
 import { useApiKeysStore, FIXED_ZHENZHEN_BASE, RH_BASE, DEFAULT_QINIU_BASE, DEFAULT_GRSAI_BASE, DEFAULT_GEEKNOW_BASE } from '../stores/apiKeys';
 import { useThemeStore } from '../stores/theme';
 import type { ApiSettings } from '../types/canvas';
@@ -51,8 +51,8 @@ const CLASSIFIED_KEYS: KeySpec[] = [
   { field: 'gptImageApiKey', label: 'gpt-image 系列', desc: 'GPT2 / gpt-image-1 等图像任务专用', bullet: 'bg-pink-400' },
   { field: 'nanoBananaApiKey', label: 'nano-banana 系列', desc: 'nano-banana / nano-banana-pro 专用', bullet: 'bg-yellow-400' },
   { field: 'mjApiKey', label: 'mj 系列', desc: 'Midjourney (turbo/fast/relax) 专用', bullet: 'bg-purple-400' },
-  { field: 'veoApiKey', label: 'veo 系列', desc: 'Veo / Veo3.1 视频专用', bullet: 'bg-blue-400' },
-  { field: 'grokApiKey', label: 'grok 系列', desc: 'Grok Imagine Video 专用', bullet: 'bg-orange-400' },
+  { field: 'veoApiKey', label: 'veo / sora 系列', desc: 'Veo / Veo3.1 / Sora2 视频专用', bullet: 'bg-blue-400' },
+  { field: 'grokApiKey', label: 'grok 系列', desc: 'Grok Image / Grok Imagine Video 专用', bullet: 'bg-orange-400' },
   { field: 'seedanceApiKey', label: 'seedance 系列', desc: 'Seedance 视频专用', bullet: 'bg-teal-400' },
   { field: 'sunoApiKey', label: 'suno 系列', desc: 'Suno 音乐专用', bullet: 'bg-rose-400' },
 ];
@@ -69,6 +69,17 @@ const ALL_FIELDS: KeyField[] = [
   ...CLASSIFIED_KEYS.map((k) => k.field),
   ...CUSTOM_PROVIDER_FIELDS,
 ];
+
+const PATH_FIELDS = [
+  'fileSavePath',
+  'canvasAutoSavePath',
+  'resourceLibraryPath',
+  'themeTemplatePath',
+  'eagleApiBase',
+] as const;
+
+const SETTINGS_BACKUP_SCHEMA = 't8-penguin-canvas-settings';
+const SETTINGS_BACKUP_VERSION = 1;
 
 const emptyMap = (): Record<KeyField, string> => ({
   zhenzhenApiKey: '', rhApiKey: '', llmApiKey: '', qiniuApiKey: '', grsaiApiKey: '',
@@ -111,6 +122,8 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
   const [eagleApiBaseInput, setEagleApiBaseInput] = useState<string>('');
   // 分类独立 Key 区块折叠状态（新手友好：默认折叠，点击展开）
   const [classifiedOpen, setClassifiedOpen] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<string>('');
+  const backupFileInputRef = useRef<HTMLInputElement | null>(null);
   // 眼睛预览拉取的明文（仅缓存，不提交）
   const revealedRef = useRef<Partial<Record<KeyField, string>>>({});
 
@@ -125,6 +138,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
       setShows(emptyShow());
       revealedRef.current = {};
       setSaved(false);
+      setBackupMessage('');
       setClassifiedOpen(false);
       // 回填文件自动保存路径(明文字段，不脱敏)
       setFileSavePathInput((settings as any)?.fileSavePath || '');
@@ -146,6 +160,141 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
 
   const setInputAt = (f: KeyField, v: string) => {
     setInputs((prev) => ({ ...prev, [f]: v }));
+  };
+
+  const getCurrentEditableSettings = (): Partial<ApiSettings> => ({
+    zhenzhenApiKey: inputs.zhenzhenApiKey.trim(),
+    rhApiKey: inputs.rhApiKey.trim(),
+    llmApiKey: inputs.llmApiKey.trim(),
+    gptImageApiKey: inputs.gptImageApiKey.trim(),
+    nanoBananaApiKey: inputs.nanoBananaApiKey.trim(),
+    mjApiKey: inputs.mjApiKey.trim(),
+    veoApiKey: inputs.veoApiKey.trim(),
+    grokApiKey: inputs.grokApiKey.trim(),
+    seedanceApiKey: inputs.seedanceApiKey.trim(),
+    sunoApiKey: inputs.sunoApiKey.trim(),
+    fileSavePath: fileSavePathInput.trim(),
+    canvasAutoSavePath: canvasAutoSavePathInput.trim(),
+    resourceLibraryPath: resourceLibraryPathInput.trim(),
+    themeTemplatePath: themeTemplatePathInput.trim(),
+    eagleApiBase: eagleApiBaseInput.trim(),
+  });
+
+  const isMaskedKeyValue = (value: unknown): boolean => {
+    if (typeof value !== 'string') return false;
+    return /^\*{2,}/.test(value.trim());
+  };
+
+  const normalizeImportedSettings = (raw: unknown): Partial<ApiSettings> => {
+    const source = raw && typeof raw === 'object' && 'settings' in raw
+      ? (raw as any).settings
+      : raw;
+    if (!source || typeof source !== 'object') {
+      throw new Error('设置备份格式不正确');
+    }
+    const next: Partial<ApiSettings> = {};
+    for (const field of ALL_FIELDS) {
+      const value = (source as any)[field];
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (!trimmed || isMaskedKeyValue(trimmed)) continue;
+      (next as any)[field] = trimmed;
+    }
+    for (const field of PATH_FIELDS) {
+      const value = (source as any)[field];
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      (next as any)[field] = trimmed;
+    }
+    if ((source as any).preferences && typeof (source as any).preferences === 'object') {
+      next.preferences = { ...(source as any).preferences };
+    }
+    return next;
+  };
+
+  const downloadJson = (filename: string, data: unknown) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSettings = async () => {
+    try {
+      let raw: ApiSettings | null = null;
+      try {
+        raw = await getRawSettings();
+      } catch {
+        raw = null;
+      }
+      const editable = getCurrentEditableSettings();
+      const exportSettings = {
+        ...(raw || {}),
+        ...Object.fromEntries(
+          Object.entries(editable).filter(([, value]) => typeof value === 'string' && value.trim())
+        ),
+        zhenzhenBaseUrl: FIXED_ZHENZHEN_BASE,
+        llmBaseUrl: FIXED_ZHENZHEN_BASE,
+        rhBaseUrl: RH_BASE,
+      };
+      const payload = {
+        schema: SETTINGS_BACKUP_SCHEMA,
+        version: SETTINGS_BACKUP_VERSION,
+        exportedAt: new Date().toISOString(),
+        containsSecrets: true,
+        note: '此文件包含明文 API Key，请勿上传到 GitHub 或公开分享。',
+        settings: exportSettings,
+      };
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      downloadJson(`t8-settings-backup-${date}.json`, payload);
+      setBackupMessage('已导出设置备份。注意：文件包含明文 API Key，请妥善保管。');
+    } catch (e: any) {
+      setBackupMessage(e?.message || '导出设置失败');
+    }
+  };
+
+  const applyImportedSettings = (patch: Partial<ApiSettings>) => {
+    setInputs((prev) => {
+      const nextInputs = { ...prev };
+      for (const field of ALL_FIELDS) {
+        const value = (patch as any)[field];
+        if (typeof value === 'string' && value.trim()) nextInputs[field] = value.trim();
+      }
+      return nextInputs;
+    });
+    setShows(emptyShow());
+    revealedRef.current = {};
+    if (typeof patch.fileSavePath === 'string') setFileSavePathInput(patch.fileSavePath);
+    if (typeof patch.canvasAutoSavePath === 'string') setCanvasAutoSavePathInput(patch.canvasAutoSavePath);
+    if (typeof patch.resourceLibraryPath === 'string') setResourceLibraryPathInput(patch.resourceLibraryPath);
+    if (typeof patch.themeTemplatePath === 'string') setThemeTemplatePathInput(patch.themeTemplatePath);
+    if (typeof patch.eagleApiBase === 'string') setEagleApiBaseInput(patch.eagleApiBase);
+    setClassifiedOpen(true);
+  };
+
+  const handleImportFile = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const patch = normalizeImportedSettings(parsed);
+      if (Object.keys(patch).length === 0) {
+        setBackupMessage('未读取到可导入的设置，已跳过空值和脱敏 Key。');
+        return;
+      }
+      applyImportedSettings(patch);
+      setBackupMessage('已导入到表单，请检查后点击“保存”生效。');
+    } catch (e: any) {
+      setBackupMessage(e?.message || '导入设置失败，请确认 JSON 文件格式。');
+    } finally {
+      if (backupFileInputRef.current) backupFileInputRef.current.value = '';
+    }
   };
 
   // 眼睛点击: 如果要切为“显示”且当前 input 为空但后端已存在 key,
@@ -381,6 +530,9 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
       className={`fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm ${
         isPixel ? 'px-modal-mask' : 'bg-black/60'
       }`}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
         className={
@@ -682,6 +834,23 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
               ❌ {error}
             </div>
           )}
+          {backupMessage && (
+            <div
+              className={
+                isPixel
+                  ? 'text-xs px-3 py-2 border border-[var(--px-ink)] bg-[var(--px-yellow)] text-[var(--px-ink)]'
+                  : `text-xs rounded-md px-3 py-2 border ${
+                      backupMessage.includes('失败') || backupMessage.includes('不正确')
+                        ? 'text-red-300 bg-red-500/10 border-red-500/25'
+                        : isDark
+                          ? 'text-amber-100 bg-amber-500/10 border-amber-500/25'
+                          : 'text-amber-800 bg-amber-50 border-amber-200'
+                    }`
+              }
+            >
+              {backupMessage}
+            </div>
+          )}
         </div>
 
         {/* 底部按钮 */}
@@ -694,6 +863,47 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 : 'border-black/10 bg-black/[0.02]'
           }`}
         >
+          <input
+            ref={backupFileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => handleImportFile(e.target.files?.[0] || null)}
+          />
+          <button
+            type="button"
+            onClick={() => backupFileInputRef.current?.click()}
+            className={
+              isPixel
+                ? 'px-btn flex items-center gap-2'
+                : `px-3 py-2 text-sm rounded-md border flex items-center gap-2 ${
+                    isDark
+                      ? 'border-white/10 hover:bg-white/10 text-white/80'
+                      : 'border-black/10 hover:bg-black/5 text-zinc-700'
+                  }`
+            }
+            title="导入设置备份，回填后需点击保存生效"
+          >
+            <FileUp size={14} />
+            导入设置
+          </button>
+          <button
+            type="button"
+            onClick={handleExportSettings}
+            className={
+              isPixel
+                ? 'px-btn flex items-center gap-2'
+                : `px-3 py-2 text-sm rounded-md border flex items-center gap-2 ${
+                    isDark
+                      ? 'border-amber-400/25 hover:bg-amber-400/10 text-amber-100'
+                      : 'border-amber-300 hover:bg-amber-50 text-amber-800'
+                  }`
+            }
+            title="导出包含明文 API Key 的私密备份"
+          >
+            <Download size={14} />
+            导出设置
+          </button>
           <button
             onClick={onClose}
             className={

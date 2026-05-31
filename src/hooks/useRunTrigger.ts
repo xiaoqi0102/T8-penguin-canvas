@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useRunBusStore } from '../stores/runBus';
+import { registerTaskCompletionSoundNode } from '../stores/taskCompletionSound';
 
 const activeRunNodeIds = new Set<string>();
 
@@ -16,7 +17,11 @@ const activeRunNodeIds = new Set<string>();
  * - 用 startedRef 防重入,避免 React StrictMode 二次挂载触发两次
  * - 同一节点不会同时被两个路径重复发起 (currentRunId === id 且 runningIds.includes(id))
  */
-export function useRunTrigger(nodeId: string, runFn: () => Promise<void> | void) {
+export function useRunTrigger(
+  nodeId: string,
+  runFn: () => Promise<void> | void,
+  completionSoundNodeType?: string,
+) {
   const currentRunId = useRunBusStore((s) => s.currentRunId);
   const inMulti = useRunBusStore((s) => s.runningIds.includes(nodeId));
   const markDone = useRunBusStore((s) => s.markDone);
@@ -25,6 +30,11 @@ export function useRunTrigger(nodeId: string, runFn: () => Promise<void> | void)
   runFnRef.current = runFn;
   const startedRef = useRef(false);
   const runSeqRef = useRef(0);
+
+  useEffect(
+    () => registerTaskCompletionSoundNode(nodeId, completionSoundNodeType),
+    [nodeId, completionSoundNodeType],
+  );
 
   useEffect(() => {
     if (!isMyTurn) {

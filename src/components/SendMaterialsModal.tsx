@@ -12,16 +12,20 @@ import {
   Send as SendIcon,
   UploadCloud,
   UserRoundCog,
+  Workflow,
   X,
 } from 'lucide-react';
 import type { CanvasListItem } from '../types/canvas';
 import { useThemeStore } from '../stores/theme';
 import type { SendTargetMode, SendableMaterial } from '../utils/sendMaterials';
 import { bucketSendableMaterials, sendableMaterialSignature, summarizeSendableMaterials } from '../utils/sendMaterials';
+import type { SendNodeFragment } from '../utils/sendNodeFragment';
+import { sendNodeFragmentSignature, summarizeSendNodeFragment } from '../utils/sendNodeFragment';
 
 interface SendMaterialsModalProps {
   open: boolean;
   materials: SendableMaterial[];
+  nodeFragment?: SendNodeFragment;
   sourceLabel: string;
   defaultMode?: SendTargetMode;
   canvases: CanvasListItem[];
@@ -34,6 +38,7 @@ interface SendMaterialsModalProps {
 
 const MODE_OPTIONS: Array<{ value: SendTargetMode; label: string; desc: string; icon: typeof PackagePlus }> = [
   { value: 'auto', label: '智能保持', desc: '尽量按来源类型还原到目标画布', icon: MonitorUp },
+  { value: 'node-fragment', label: '节点片段', desc: '复制选中节点和内部连线，保留工作流关系', icon: Workflow },
   { value: 'portrait-master', label: '肖像大师', desc: '发送可继续编辑的肖像配置节点', icon: UserRoundCog },
   { value: 'material-set', label: '合并素材集', desc: '同类型素材打包成素材集，方便继续传给生成节点', icon: PackagePlus },
   { value: 'upload', label: '上传素材', desc: '图像/视频/音频以合集上传节点出现，文本生成文本节点', icon: UploadCloud },
@@ -117,6 +122,7 @@ function formatHistoryTime(ts: number) {
 export default function SendMaterialsModal({
   open,
   materials,
+  nodeFragment,
   sourceLabel,
   defaultMode = 'auto',
   canvases,
@@ -150,14 +156,29 @@ export default function SendMaterialsModal({
 
   const buckets = useMemo(() => bucketSendableMaterials(materials), [materials]);
   const summary = useMemo(() => summarizeSendableMaterials(materials), [materials]);
-  const signature = useMemo(() => sendableMaterialSignature(materials), [materials]);
+  const hasNodeFragment = !!nodeFragment?.nodes.length;
+  const nodeSummary = useMemo(() => summarizeSendNodeFragment(nodeFragment), [nodeFragment]);
+  const contentSummary = useMemo(
+    () => [hasNodeFragment ? nodeSummary : '', materials.length > 0 ? summary : ''].filter(Boolean).join(' · ') || '暂无可发送内容',
+    [hasNodeFragment, materials.length, nodeSummary, summary],
+  );
+  const signature = useMemo(
+    () => (mode === 'node-fragment' ? sendNodeFragmentSignature(nodeFragment) : sendableMaterialSignature(materials)),
+    [materials, mode, nodeFragment],
+  );
   const hasPortraitMasterConfig = useMemo(
     () => materials.some((item) => item.sourceType === 'portrait-master' && item.sourceNodeData),
     [materials],
   );
   const modeOptions = useMemo(
-    () => MODE_OPTIONS.filter((opt) => opt.value !== 'portrait-master' || hasPortraitMasterConfig),
-    [hasPortraitMasterConfig],
+    () =>
+      MODE_OPTIONS.filter((opt) => {
+        if (opt.value === 'node-fragment') return hasNodeFragment;
+        if (opt.value === 'portrait-master') return materials.length > 0 && hasPortraitMasterConfig;
+        if (!['auto', 'node-fragment'].includes(opt.value) && materials.length === 0) return false;
+        return true;
+      }),
+    [hasNodeFragment, hasPortraitMasterConfig, materials.length],
   );
   const filteredCanvases = useMemo(() => {
     const keyword = q.trim().toLowerCase();
@@ -186,9 +207,10 @@ export default function SendMaterialsModal({
     return out;
   }, [canvases, sendHistory]);
   const duplicateHistory = useMemo(() => {
+    if (mode === 'node-fragment') return null;
     if (!targetId || !signature) return null;
     return sendHistory.find((entry) => entry.targetCanvasId === targetId && entry.signature === signature) || null;
-  }, [sendHistory, signature, targetId]);
+  }, [mode, sendHistory, signature, targetId]);
 
   useEffect(() => {
     if (!open) return;
@@ -212,6 +234,13 @@ export default function SendMaterialsModal({
   const primaryBtn = isPixel
     ? 'px-btn px-btn--sm px-btn--mint'
     : 'rounded-md border border-[var(--t8-primary)] bg-[var(--t8-primary)] px-3 py-2 text-sm font-semibold text-[var(--t8-on-primary)] hover:brightness-105';
+  const canSendToCanvas =
+    !!targetId &&
+    (mode === 'node-fragment'
+      ? hasNodeFragment
+      : mode === 'auto'
+        ? materials.length > 0 || hasNodeFragment
+        : materials.length > 0);
 
   const runAction = async (label: string, action: () => Promise<void> | void) => {
     if (busyRef.current) return;
@@ -230,16 +259,18 @@ export default function SendMaterialsModal({
     if (modeOptions.some((opt) => opt.value === entry.mode)) setMode(entry.mode);
   };
   const handleSendToCanvas = async () => {
+    if (!canSendToCanvas) return;
     const target = selectedCanvas || canvases.find((canvas) => canvas.id === targetId);
+    const historySummary = mode === 'node-fragment' ? nodeSummary : summary;
     const entry: SendHistoryEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       targetCanvasId: targetId,
       targetCanvasName: target?.name || '未命名画布',
       mode,
       modeLabel: selectedMode.label,
-      summary,
+      summary: historySummary,
       signature,
-      materialCount: materials.length,
+      materialCount: mode === 'node-fragment' ? nodeFragment?.nodes.length || 0 : materials.length,
       createdAt: Date.now(),
     };
     await onSendToCanvas(targetId, mode, switchAfter);
@@ -261,9 +292,9 @@ export default function SendMaterialsModal({
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-base font-semibold">
               <SendIcon size={18} />
-              <span>发送素材</span>
+              <span>发送内容</span>
             </div>
-            <div className="mt-1 truncate text-xs opacity-65">{sourceLabel} · {summary}</div>
+            <div className="mt-1 truncate text-xs opacity-65">{sourceLabel} · {contentSummary}</div>
           </div>
           <button type="button" className="t8-mini-icon-button" title="关闭" onClick={onClose} disabled={!!busy}>
             <X size={16} />
@@ -272,7 +303,16 @@ export default function SendMaterialsModal({
 
         <div className="grid gap-3 p-4 md:grid-cols-[280px_1fr]">
           <aside className={`rounded-lg p-3 ${isPixel ? 'border-2 border-[var(--px-ink)] bg-[var(--px-muted)]' : isDark ? 'border border-white/10 bg-white/[0.04]' : 'border border-black/10 bg-black/[0.025]'}`}>
-            <div className="text-xs font-semibold opacity-70">素材概览</div>
+            <div className="text-xs font-semibold opacity-70">内容概览</div>
+            {hasNodeFragment && (
+              <div className={`mt-3 flex items-start gap-2 rounded-md px-2 py-2 text-xs ${isPixel ? 'border-2 border-[var(--px-ink)] bg-[var(--px-surface)]' : isDark ? 'border border-white/10 bg-black/25' : 'border border-black/10 bg-white'}`}>
+                <Workflow size={14} className="mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-semibold">节点片段</div>
+                  <div className="mt-0.5 opacity-65">{nodeSummary}</div>
+                </div>
+              </div>
+            )}
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               {(['image', 'video', 'audio', 'text'] as const).map((kind) => (
                 <div key={kind} className={`rounded-md px-2 py-2 ${isPixel ? 'border-2 border-[var(--px-ink)] bg-[var(--px-surface)]' : isDark ? 'bg-black/25' : 'bg-white'}`}>
@@ -281,14 +321,20 @@ export default function SendMaterialsModal({
                 </div>
               ))}
             </div>
-            <div className="mt-3 max-h-40 space-y-1 overflow-y-auto pr-1 text-[11px] opacity-75">
-              {materials.slice(0, 12).map((item, index) => (
-                <div key={`${item.id}-${index}`} className="truncate">
-                  {index + 1}. {item.name || item.text || item.url || item.kind}
-                </div>
-              ))}
-              {materials.length > 12 && <div>还有 {materials.length - 12} 项...</div>}
-            </div>
+            {materials.length > 0 ? (
+              <div className="mt-3 max-h-40 space-y-1 overflow-y-auto pr-1 text-[11px] opacity-75">
+                {materials.slice(0, 12).map((item, index) => (
+                  <div key={`${item.id}-${index}`} className="truncate">
+                    {index + 1}. {item.name || item.text || item.url || item.kind}
+                  </div>
+                ))}
+                {materials.length > 12 && <div>还有 {materials.length - 12} 项...</div>}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-md border border-dashed border-current/20 px-2 py-3 text-center text-[11px] opacity-55">
+                没有独立素材，可发送节点片段到画布
+              </div>
+            )}
 
             <div className={`mt-3 rounded-lg p-2 ${isPixel ? 'border-2 border-[var(--px-ink)] bg-[var(--px-surface)]' : isDark ? 'border border-white/10 bg-black/20' : 'border border-black/10 bg-white'}`}>
               <div className="flex items-center gap-1.5 text-xs font-semibold opacity-75">
@@ -448,13 +494,14 @@ export default function SendMaterialsModal({
 
         <footer className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 ${isPixel ? 'border-t-2 border-[var(--px-ink)]' : isDark ? 'border-t border-white/10' : 'border-t border-black/10'}`}>
           <div className="basis-full text-xs opacity-70">
-            当前选择：{selectedMode.label} → {selectedCanvas?.name || '未选择画布'}{switchAfter ? '，发送后会自动切换并定位到新素材' : ''}
+            当前选择：{selectedMode.label} → {selectedCanvas?.name || '未选择画布'}{switchAfter ? '，发送后会自动切换并定位到新内容' : ''}
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className={ghostBtn}
               disabled={!!busy || materials.length === 0}
+              title={materials.length > 0 ? '把素材保存到资源库' : '节点片段暂不支持直接保存到资源库'}
               onClick={() => runAction('resource', onSaveToResource)}
             >
               <Library size={14} className="inline-block mr-1" />
@@ -465,7 +512,7 @@ export default function SendMaterialsModal({
               className={ghostBtn}
               disabled={!!busy || materials.length === 0}
               onClick={() => runAction('eagle', onSendToEagle)}
-              title="发送到本机 Eagle，需先启动 Eagle"
+              title={materials.length > 0 ? '发送到本机 Eagle，需先启动 Eagle' : 'Eagle 只接收图像、视频、音频或文本素材'}
             >
               <ExternalLink size={14} className="inline-block mr-1" />
               {busy === 'eagle' ? '发送中...' : '发送到 Eagle'}
@@ -474,7 +521,7 @@ export default function SendMaterialsModal({
           <button
             type="button"
             className={primaryBtn}
-            disabled={!!busy || materials.length === 0 || !targetId}
+            disabled={!!busy || !canSendToCanvas}
             onClick={() => runAction('canvas', handleSendToCanvas)}
           >
             <SendIcon size={14} className="inline-block mr-1" />

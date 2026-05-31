@@ -3,7 +3,14 @@ import type { ResourceItem, ResourceMaterialSetKind } from '../services/api';
 import { collectMaterialSetBucketsFromData, normalizeMaterialSetItems, type MaterialSetItem, type MaterialSetKind } from './materialSet';
 import { fileNameFromUrl, type MediaItem, type MediaKind } from './mediaCollection';
 
-export type SendTargetMode = 'auto' | 'material-set' | 'upload' | 'split-upload' | 'output' | 'portrait-master';
+export type SendTargetMode =
+  | 'auto'
+  | 'node-fragment'
+  | 'material-set'
+  | 'upload'
+  | 'split-upload'
+  | 'output'
+  | 'portrait-master';
 
 export interface SendableMaterial extends MaterialSetItem {
   sourceNodeId?: string;
