@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.7.2",
-  "lastUpdated": "2026-05-31-v1.7.2-connection-navigation-and-model-default-hotfixes",
+  "version": "1.7.3",
+  "lastUpdated": "2026-05-31-v1.7.3-sora2-fal-model-hotfix",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,9 +16,9 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.7.2",
-    "semverVersion": "1.7.2",
-    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.7.2：拖线时按 Space 可进入连线导航模式，松开鼠标后仍保留连线起点，可拖动画布再点击目标接口连接，并提供 HUD 与画布脉冲反馈；科技风黑夜控制条改走主题变量，避免白色按钮不可读；Ctrl+V 媒体粘贴进一步按 name/size/type 去重；Grok Video FAL 默认模式改为参考生视频；GPT2 图像参考图上限提升到 9 张。本次未重新打包 Electron。",
+    "version": "1.7.3",
+    "semverVersion": "1.7.3",
+    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.7.3：Sora2 视频节点只保留稳定 sora-2 (FAL) 模型入口，移除日期版模型下拉；历史画布若保存过 sora-2-2025-* 会在前后端自动归一到 sora-2 后提交，避免 FAL 任务失败或 UI 显示 3 个模型。本次未重新打包 Electron。",
     "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
@@ -67,6 +67,7 @@
         "小型纯图标按钮必须使用 t8-mini-icon-button 或等价固定尺寸类，不能直接复用大号胶囊 t8-btn/px-btn，否则 OP、像素糖果等强风格主题会把按钮撑大变形",
         "本地保存、资源库、主题模板等默认路径必须由 backend/src/config.js 统一按平台计算，前端不得再次硬编码 D:\\zhenzhen；非 Windows 旧默认值由 settings 路由迁移，用户自定义路径不得覆盖",
         "官方主题浅色模式必须检查并覆盖老节点内部暗色工具类，如 text-white/*、bg-white/*、border-white/*、cyan/violet 标签和状态色，避免只改外壳导致字段、参数或实际发送文字不可读",
+        "原生 select 的弹出层不会完全继承节点外壳样式；theme-core.css 必须提供基于 --t8-* 的基础 option 兜底，官方主题必须显式覆盖 select、.t8-select 以及 select option / option:checked 的背景、文字和 color-scheme，尤其浅色模式不能依赖旧节点 option.bg-zinc-900 或 text-white。",
         "默认科技风浅色模式同样必须保留 legacy node adapter；新增节点若使用 text-white/bg-zinc/bg-white 等暗色工具类或 inline 深色背景，必须同步接入主题变量或在 adapter 中兜底，避免经典白天模式残留黑卡片",
         "主题风格化元素使用 visuals.style / iconPack / canvasPattern / nodeFrame / headerMark 表达，避免把某个 IP 或图案写死在业务组件里",
         "自定义模板导入时必须通过 validateTheme/后端 normalizeTemplate，过滤未知枚举、过长字段和非法音乐 URL",
@@ -1454,7 +1455,7 @@
       "status": "complete",
       "items": [
         "图像节点新增 Grok Image TAB，复用 gpt-image-2-web 的 Grok Image 调用方式，参考图默认按 base64 传入，并保持 GPT2 / 香蕉 / FAL / MJ 原有链路不变。",
-        "视频节点新增 Sora2 FAL TAB，支持 auto / 文生视频 / 图生视频模式、时长、分辨率、比例、角色 ID 和 IP 阻断等参数，参考图默认 base64 传入。",
+        "视频节点新增 Sora2 FAL TAB，只保留稳定的 sora-2 (FAL) 模型入口，支持 auto / 文生视频 / 图生视频模式、时长、分辨率、比例、角色 ID 和 IP 阻断等参数，参考图默认 base64 传入。",
         "Grok Video FAL 从单一图生视频扩展为图生视频 / 参考生视频两种模式；参考生视频支持多张上游参考图和额外 URL，保持普通 Grok、Veo、Seedance、Sora2 互不破坏。",
         "姿势大师新增线稿图 / OpenPose图 / COCO图三种可见预览与运行输出模式；OpenPose/COCO JSON 导出仍作为独立 keypoints 复用入口保留。",
         "姿势大师横向画布扩展为多人构图更友好的宽画布，并通过 pointVersion 兼容旧姿势；新增清空按钮、修复最后一个人物无法删除、增加抓取模式，用户可直接拖动整个人物主体。"
@@ -1479,6 +1480,16 @@
         "ReactFlow Controls 统一接入 t8-control-rail 主题变量，修复科技风黑夜模式下缩放控制条和按钮回退为白色导致不可读的问题，并纳入主题设计合同。",
         "Ctrl+V 媒体粘贴在快捷键与原生 paste 两条路径都按 name/size/type 去重，修复复制截图或文件时偶发创建两个相同上传节点的问题。",
         "Grok Video FAL 默认模式改为参考生视频；GPT2 图像参考图上限提升到 9 张，满足多图参考工作流。"
+      ]
+    },
+    "phase100": {
+      "label": "Sora2 FAL 模型入口热修 (v1.7.3)",
+      "status": "complete",
+      "items": [
+        "视频节点 Sora2 只保留稳定 sora-2 (FAL) 一个具体模型入口，不再显示 sora-2-2025-12-08 / sora-2-2025-10-06 日期版模型，避免用户误选后任务失败。",
+        "前端 VideoNode 会把历史画布里保存的 sora-2-2025-* 自动识别为 Sora2 主模型，避免旧节点因为模型选项被移除而回退到其他视频模型。",
+        "后端 /api/proxy/video/fal/submit 会在校验、选路和 payload 组装前把日期版 Sora2 模型名归一为 sora-2；实际仍走 fal-ai/sora-2/text-to-video 或 fal-ai/sora-2/image-to-video，参考图默认 base64。",
+        "README、features.json 与版本文件同步到 v1.7.3；skill.md 仅本地记录，不参与 GitHub 推送。"
       ]
     }
   },

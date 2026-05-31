@@ -1328,18 +1328,6 @@ const VIDEO_FAL_REGISTRY = {
     paramKind: 'sora-fal',
     maxRefImages: 1,
   },
-  'sora-2-2025-12-08': {
-    endpoint: 'fal-ai/sora-2/text-to-video',
-    i2vEndpoint: 'fal-ai/sora-2/image-to-video',
-    paramKind: 'sora-fal',
-    maxRefImages: 1,
-  },
-  'sora-2-2025-10-06': {
-    endpoint: 'fal-ai/sora-2/text-to-video',
-    i2vEndpoint: 'fal-ai/sora-2/image-to-video',
-    paramKind: 'sora-fal',
-    maxRefImages: 1,
-  },
 };
 
 function getFalVideoUrl(data) {
@@ -1393,16 +1381,19 @@ router.post('/video/fal/submit', async (req, res) => {
     // sora-fal
     soraMode, soraRatio, soraDuration, soraResolution, soraDeleteVideo, soraBlockIp, soraCharacterIds,
   } = req.body || {};
+  const rawApiModel = String(apiModel || '').trim();
+  // 历史节点里可能保存过日期版 Sora2 选项；T8 现在只暴露稳定的 sora-2 FAL。
+  const effectiveApiModel = /^sora-2(?:-\d{4}-\d{2}-\d{2})?$/.test(rawApiModel) ? 'sora-2' : rawApiModel;
   // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, apiModel || '', '视频 FAL')) return;
+  if (!ensureKey(settings, res, effectiveApiModel || '', '视频 FAL')) return;
   const apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
 
-  if (!apiModel) return res.status(400).json({ success: false, error: 'apiModel 必填' });
+  if (!rawApiModel) return res.status(400).json({ success: false, error: 'apiModel 必填' });
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt 不得为空' });
 
-  const reg = VIDEO_FAL_REGISTRY[apiModel];
-  if (!reg) return res.status(400).json({ success: false, error: `未知的 Video FAL 模型: ${apiModel}` });
+  const reg = VIDEO_FAL_REGISTRY[effectiveApiModel];
+  if (!reg) return res.status(400).json({ success: false, error: `未知的 Video FAL 模型: ${rawApiModel}` });
 
   const refs = Array.isArray(images) ? images.filter(Boolean) : [];
   const trimmedRefs = refs.slice(0, reg.maxRefImages);
@@ -1498,7 +1489,7 @@ router.post('/video/fal/submit', async (req, res) => {
         aspect_ratio: mode === 'text_to_video' && ratio === 'auto' ? '16:9' : ratio,
         duration: parseInt(soraDuration ?? duration ?? 4, 10) || 4,
         delete_video: soraDeleteVideo !== false,
-        model: apiModel,
+        model: effectiveApiModel,
         detect_and_block_ip: soraBlockIp === true,
       };
       const ids = splitSoraCharacterIds(soraCharacterIds);
@@ -1516,7 +1507,7 @@ router.post('/video/fal/submit', async (req, res) => {
     }
 
     const falUrl = `${baseUrl}/fal/${endpoint}`;
-    console.log('[video/fal/submit]', apiModel, '→', falUrl, '| payload keys:', Object.keys(payload), '| refs:', trimmedRefs.length);
+    console.log('[video/fal/submit]', effectiveApiModel, '→', falUrl, '| payload keys:', Object.keys(payload), '| refs:', trimmedRefs.length);
 
     const resp = await fetch(falUrl, {
       method: 'POST',

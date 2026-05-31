@@ -310,18 +310,6 @@ export const VIDEO_FAL_REGISTRY: Record<string, VideoFalEndpointDef> = {
     paramKind: 'sora-fal',
     maxRefImages: 1,
   },
-  'sora-2-2025-12-08': {
-    endpoint: 'fal-ai/sora-2/text-to-video',
-    i2vEndpoint: 'fal-ai/sora-2/image-to-video',
-    paramKind: 'sora-fal',
-    maxRefImages: 1,
-  },
-  'sora-2-2025-10-06': {
-    endpoint: 'fal-ai/sora-2/text-to-video',
-    i2vEndpoint: 'fal-ai/sora-2/image-to-video',
-    paramKind: 'sora-fal',
-    maxRefImages: 1,
-  },
 };
 export function isFalVideoModel(apiModel: string): boolean {
   return apiModel in VIDEO_FAL_REGISTRY;
@@ -434,9 +422,7 @@ export const VIDEO_MODELS: VideoModelDef[] = [
     provider: 'zhenzhen',
     description: 'Sora2 FAL 文生/图生视频 (默认 Base64 参考图)',
     apiModelOptions: [
-      { value: 'sora-2', label: 'sora-2' },
-      { value: 'sora-2-2025-12-08', label: 'sora-2-2025-12-08' },
-      { value: 'sora-2-2025-10-06', label: 'sora-2-2025-10-06' },
+      { value: 'sora-2', label: 'sora-2 (FAL)' },
     ],
     ratios: ['16:9', '9:16', 'auto'],
     defaultRatio: '16:9',

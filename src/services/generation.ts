@@ -427,7 +427,7 @@ export async function uploadFile(file: File): Promise<{ url: string; filename: s
 //   queryVideoFal  返 { status: 'pending'|'completed'|'failed', videoUrl?, error? }
 // ========================================================================
 export interface VideoFalSubmitRequest {
-  /** 'veo3.1-fal' | 'grok-video-fal' | 'sora-2*' */
+  /** 'veo3.1-fal' | 'grok-video-fal' | 'sora-2' */
   apiModel: string;
   prompt: string;
   /** 参考图(base64 dataURI 或本地 /files/* URL) */

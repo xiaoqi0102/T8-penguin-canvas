@@ -60,7 +60,9 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
 
   const d = data as any;
   // 主模型 id (对应 VIDEO_MODELS 项)
-  const mainId = d?.mainId || (d?.model && VIDEO_MODELS.find((m) => m.id === d.model || m.apiModelOptions.some((o) => o.value === d.model))?.id) || VIDEO_MODELS[0].id;
+  const rawModel = typeof d?.model === 'string' ? d.model : '';
+  const isLegacySora2Model = /^sora-2(?:-\d{4}-\d{2}-\d{2})?$/.test(rawModel);
+  const mainId = d?.mainId || (isLegacySora2Model ? 'sora-2' : (d?.model && VIDEO_MODELS.find((m) => m.id === d.model || m.apiModelOptions.some((o) => o.value === d.model))?.id)) || VIDEO_MODELS[0].id;
   const modelDef = useMemo(() => VIDEO_MODELS.find((m) => m.id === mainId) || VIDEO_MODELS[0], [mainId]);
   // 子模型(上游真实 model 名)
   const apiModel: string = d?.model && modelDef.apiModelOptions.some((o) => o.value === d.model) ? d.model : modelDef.apiModelOptions[0].value;
