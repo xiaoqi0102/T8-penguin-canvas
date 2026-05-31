@@ -198,7 +198,64 @@ graph TD
 
 ---
 
-## 十、扫描元数据
+## 九、Fork 版本策略（重要）
+
+**规则**：本 fork 版本号必须**永远领先 upstream/main 至少一个版本号**。
+
+### 为什么需要这个策略？
+
+1. **避免版本冲突**：防止 fork 版本号与 upstream 版本号重叠
+2. **明确标识**：清晰区分 fork 分支与 upstream 的独立演进
+3. **防止回退**：避免合并 upstream 后版本号"倒退"的混淆
+
+### 如何执行？
+
+**合并 upstream 后立即检查**：
+- 如果 upstream 版本号 ≥ fork 当前版本，必须递增 fork 版本
+- 示例：upstream 1.7.4 → fork 必须升级到 1.8.0（次版本号递增）
+
+**版本号同步位置（7 处）**：
+1. `package.json` - version 字段
+2. `vite.config.ts` - __APP_VERSION__
+3. `vite.config.js` - __APP_VERSION__
+4. `backend/src/config.js` - APP_VERSION
+5. `electron/main.cjs` - 窗口标题（第 171 行）
+6. `electron/main.cjs` - 日志窗口（第 224 行）
+7. `electron/main.cjs` - IPC version（第 250 行）
+8. `features.json` - version/semverVersion/versionNote
+9. `README.md` - 版本徽章
+
+**示例**：
+```bash
+# 合并 upstream v1.7.4 后
+git merge upstream/main
+# 立即升级版本到 1.8.0
+# 修改上述 7 处文件
+git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
+```
+
+### 当前状态
+
+- **Fork 版本**：v1.8.0
+- **Upstream 版本**：v1.7.4
+- **领先状态**：✅ 领先一个次版本号
+
+---
+
+## 十、变更记录 (Changelog)
+
+| 日期 | 变更 |
+|---|---|
+| 2026-05-27 | 初次生成 CLAUDE.md（根 + src + backend + electron）；扫描覆盖率 ~100%（所有源码模块） |
+| 2026-05-28 | v1.5.9：七牛 `openai/gpt-image-2` image-edits size 修复 + 1K/2K/4K 清晰度档；grsai `gpt-image-2-vip` 「比例 × 清晰度」双控件（`sizeMap` 按上游文档铺 14 比例 × 3 档预设表，1:3/3:1 在 2K 档由 `computeVipSize` 4MP 兜底；vip 比例列表去 auto + 加 1:3/3:1/2:1/1:2 共 4 项 vip 独有比例） |
+| 2026-05-28 | v1.6.1：合并 upstream/main → upstream v1.5.8 主题图标 / 跨平台路径 + v1.5.9 EVA 主题 + v1.6.0 EVA 浅色 legacy adapter；fork phase77/78 与 upstream 撞 JSON key，重命名为 phase80/81 + 新增 phase82 anchor |
+| 2026-05-28 | v1.6.2：修复七牛 `gemini-3.1-flash-image-preview` 比例参数不生效（根因：`callQiniuImageUpstream` 把所有子模型按 OpenAI body 发，gemini 上游需要 `image_config.{aspect_ratio,image_size}` 嵌套对象，收到顶层 `size` 会静默忽略）。按 `model` 分流构造 body，gemini 走 image_config、openai/gpt-image-2 维持 size/quality；UI 让 gemini 也显示 1K/2K/4K 清晰度档 |
+| 2026-05-30 | 新增 LLM 推理专项文档 `docs/llm-inference.md`（覆盖前端节点/服务层/后端代理/配置项/类型定义） |
+| 2026-05-31 | v1.8.0：合并 upstream v1.7.0→v1.7.4（节点片段、任务完成音效、姿势大师、连接导航）+ fork 新增 Geeknow LLM 节点；建立 fork 版本策略（永远领先 upstream 至少一个版本号） |
+
+---
+
+## 十一、扫描元数据
 
 - 总文件数：≈115（不含 node_modules / data / dist / build / dist_electron / public 资源）
 - 已扫描模块：3（src · backend · electron）
