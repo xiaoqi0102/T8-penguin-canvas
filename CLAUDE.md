@@ -215,23 +215,22 @@ graph TD
 - 如果 upstream 版本号 ≥ fork 当前版本，必须递增 fork 版本
 - 示例：upstream 1.7.4 → fork 必须升级到 1.8.0（次版本号递增）
 
-**版本号同步位置（7 处）**：
+**版本号同步位置（8 处）**：
 1. `package.json` - version 字段
 2. `vite.config.ts` - __APP_VERSION__
-3. `vite.config.js` - __APP_VERSION__
-4. `backend/src/config.js` - APP_VERSION
-5. `electron/main.cjs` - 窗口标题（第 171 行）
-6. `electron/main.cjs` - 日志窗口（第 224 行）
-7. `electron/main.cjs` - IPC version（第 250 行）
-8. `features.json` - version/semverVersion/versionNote
-9. `README.md` - 版本徽章
+3. `backend/src/config.js` - APP_VERSION
+4. `electron/main.cjs` - 窗口标题（第 171 行）
+5. `electron/main.cjs` - 日志窗口（第 224 行）
+6. `electron/main.cjs` - IPC version（第 250 行）
+7. `features.json` - version/semverVersion/versionNote
+8. `README.md` - 版本徽章
 
 **示例**：
 ```bash
 # 合并 upstream v1.7.4 后
 git merge upstream/main
 # 立即升级版本到 1.8.0
-# 修改上述 7 处文件
+# 修改上述 8 处文件
 git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 ```
 
@@ -264,6 +263,7 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 | 2026-05-31 | LLM 节点提供商切换：合并原生 LLM 与 Geeknow LLM 为统一组件，通过 TAB 按钮组切换提供商（直连/Geeknow），支持动态模型列表刷新；删除独立的 `t8f-geeknow-llm` 节点类型和 `GeeknowLlmNode.tsx`，保留 `integrations/geeknow/` 服务层 |
 | 2026-05-31 | Geeknow 模型瘦身：保留 5 个推理模型（gpt-5.5 / gemini-3-pro-preview / gemini-3.1-pro-preview / gemini-3.5-flash / deepseek-v4-pro），默认模型改为 gemini-3.1-pro-preview；移除「刷新模型列表」功能（前端按钮 + 后端 `/llm-geeknow/models` 路由 + `fetchGeeknowModels` 服务函数 + `localStorage.t8f-geeknow-dynamic-models` 缓存） |
 | 2026-05-31 | 新增 fork 维护指南 `fork-maintenance-guide.md`（替换原 `grsai-qiniu-api.md`），整合三部分：Fork 项目维护指南（合并 upstream 流程 + 共享文件改动清单 + 验收清单）+ Provider 接入规范（图像/LLM 三种接入模式对比）+ API 接口规范（grsai/qiniu/geeknow 协议详情） |
+| 2026-05-31 | 清理重复 Vite 配置产物：删除 `vite.config.js` 和 `vite.config.d.ts`，保留 `vite.config.ts` 作为唯一 Vite 配置入口；同步更新版本号同步位置说明。 |
 
 ---
 
