@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.7.4",
-  "lastUpdated": "2026-05-31-v1.7.4-merge-upstream-and-geeknow-llm",
+  "version": "1.8.0",
+  "lastUpdated": "2026-05-31-v1.8.0-version-bump-fork-strategy",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,9 +16,9 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.7.4",
-    "semverVersion": "1.7.4",
-    "versionNote": "v1.3.0 起统一采用 semver 三段阶段号 x.y.z；当前源码为 v1.7.4：跨画布发送支持节点片段并保留选中节点内部连线；新增独立任务完成提示音，默认开启，图像 / 视频 / SD2.0 / 音频 / LLM 成功完成后 5 秒内最多提示一次；同步收口主题 select/帮助面板样式。本次未重新打包 Electron。",
+    "version": "1.8.0",
+    "semverVersion": "1.8.0",
+    "versionNote": "v1.8.0 fork 版本号策略更新：合并 upstream v1.7.4 后递增到 1.8.0，确保 fork 版本始终领先 upstream 至少一个版本号，避免版本冲突。包含 upstream v1.7.0-v1.7.4 全部功能（姿势大师、节点片段、任务完成音效）+ fork 自有 Geeknow LLM 节点、七牛/Grsai provider。本次未重新打包 Electron。",
     "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
