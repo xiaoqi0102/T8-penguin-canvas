@@ -18,8 +18,8 @@
     },
     "version": "1.9.0",
     "semverVersion": "1.9.0",
-    "versionNote": "v1.9.0 fork 合并 upstream v1.8.3：吸收 upstream advanced provider 平台（comfyui / jimengCli / modelscope / openaiCompatible / volcengine / mediaResolver / registry）+ externalProviders 路由 + Slam Dunk 主题 + YYH 隐藏模式音乐 + PoseMaster 大改 + 一批前后端测试。fork 自有 Geeknow LLM、七牛/Grsai provider、版本策略文档全部保留。按 fork 版本策略递增至 1.9.0（领先 upstream v1.8.3 一个次版本号）。本次未重新打包 Electron。",
-    "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.8.3.exe（NSIS，129.25 MB，源于 upstream v1.8.3 冒烟测试）。",
+    "versionNote": "v1.9.0 fork 合并 upstream v1.8.3：吸收 upstream advanced provider 平台（comfyui / jimengCli / modelscope / openaiCompatible / volcengine / mediaResolver / registry）+ externalProviders 路由 + Slam Dunk 主题 + YYH 隐藏模式音乐 + PoseMaster 大改 + 一批前后端测试。fork 自有 Geeknow LLM、七牛/Grsai provider、版本策略文档全部保留。按 fork 版本策略递增至 1.9.0（领先 upstream v1.8.3 一个次版本号）。本次已按 npm run dist 重新打包 Electron 并通过 _post_build.cjs 全量校验。",
+    "installer": "已按 npm run dist 重新打包 Electron；最终安装包为 dist_electron/T8-PenguinCanvas-Setup-1.9.0.exe（NSIS，135.76 MB），_post_build.cjs 21 个 .t8c + 前端 + 主题音乐校验全部通过。",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
       "backend/src/ 任何文件修改后必须重新 npm run encrypt 再打包",
