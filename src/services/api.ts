@@ -2,7 +2,7 @@
  * T8-penguin-canvas 后端 API 封装
  * 所有请求走 Vite proxy → http://127.0.0.1:18766
  */
-import type { ApiSettings, CanvasData, CanvasListItem } from '../types/canvas';
+import type { AdvancedProviderConfig, ApiSettings, CanvasData, CanvasListItem } from '../types/canvas';
 import type { ThemeTemplate } from '../theme/types';
 import type { MediaKind } from '../utils/mediaCollection';
 
@@ -109,6 +109,49 @@ export async function updateSettings(patch: Partial<ApiSettings>): Promise<void>
     method: 'POST',
     body: JSON.stringify(patch),
   });
+}
+
+export interface AdvancedProviderTestResult {
+  ok: boolean;
+  code: string;
+  providerId: string;
+  protocol: string;
+  message?: string;
+  error?: string;
+  provider?: AdvancedProviderConfig;
+}
+
+export async function testAdvancedProvider(payload: {
+  providerId?: string;
+  provider?: AdvancedProviderConfig;
+  dryRun?: boolean;
+}): Promise<AdvancedProviderTestResult> {
+  const res = await request<{
+    success: boolean;
+    code?: string;
+    error?: string;
+    data?: AdvancedProviderTestResult;
+  }>(`${BASE}/proxy/external/test-provider`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.success && res.data) return res.data;
+  if (!res.success) {
+    return {
+      ok: false,
+      code: res.code || 'provider_test_failed',
+      providerId: payload.providerId || payload.provider?.id || '',
+      protocol: payload.provider?.protocol || '',
+      error: res.error || '测试失败',
+    };
+  }
+  return res.data || {
+    ok: false,
+    code: 'empty_response',
+    providerId: payload.providerId || payload.provider?.id || '',
+    protocol: payload.provider?.protocol || '',
+    error: '测试接口没有返回结果',
+  };
 }
 
 // ========== 文件自动保存到本地路径 (v1.2.10.2) ==========
@@ -289,7 +332,8 @@ export function importRHToolsBackup(payload: RHToolsBackup, mode: 'replace' | 'm
 }
 
 // ========== 资源库 (v1.3.4) ==========
-export type ResourceKind = 'image' | 'video' | 'audio' | 'set';
+export type ResourceKind = 'image' | 'video' | 'audio' | 'set' | 'pose' | 'workflow';
+export type ResourceMediaKind = 'image' | 'video' | 'audio';
 export type ResourceMaterialSetKind = 'text' | 'image' | 'video' | 'audio';
 
 export interface ResourceCategory {
@@ -327,6 +371,14 @@ export interface ResourceItem {
     size?: number;
     mime?: string;
   }>;
+  workflowNodeCount?: number;
+  workflowEdgeCount?: number;
+  workflowNodeTypes?: string[];
+  workflowPreview?: {
+    nodes: Array<{ id: string; type: string; label: string; x: number; y: number }>;
+    edges: Array<{ source: string; target: string }>;
+  };
+  workflowFragment?: Record<string, any>;
   createdAt: number;
   updatedAt: number;
   lastUsedAt?: number;
@@ -353,7 +405,27 @@ export interface AddResourceSetPayload {
 
 export interface AddResourcePayload {
   url: string;
-  kind: ResourceKind;
+  kind: ResourceMediaKind;
+  categoryId?: string;
+  title?: string;
+  tags?: string[];
+  sourceNodeId?: string;
+  sourceCanvasId?: string;
+  favorite?: boolean;
+}
+
+export interface AddResourcePosePayload {
+  poseBackup: Record<string, any>;
+  categoryId?: string;
+  title?: string;
+  tags?: string[];
+  sourceNodeId?: string;
+  sourceCanvasId?: string;
+  favorite?: boolean;
+}
+
+export interface AddResourceWorkflowPayload {
+  workflowFragment: Record<string, any>;
   categoryId?: string;
   title?: string;
   tags?: string[];
@@ -411,6 +483,20 @@ export function addResourceItem(payload: AddResourcePayload) {
 
 export function addResourceSet(payload: AddResourceSetPayload) {
   return safeRequest<ResourceItem & { duplicate?: boolean }>(`${BASE}/resources/sets/add`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function addResourcePose(payload: AddResourcePosePayload) {
+  return safeRequest<ResourceItem & { duplicate?: boolean }>(`${BASE}/resources/poses/add`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function addResourceWorkflow(payload: AddResourceWorkflowPayload) {
+  return safeRequest<ResourceItem & { duplicate?: boolean }>(`${BASE}/resources/workflows/add`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

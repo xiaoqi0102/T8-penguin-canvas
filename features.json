@@ -1,7 +1,7 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.8.0",
-  "lastUpdated": "2026-05-31-v1.8.0-version-bump-fork-strategy",
+  "version": "1.9.0",
+  "lastUpdated": "2026-06-01-v1.9.0-merge-upstream-v1.8.3-fork-strategy",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
@@ -16,15 +16,15 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.8.0",
-    "semverVersion": "1.8.0",
-    "versionNote": "v1.8.0 fork 版本号策略更新：合并 upstream v1.7.4 后递增到 1.8.0，确保 fork 版本始终领先 upstream 至少一个版本号，避免版本冲突。包含 upstream v1.7.0-v1.7.4 全部功能（姿势大师、节点片段、任务完成音效）+ fork 自有 Geeknow LLM 节点、七牛/Grsai provider。本次未重新打包 Electron。",
-    "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.5.5.exe (NSIS, 108.96 MB)",
+    "version": "1.9.0",
+    "semverVersion": "1.9.0",
+    "versionNote": "v1.9.0 fork 合并 upstream v1.8.3：吸收 upstream advanced provider 平台（comfyui / jimengCli / modelscope / openaiCompatible / volcengine / mediaResolver / registry）+ externalProviders 路由 + Slam Dunk 主题 + YYH 隐藏模式音乐 + PoseMaster 大改 + 一批前后端测试。fork 自有 Geeknow LLM、七牛/Grsai provider、版本策略文档全部保留。按 fork 版本策略递增至 1.9.0（领先 upstream v1.8.3 一个次版本号）。本次未重新打包 Electron。",
+    "installer": "本次未打包 Electron；最近一次安装包为 dist_electron/T8-PenguinCanvas-Setup-1.8.3.exe（NSIS，129.25 MB，源于 upstream v1.8.3 冒烟测试）。",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
       "backend/src/ 任何文件修改后必须重新 npm run encrypt 再打包",
       "main.cjs 的窗口标题 / log 窗口 / IPC version 三处版本号，以及 backend/src/config.js APP_VERSION 必须与 package.json 同步",
-      "_post_build.cjs 验证 12 个 .t8c 必存在: server/config + routes/{canvas,settings,proxy,files,imageOps,recharge,resources,themes,eagle} + utils/duckPayload",
+      "_post_build.cjs 验证 21 个 .t8c 必存在: server/config + routes/{canvas,settings,proxy,externalProviders,files,imageOps,recharge,resources,themes,eagle} + providers/{registry,mediaResolver,adapters,openaiCompatible,modelscope,volcengine,comfyui,jimengCli} + utils/duckPayload",
       "_post_build.cjs 验证 resources/frontend/index.html + assets/ 必存在",
       "_post_build.cjs 必须让 src/assets/theme-music/*.mp3 经 Vite 输出到 resources/frontend/assets，主题音乐默认静音且随前端资源一起打包",
       "_post_build.cjs 自动清除任何意外混入的 resources/{app,backend}/src 明文目录",
@@ -44,7 +44,7 @@
     }
   },
   "themes": {
-    "description": "主题模板体系：内置科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格 / EVA风格 / 幽游白书风格七套模板 × 浅色/深色模式，由 zustand theme store 持久化，data-theme-style + data-theme-mode + data-theme-visual 注入 html 根；新增节点应使用 ThemeToken CSS 变量与通用 t8-* 样式，避免逐节点硬编码主题。",
+    "description": "主题模板体系：内置科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格 / EVA风格 / 幽游白书风格 / 灌篮高手风格八套模板 × 浅色/深色模式，由 zustand theme store 持久化，data-theme-style + data-theme-mode + data-theme-visual 注入 html 根；新增节点应使用 ThemeToken CSS 变量与通用 t8-* 样式，避免逐节点硬编码主题。",
     "templateSystem": {
       "schema": "t8-theme-template",
       "version": 2,
@@ -77,7 +77,8 @@
         "画布背景水印必须放在 .t8-canvas-shell::before/::after 背景层，z-index:0 且 pointer-events:none；ReactFlow 节点、边、浮层和 GroupBox 内容必须盖住水印，不能让装饰穿透到素材预览或画板内容上方",
         "强风格官方主题可为 light/dark 分别提供水印资产；若深色水印包含黑底终端、警告面板或厚重贴片，浅色模式必须改用透明底线稿 / 印章 / HUD 版本，避免浅色画布出现突兀深色块",
         "框选/节点右键菜单、空白右键快速添加菜单、拖线候选菜单和选中节点右上角 RUN/关闭浮动条都属于全局主题控件，必须使用 t8-context-menu / t8-node-action-bar 语义类和 visuals.style 作为视觉判断来源，禁止仅按 legacyStyle=像素/科技分支导致 OP、火影、EVA 等主题残留白底或绿色按钮",
-        "全局菜单新增动作时必须检查 light/dark 与七套官方主题的可读性；小图标和菜单图标仍需固定尺寸，避免 OP/像素风胶囊按钮把资源库、图像对比、批量下载等入口撑大"
+        "全局菜单新增动作时必须检查 light/dark 与八套官方主题的可读性；小图标和菜单图标仍需固定尺寸，避免 OP/像素风胶囊按钮把资源库、图像对比、批量下载等入口撑大",
+        "节点 NodeID 徽标属于 ReactFlow 节点外层通用浮层，必须使用 .t8-node-serial-badge 这类全局样式挂在节点外框右上角；禁止按标题图标宽度硬编码 left/top 塞进标题行，避免不同节点、不同主题和长标题重叠。"
       ],
       "music": {
         "defaultMuted": true,
@@ -97,9 +98,11 @@
           "rh-hidden": "rh-hidden-saya.mp3",
           "naruto-style": "naruto-shinsei-gyakuten.mp3",
           "eva-style": "eva-decisive-battle.mp3",
-          "yyh-style": "yyh-unbalanced-kiss-piano.mp3"
+          "yyh-style": "yyh-unbalanced-kiss-piano.mp3",
+          "yyh-hidden": "yyh-hidden-tonight.mp3",
+          "slamdunk-style": "slamdunk-kimi-ga-suki.mp3"
         },
-        "rule": "主题音乐默认静音，通常只在用户主动点击播放按钮后播放；RH 鸭鸭隐藏模式和幽游白书肖像大师隐藏模式会自动切换隐藏音乐并解除静音。模板编辑器支持上传替换，导出模板可携带 data:audio/*。"
+        "rule": "主题音乐默认静音，通常只在用户主动点击播放按钮后播放；RH 鸭鸭隐藏模式会自动切换 rh-hidden-saya.mp3，幽游白书肖像大师隐藏模式会自动切换 yyh-hidden-tonight.mp3，二者都会解除静音。模板编辑器支持上传替换，导出模板可携带 data:audio/*。"
       }
     },
     "styles": {
@@ -206,7 +209,20 @@
           "nodeFrame": "spirit-case",
           "headerMark": "REI GUN"
         },
-        "music": "yyh-unbalanced-kiss-piano.mp3"
+        "music": "yyh-unbalanced-kiss-piano.mp3；肖像大师隐藏模式自动切换 yyh-hidden-tonight.mp3 并解除静音播放"
+      },
+      "slamdunk": {
+        "label": "灌篮高手风格",
+        "description": "灌篮高手热血篮球馆视觉模板：原创木地板球场、红黑球衣、计分牌节点、传球弧线、半场战术 MiniMap、篮球/哨子 SHIFT 剪线与战术板菜单；不使用官方角色图、漫画截图或队徽原图。",
+        "default": false,
+        "visuals": {
+          "style": "slamdunk",
+          "iconPack": "slamdunk",
+          "canvasPattern": "court",
+          "nodeFrame": "scoreboard-card",
+          "headerMark": "BUZZER BEATER"
+        },
+        "music": "slamdunk-kimi-ga-suki.mp3；默认静音，用户可在主题模板中上传替换授权音频"
       }
     },
     "defaultStyle": "pixel",
@@ -1394,8 +1410,8 @@
         "幽游白书主题下选中肖像大师节点后，长按顶部 RUN 3 秒切换隐藏模式；隐藏模式开启后肖像大师节点、RUN 浮动条、输出节点和相关连线统一进入粉色发光视觉。",
         "隐藏视觉状态与高级词条安全阻断解耦：即使基础人物触发安全屏蔽，节点本体、编辑器、端口和连线仍保持粉色隐藏模式，只是不拼入隐藏高级 prompt。",
         "隐藏高级 prompt 只在幽游白书隐藏模式下拼入输出；若基础人物选择包含少女、少年、学生、校园、童话年轻角色等未成年/年轻化信号，会保守阻断隐藏高级词条输出，只保留公开 prompt。",
-        "ThemeMusicToggle 扩展隐藏音乐通道，幽游白书隐藏模式开启时可自动解除静音并切换隐藏音乐；当前先复用主题音乐通道，等待后续提供专用隐藏曲目。",
-        "已通过 npm run build；本次未打包 Electron，skill.md 未改动。"
+        "ThemeMusicToggle 扩展隐藏音乐通道，幽游白书隐藏模式开启时可自动解除静音并切换到专用隐藏曲目 yyh-hidden-tonight.mp3；普通主题音乐仍使用 yyh-unbalanced-kiss-piano.mp3。",
+        "已通过 npm run build；本阶段未打包 Electron。"
       ]
     },
     "phase92": {
@@ -1506,6 +1522,172 @@
       ]
     },
     "phase102": {
+      "label": "画布 NodeID 与按 ID 连线/查找 (v1.7.5)",
+      "status": "complete",
+      "items": [
+        "每个画布新增独立递增 NodeID：节点 data.nodeSerialId 从 1 开始分配，同一画布内不重复；删除节点后 nextNodeSerialId 不回退，历史画布加载时会自动补齐缺失或重复编号。",
+        "所有新增节点路径都会走统一编号工具：手动添加、上传、复制粘贴、模板导入、JSON 导入、自动输出节点、框选节点片段发送和跨画布素材发送都会按当前或目标画布的 nextNodeSerialId 重新分配编号。",
+        "节点角标统一显示在 ReactFlow 节点外框右上角，使用 .t8-node-serial-badge 悬浮徽标，不占用节点标题行，避免不同主题或长标题下遮挡节点名称。",
+        "拖线候选菜单顶部新增“发送到ID”，用户输入目标 NodeID 后自动创建兼容连线；无效数字、节点不存在、连接自身、重复连线和端口类型不兼容都会给出失败提示。",
+        "顶部工具栏新增“查找 NodeID”按钮，输入编号后画布自动居中到对应节点并触发节点高亮脉冲，便于大画布快速定位。"
+      ]
+    },
+    "phase103": {
+      "label": "幽游白书肖像大师隐藏音乐 (v1.7.6)",
+      "status": "complete",
+      "items": [
+        "幽游白书主题新增内置隐藏曲目 src/assets/theme-music/yyh-hidden-tonight.mp3，普通主题音乐仍使用 yyh-unbalanced-kiss-piano.mp3。",
+        "defaultTemplates 的 YYH 模板声明 hiddenTitle / hiddenUrl / hiddenVolume，肖像大师隐藏模式触发 yyhPortraitIds 后 ThemeMusicToggle 会自动切换隐藏音乐并解除静音。",
+        "electron/_post_build.cjs 增加 yyh-hidden-tonight-*.mp3 前端资源校验，确保正式打包时不会漏带该隐藏音乐。",
+        "公开版本同步到 1.7.6：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+      ]
+    },
+    "phase104": {
+      "label": "姿势大师画布比例与抓取变换 (v1.7.6)",
+      "status": "complete",
+      "items": [
+        "姿势大师左侧画布新增比例控制：支持默认、1:1、4:3、3:4、16:9、9:16、3:2、2:3 和自定义宽高比；画布采用动态 viewBox 并在固定预览区内完整适配显示，避免纵向比例被裁切。",
+        "姿势大师节点数据新增 poseCanvasRatioId、poseCanvasCustomWidth、poseCanvasCustomHeight 和 poseCanvasRatio，当前姿势 JSON、姿势库、关键帧、批量输出、运行 PNG、metadata 与 OpenPose/COCO keypoints 导出都会携带或应用对应画布尺寸。",
+        "抓取模式升级为整个人物变换工具：拖动画布移动人物，S 手柄等比缩放，R 手柄旋转；移动、缩放和旋转都会限制在当前画布边界内，适合多人构图和长画幅姿势调整。",
+        "右侧批量数量与关键帧帧数输入框改为居中数字显示，修复数值贴边导致的视觉不齐。",
+        "验证：npm run build 通过；浏览器实测 9:16、自定义 2:3、S 等比缩放、R 旋转和数量 / 帧数居中样式生效。"
+      ]
+    },
+    "phase105": {
+      "label": "姿势大师比例显示与上游识别热修 (v1.7.6)",
+      "status": "complete",
+      "items": [
+        "修复姿势大师切换 16:9 等比例时外层白色固定容器造成的“画布大小没变”错觉：预览承载区高度现在跟随实际画布比例变化，并用主题面板底色区分画布本体与留白区域。",
+        "MediaPipe 识别结果新增头颈连接约束：头部点会基于鼻子、眼睛、耳朵均值估计，并限制与脖子的最大距离，减少侧躺或构图复杂图片中头和身体完全分离的问题。",
+        "姿势大师新增“识别上游”按钮：左侧 image 输入连接图片后，可直接用第一张上游图识别姿态；识别后继续支持线稿图 / OpenPose图 / COCO图预览和运行输出，本地图片入口改为“本地识别”以区分来源。",
+        "上游图像载入增加跨域兜底：优先 anonymous，失败后自动尝试普通图片载入，提高资源库、上传素材和部分外部图像的识别成功率。"
+      ]
+    },
+    "phase106": {
+      "label": "姿势大师资源库、手部控制与清空背景热修 (v1.7.6)",
+      "status": "complete",
+      "items": [
+        "资源库新增 pose 类型和默认分类：未分类、常用姿势、动作参考、分镜姿势；后端新增 POST /api/resources/poses/add，以 JSON 保存 t8-pose-master 配置。",
+        "姿势大师节点新增“存资源库”入口，会保存当前人物 / 多人物、手部控制、画布比例、自定义 prompt、metadata、来源节点和画布信息；重复姿势配置会走 sha256 去重。",
+        "资源库抽屉新增姿势卡片视觉，点击插入时会恢复为新的姿势大师节点；App 插入逻辑能读取 t8-pose-master-resource 或裸 t8-pose-master 配置并恢复节点数据。",
+        "ResourceKind 扩展为 image / video / audio / set / pose，同时新增 ResourceMediaKind 限定普通媒体保存仍只接受 image / video / audio，避免 pose 被当成可拖拽媒体素材。",
+        "修复清空姿势大师时传入背景无法清空的问题：清空会写入 poseSuppressedReferenceUrl 隐藏当前上游背景但保留连线，用户重新点击“识别上游”即可恢复背景并重新识别。",
+        "修复左右手手型和掌心方向下拉无效：poseHandControls 现在同步进入 prompt、线稿手部绘制、运行输出、收藏、资源库保存和资源库恢复。"
+      ]
+    },
+    "phase107": {
+      "label": "SD2.0 上游音频/视频提交格式热修 (v1.7.6)",
+      "status": "complete",
+      "items": [
+        "修复 SD2.0 节点连接上传音频或视频后提交失败的问题：后端不再把 /files/input、/files/output 或资源库本地 URL 直接作为 reference_audio / reference_video 发送给 Seedance。",
+        "backend/src/routes/proxy.js 的 uploadRefToZhenzhen 升级为图片 / 视频 / 音频统一素材上传入口：本地 URL、资源库 URL、远端 URL 与 dataURL 都会先上传到贞贞 /v1/files，再把返回 URL 写入 Seedance content[]。",
+        "参考 gpt-image-2-web 的 runSeedance 实现补齐 reference_video / reference_audio 上传链路，避免上游返回 Invalid audio/video format；asset-xxx 保持直接透传兼容。",
+        "纯图片生成路径保持原行为，仍复用同一上传函数换取 image_url；新增 mock 路由验证确保最终 Seedance payload 不再包含本地 /files/input/ URL。",
+        "验证：node --check backend/src/routes/proxy.js、npm run build 通过；开发后端已重启到新逻辑。"
+      ]
+    },
+    "phase108": {
+      "label": "灌篮高手官方主题 (v1.7.7)",
+      "status": "complete",
+      "items": [
+        "新增第八套官方主题「灌篮高手风格」，使用原创篮球馆视觉母题：木地板球场、红黑球衣、计分牌、篮球橙、传球弧线和战术板，而不是官方角色图、漫画截图或队徽原图。",
+        "主题协议扩展 visuals.style=slamdunk、iconPack=slamdunk、canvasPattern=court、nodeFrame=scoreboard-card、music.preset=buzzer-beater，并在前端类型、后端主题白名单、主题编辑器和内置模板中同步；默认音乐使用 src/assets/theme-music/slamdunk-kimi-ga-suki.mp3。",
+        "新增 src/styles/theme-slamdunk.css，覆盖顶栏品牌、侧栏、画布球场背景、节点计分牌外框、NodeID 球衣号码牌、端口、连线、MiniMap、ReactFlow Controls、主题音乐按钮、右键菜单、拖线候选、NodeActionBar、GroupBox、select/option 和 light/dark legacy internal controls。",
+        "视觉热修新增原创资源 src/assets/slamdunk-court-map.png、slamdunk-jersey-10.png、slamdunk-basketball-v2.png 和 slamdunk-basketball-v2-cursor.png；顶栏品牌 LOGO 使用樱木 10 号球衣，小地图保留 SLAM DUNK 与 SHOHOKU 79 : 78 SANNOH 纪念排版。",
+        "DeletableEdge.tsx 的灌篮主题连线叠加单个 animateMotion 篮球图片精灵，按 edge id 轻微错峰，从出口传到入口；断线按钮和 SHIFT 剪线光标统一使用新版篮球资源，旧中点静态篮球 marker 在灌篮主题下隐藏。",
+        "灌篮高手深色模式下，ThemeMusicToggle 下方 ReactFlow Controls 改为浅色高对比裁判台/记分板边条，按钮图标、禁用态和 hover 态分别强制深色/浅色，避免在深色球场背景中不可读。",
+        "ThemeMusicToggle 保留 buzzer-beater 合成兜底；灌篮高手主题默认走内置 slamdunk-kimi-ga-suki.mp3，默认静音，用户仍可在主题模板管理中上传或填写授权音频 URL 替换。",
+        "验证：npm run build 通过；浏览器验证灌篮主题下每条连线仅 1 个传球篮球，断线按钮/光标使用新版篮球资源，深色模式 ReactFlow Controls 背景、图标和禁用态均有可读对比。",
+        "公开版本同步到 1.7.7：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md、docs/theme-design-guide.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。"
+      ]
+    },
+    "phase109": {
+      "label": "Grok Video 1.5 FAL 默认模型 (v1.7.8)",
+      "status": "complete",
+      "items": [
+        "视频节点模型类型下拉顺序调整为 Grok Video / Veo 3.1 / Sora2，新建视频节点默认进入 Grok Video。",
+        "视频节点 Grok Video TAB 的具体模型新增 Grok Video 1.5 (FAL)，并作为该 TAB 默认子模型；旧版 grok-video-3 和 grok-video-fal 仍保留可选，历史画布不强制迁移。",
+        "Grok Video 1.5 对齐 gpt-image-2-web v4.5U：走 xai/grok-imagine-video/v1.5/image-to-video，只支持图生视频，最多 1 张参考图，不发送 aspect_ratio 参数。",
+        "Grok Video 1.5 的图像传入模式默认 base64；前端提交固定 image_mode=base64，后端默认使用 refToBananaImage 转换本地/远端参考图后写入 image_url。",
+        "Grok Video FAL 旧版链路继续支持 image-to-video、reference-to-video 和无图 text-to-video fallback；Grok Video 1.5 缺少参考图时会前后端明确报错。",
+        "模型注意事项弹窗同步补充最新视频模型说明：Grok Video 1.5 可作为 SD 平替图生视频，Sora2 当前先不建议使用，Seedance 预扣/退补规则保持清晰提示。",
+        "公开版本同步到 1.7.8：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub；本次按规范打包 Electron。"
+      ]
+    },
+    "phase110": {
+      "label": "工作流资源库模板 (v1.7.9)",
+      "status": "complete",
+      "items": [
+        "资源库新增 workflow 类型和默认分类：未分类、常用工作流、图像流程、视频流程、工具链；后端新增 POST /api/resources/workflows/add，以 t8-workflow-fragment JSON 保存节点片段和内部连线。",
+        "选中一个或多个节点后，右键菜单新增「保存工作流到资源库」；跨画布发送弹窗在「节点片段」模式下也可直接保存为工作流模板，素材模式仍按原图像 / 视频 / 音频 / 文本入库。",
+        "资源库抽屉新增「工作流」TAB，支持独立分类、新建分类、搜索、收藏、重命名、改分类、删除和一键插入当前画布；工作流卡片显示节点数、连线数、主要节点类型和轻量拓扑预览。",
+        "插入工作流复用节点片段实例化逻辑，会重映射节点 id / 连线 id、保持相对布局、避开已有节点，并按当前画布 nextNodeSerialId 重新分配 NodeID，避免复用来源画布编号。",
+        "带内部连线的多节点发送现在会默认并自动优先使用 node-fragment；发送历史不会再把这类工作流选择恢复成 output/material-set/upload 等素材模式，避免 3 个节点发到目标画布变成 2 个输出素材节点。",
+        "新增 src/utils/workflowResource.ts、src/utils/sendMode.ts、tests/workflowResource.test.ts 和 tests/sendMode.test.ts，规范 t8-workflow-fragment 清洗/摘要/恢复、拓扑预览与发送模式优先级；ResourceKind 扩展为 image / video / audio / set / pose / workflow，ResourceMediaKind 仍只允许普通媒体。",
+        "验证：node --test tests/sendMode.test.ts tests/workflowResource.test.ts、node --check backend/src/routes/resources.js、npm run build 通过。"
+      ]
+    },
+    "phase111": {
+      "label": "文本节点自由缩放与端口稳定 (v1.7.9)",
+      "status": "complete",
+      "items": [
+        "TextNode 四角拖拽从同比例缩放改为自由宽高缩放，用户可独立拉宽或拉高长提示词输入区。",
+        "ResizableCorners 新增 keepAspectRatio 参数，默认继续为 true，保证 UploadNode / OutputNode / RHTools 等媒体或工具节点仍保持原来的等比缩放行为；TextNode 通过节点级 resize 行为显式关闭比例锁。",
+        "TextNode 输出 Handle 显式固定在右侧中点，设置 top/right/transform/zIndex/pointerEvents，并在 resize 中、resize 结束和 ResizeObserver 尺寸变化后继续刷新 ReactFlow node internals，防止输出口和连线脱离。",
+        "新增 src/utils/nodeResizeBehavior.ts 和 tests/nodeResizeBehavior.test.ts，锁定 text 节点自由缩放、其他节点默认等比，以及右侧输出口随独立宽高变化保持 right-center anchor。",
+        "公开版本同步到 1.7.9：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub；本次按规范打包 Electron。",
+        "验证：node --test tests/*.test.ts、node --check backend/src/routes/resources.js、npm run build 通过。"
+      ]
+    },
+    "phase112": {
+      "label": "扩展 API 平台融合路线 (v1.8.0)",
+      "status": "planned",
+      "items": [
+        "roadmap.md 新增「扩展 API 平台融合路线（参考 Infinite-Canvas）」，把 ModelScope、火山引擎、本地 ComfyUI、即梦 Seedance 2.0 CLI、OpenAI 兼容图像/视频/LLM 作为高级可选扩展平台规划，而不是主侧栏新增大入口。",
+        "设置入口规范为 API 设置页「分类独立 API Key【可选】」下方的「扩展 API 平台【高级/可选】」折叠区，折叠态只显示启用平台、已配置 Key 与 ComfyUI/即梦 CLI 可用状态，未配置不影响主流程。",
+        "节点融合规范为现有图像、视频、SD2.0、LLM 节点的「更多平台/高级来源」小折叠区；旧画布缺省视为 zhenzhen，跨画布发送/导入保留 providerSource/providerId/providerModel/providerParams。",
+        "后端适配规范拆为 backend/src/providers/registry.js、mediaResolver.js、openaiCompatible.js、modelscope.js、volcengine.js、comfyui.js、jimengCli.js，避免把新平台逻辑继续堆进 routes/proxy.js。",
+        "输出协议要求所有扩展平台最终归一为当前 OutputNode、资源库、自动保存、节点发送和 Loop 可识别的 image/video/audio/text/raw/taskId 结构；媒体输入统一交给 media resolver 转换为 URL、base64、asset 或本地路径。",
+        "开发分为 Phase A-F：设置与数据模型、Adapter 骨架与媒体解析、OpenAI 兼容与 ModelScope、火山与即梦 CLI、本地 ComfyUI 工作流、体验收口与回归。",
+        "公开版本同步到 1.8.0：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub；本次按规范打包 Electron。"
+      ]
+    },
+    "phase113": {
+      "label": "扩展 API 平台后端地基 (v1.8.1)",
+      "status": "complete",
+      "items": [
+        "新增 backend/src/providers/registry.js，集中维护 openai-compatible / modelscope / volcengine / comfyui / jimeng-cli 的默认卡片、协议枚举、配置归一化、非法 URL/ID/模型过滤、密钥保留与脱敏摘要。",
+        "settings 路由接入 advancedProviders：旧设置会迁移出默认禁用平台卡片，GET 返回脱敏 advancedProviders 与 advancedProviderSummary，/raw 保留内部明文，POST 遇到空值或 masked key 时保留原密钥。",
+        "新增 backend/src/providers/mediaResolver.js，统一处理 dataURL、远程 URL、/files/input、/files/output、/input、/output、本地绝对路径和 file://，按平台需要解析为 URL、base64/data-url 或本地路径。",
+        "electron/_post_build.cjs 新增 providers/registry.t8c 与 providers/mediaResolver.t8c 打包校验，backend/src/providers 新增文件后必须随 encrypt 进入 resources/backend-enc/providers。",
+        "新增 tests/advancedProviders.test.ts、tests/advancedProviderSettingsRoute.test.ts、tests/mediaResolver.test.ts，锁定扩展平台配置脱敏、保存迁移和媒体引用解析。",
+        "公开版本同步到 1.8.1：package.json、package-lock.json、vite.config.ts、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub；本次按规范打包 Electron。"
+      ]
+    },
+    "phase114": {
+      "label": "扩展 API 平台设置页与测试端点 (v1.8.2)",
+      "status": "complete",
+      "items": [
+        "API 设置页新增默认折叠的「扩展 API 平台【高级/可选】」真实 UI，折叠态显示启用平台数量、已配置 Key 数量、ComfyUI/即梦 CLI 可用状态，并明确未配置不影响主流程。",
+        "展开态按平台切换 OpenAI 兼容、ModelScope、火山引擎、本地 ComfyUI、即梦 CLI 表单，支持启用开关、Base URL、API Key/Token、模型列表、火山 Project/Region/AK/SK、ComfyUI 实例列表、即梦 CLI 路径/WSL 信息和测试连接按钮。",
+        "前端新增 src/utils/advancedProviders.ts，统一模型列表文本解析、折叠态摘要和 masked key 状态判断；ApiSettings 导入/导出设置会保留 advancedProviders。",
+        "后端新增 backend/src/providers/adapters.js 以及 openaiCompatible/modelscope/volcengine/comfyui/jimengCli adapter 骨架；server.js 挂载 POST /api/proxy/external/test-provider，测试连接返回脱敏 provider，不泄漏明文密钥。",
+        "electron/_post_build.cjs 同步校验 routes/externalProviders.t8c 与所有 provider adapter .t8c，防止新增后端文件未加密进入打包产物。",
+        "公开版本同步到 1.8.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub；本次按规范打包 Electron。",
+        "验证：node --test tests/*.test.ts 通过 41/41；node --check 覆盖新增 provider adapter、externalProviders 路由、server/settings；npm run build 与 npm run dist 通过；浏览器冒烟确认设置页可见并展开扩展平台区且 console error 为空；win-unpacked 10 秒启动冒烟通过。"
+      ]
+    },
+    "phase115": {
+      "label": "版本元数据与 Electron 重新打包 (v1.8.3)",
+      "status": "complete",
+      "items": [
+        "公开版本同步到 1.8.3：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；skill.md 仅本地更新，继续禁止推送 GitHub。",
+        "本次为发布刷新版本，不新增扩展平台真实生成路径；扩展 API 平台仍停留在设置页、脱敏保存、provider 测试端点与 adapter 骨架阶段，Phase C-F 继续按 roadmap 开发。",
+        "继续按 Electron 打包 SOP 执行 npm run dist、_post_build.cjs 加密产物校验和 win-unpacked 启动冒烟；dist_electron/build 产物不进入 Git。",
+        "未跟踪的本地预览 SVG 不属于本次发布范围，保持不提交。"
+      ]
+    },
+    "phase116": {
       "label": "新增 Geeknow 中转站 LLM 推理节点 (v1.7.4 fork)",
       "status": "complete",
       "items": [
@@ -1514,7 +1696,18 @@
         "前端节点：src/components/nodes/GeeknowLlmNode.tsx 复用 LLMNode 的 UI 结构，集成模块 src/integrations/geeknow/ 提供配置与运行逻辑。",
         "API 配置：ApiSettings 新增 Geeknow API Key 配置项，模型注册 providers/models.ts 新增 Geeknow 模型列表。",
         "文档更新：新增 docs/llm-inference.md LLM 推理专项文档，更新 src/integrations/README.md 集成说明，更新 CLAUDE.md 变更记录。",
-        "节点 type 使用 t8f- 前缀（t8-fork）避让 upstream，features.json 新增 phase102 记录，Canvas 注册表与可执行清单同步更新。"
+        "节点 type 使用 t8f- 前缀（t8-fork）避让 upstream，原 phase102 因 upstream v1.7.5 撞号被本次 merge 平移到 phase116；Canvas 注册表与可执行清单同步更新。"
+      ]
+    },
+    "phase117": {
+      "label": "合并 upstream v1.7.5→v1.8.3 → fork v1.9.0",
+      "status": "complete",
+      "items": [
+        "merge upstream/main 8b4fab7→e0fa5c1：吸收 v1.7.5 NodeID 与按 ID 连线、v1.7.6 YYH 隐藏音乐 + 姿势大师比例与抓取变换 + 资源库 pose + SD2.0 音视频提交修复、v1.7.7 灌篮高手主题、v1.7.8 Grok Video 1.5 FAL 默认、v1.7.9 工作流资源库 + 文本节点自由缩放、v1.8.0 扩展 API 平台融合路线、v1.8.1 后端 advancedProviders 地基、v1.8.2 设置页与测试端点、v1.8.3 版本元数据刷新。",
+        "fork 版本递增到 1.9.0：package.json / package-lock.json / vite.config.ts / electron/main.cjs（窗口标题+log+IPC version 三处） / backend/src/config.js APP_VERSION / features.json / README.md 同步。",
+        "fork 自有内容全部保留：Geeknow LLM 节点（phase 平移到 116）、七牛/Grsai integrations、CLAUDE.md 文档体系、fork-maintenance-guide.md 维护规范、.claude 本地配置忽略规则、清理后的单一 vite.config.ts。",
+        "冲突处理：features.json 双方 phase102 撞号（fork: Geeknow / upstream: NodeID），按 fork 让位规则把 Geeknow 重命名为 phase116；package.json / package-lock.json / config.js / main.cjs / vite.config.ts / README.md 版本号合一为 1.9.0；vite.config.js 沿用 fork 删除决策；ApiSettings.tsx / settings.js 合并 Geeknow 配置与 upstream advancedProviders。",
+        "未触及 Electron 打包：本次只做源码合并，build/、dist_electron/ 不更新；后续需要 npm run dist 时遵循 fork-maintenance-guide.md 验收清单。"
       ]
     }
   },
@@ -1547,7 +1740,7 @@
         {
           "type": "text",
           "label": "文本节点",
-          "description": "提示词文本"
+          "description": "提示词文本；四角拖拽可自由调整宽高，输出口保持贴合右侧中点"
         },
         {
           "type": "image",
@@ -1908,16 +2101,41 @@
     ],
     "video": [
       {
+        "id": "grok-video",
+        "label": "Grok Video",
+        "provider": "zhenzhen",
+        "endpoint": "/v1/videos/generations",
+        "defaultModel": "grok-imagine-video-1.5",
+        "falModels": [
+          {
+            "id": "grok-imagine-video-1.5",
+            "endpoint": "/fal/xai/grok-imagine-video/v1.5/image-to-video",
+            "mode": "image-to-video",
+            "imageMode": "base64",
+            "maxRefs": 1
+          },
+          {
+            "id": "grok-video-fal",
+            "endpoint": "/fal/xai/grok-imagine-video/{text-to-video|image-to-video|reference-to-video}",
+            "imageMode": "base64",
+            "maxRefs": 7
+          }
+        ]
+      },
+      {
         "id": "veo-3.1",
         "label": "Veo 3.1",
         "provider": "zhenzhen",
         "endpoint": "/v1/videos/generations"
       },
       {
-        "id": "grok-video",
-        "label": "Grok Video",
+        "id": "sora-2",
+        "label": "Sora2",
         "provider": "zhenzhen",
-        "endpoint": "/v1/videos/generations"
+        "endpoint": "/fal/fal-ai/sora-2/{text-to-video|image-to-video}",
+        "defaultModel": "sora-2",
+        "imageMode": "base64",
+        "maxRefs": 1
       },
       {
         "id": "seedance-2.0",
@@ -2125,6 +2343,52 @@
         }
       }
     },
+    "advancedProviders": {
+      "label": "扩展 API 平台【高级/可选】",
+      "status": "settings-ui-and-test-endpoint",
+      "since": "v1.8.0-roadmap / v1.8.1-backend-foundation / v1.8.2-settings-ui",
+      "placement": "API 设置页中位于「分类独立 API Key【可选】」之后、文件自动保存路径之前，默认折叠；未配置时不影响主流程。",
+      "principles": [
+        "默认不改变贞贞工坊 / RunningHub / LLM 独立 Key 与分类 Key fallback 链路。",
+        "只有用户主动展开、配置并在节点里选择扩展平台时才启用。",
+        "设置保存和节点调用解耦，节点仅保存 providerSource/providerId/providerModel/providerParams。",
+        "所有扩展平台输出必须归一化到现有 OutputNode、资源库、自动保存、节点发送和 Loop 可识别的协议。",
+        "Key、火山 AK/SK、CLI 路径和本地服务地址必须后端保存、脱敏展示并避免写入日志。"
+      ],
+      "protocols": [
+        "openai-compatible",
+        "modelscope",
+        "volcengine",
+        "comfyui",
+        "jimeng-cli"
+      ],
+      "backend": [
+        "backend/src/providers/registry.js（已接入 settings 路由，负责默认平台、配置清洗、密钥保留、脱敏展示和摘要统计）",
+        "backend/src/providers/mediaResolver.js（已实现 T8 本地/资源库/远程/dataURL/本地路径的统一解析）",
+        "backend/src/providers/adapters.js（按 protocol 分发测试/后续调用）",
+        "backend/src/providers/openaiCompatible.js（Base URL + /models 测试骨架）",
+        "backend/src/providers/modelscope.js（复用 OpenAI 兼容测试骨架，真实异步图像任务后续接入）",
+        "backend/src/providers/volcengine.js（复用 OpenAI 兼容测试骨架，真实 Ark/Seedream/Seedance 后续接入）",
+        "backend/src/providers/comfyui.js（限制 localhost/127.0.0.1，测试 /queue）",
+        "backend/src/providers/jimengCli.js（检测 dreamina/即梦 CLI 可执行路径，不执行生成）",
+        "backend/src/routes/externalProviders.js（POST /api/proxy/external/test-provider，返回脱敏 provider）"
+      ],
+      "frontend": [
+        "src/components/ApiSettings.tsx（扩展平台折叠区、平台表单、测试连接、设置导入导出）",
+        "src/utils/advancedProviders.ts（模型列表文本解析、摘要统计、masked key 状态判断）",
+        "src/services/api.ts::testAdvancedProvider（调用 /api/proxy/external/test-provider）",
+        "src/types/canvas.ts（AdvancedProviderConfig / CanvasNodeData providerSource 字段）"
+      ],
+      "plannedPhases": [
+        "Phase A: 设置与数据模型、折叠 UI、脱敏与校验测试。",
+        "Phase B: Adapter 骨架、统一 media resolver 与 provider test endpoint。",
+        "Phase C: OpenAI 兼容与 ModelScope，先接图像和 LLM。",
+        "Phase D: 火山引擎与即梦 Seedance CLI。",
+        "Phase E: 本地 ComfyUI 工作流。",
+        "Phase F: 错误文案、输出协议和回归体验收口。"
+      ],
+      "reference": "roadmap.md::扩展 API 平台融合路线（参考 Infinite-Canvas）"
+    },
     "fileSavePath": {
       "label": "文件自动保存路径",
       "backendField": "fileSavePath",
@@ -2157,8 +2421,9 @@
       ],
       "settings": [
         "GET /api/settings — 三套 Key 设置(脱敏)",
-        "GET /api/settings/raw — 内部明文(代理调用使用；设置总导出会用作私密备份源)",
-        "POST /api/settings — 更新设置（fileSavePath/canvasAutoSavePath/resourceLibraryPath/themeTemplatePath 变动后后端自动 ensureDir；设置总导入回填后仍通过此接口保存）",
+        "GET /api/settings — v1.8.1 起返回脱敏 advancedProviders 与 advancedProviderSummary，用于扩展 API 平台折叠态摘要",
+        "GET /api/settings/raw — 内部明文(代理调用使用；设置总导出会用作私密备份源；advancedProviders 原始密钥只在此内部接口可见)",
+        "POST /api/settings — 更新设置（fileSavePath/canvasAutoSavePath/resourceLibraryPath/themeTemplatePath 变动后后端自动 ensureDir；advancedProviders 会过滤非法 provider 并保留 masked/空值对应的旧密钥；设置总导入回填后仍通过此接口保存）",
         "GET/POST/PUT/DELETE /api/settings/rh-tool-categories[/:id] — RH 超市分类 CRUD（v1.2.10）",
         "POST /api/settings/rh-tool-categories/reorder — RH 超市分类排序（v1.2.10）",
         "GET/POST/PUT/DELETE /api/settings/rh-tool-apps[/:id] — RH 超市应用 CRUD（v1.2.10）",
@@ -2210,7 +2475,8 @@
         "POST /api/proxy/runninghub/submit — RH 工作流提交（v1.2.9.16 起统一读 settings.rhApiKey，不再使用 useWallet/wallet=1 分路）",
         "GET /api/proxy/runninghub/query?taskId — RH 任务轮询（转存）",
         "GET /api/proxy/runninghub/app-info?webappId — RH 应用信息",
-        "POST /api/proxy/runninghub/upload-asset — RH 上传资源（路径白名单含 /files/output/ · /output/ · /files/input/ · /input/ 4 种前缀）"
+        "POST /api/proxy/runninghub/upload-asset — RH 上传资源（路径白名单含 /files/output/ · /output/ · /files/input/ · /input/ 4 种前缀）",
+        "POST /api/proxy/external/test-provider — v1.8.2 扩展 API 平台测试端点，可用 providerId 或临时 provider 配置测试 OpenAI兼容/ModelScope/火山/ComfyUI/即梦 CLI，响应只返回脱敏 provider"
       ],
       "recharge": [
         "GET /api/recharge/config — 充值代理配置状态(不返回密钥)",

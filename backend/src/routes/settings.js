@@ -3,6 +3,11 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const {
+  maskAdvancedProviders,
+  normalizeAdvancedProviders,
+  summarizeAdvancedProviders,
+} = require('../providers/registry');
 
 const router = express.Router();
 
@@ -47,6 +52,8 @@ const DEFAULT_SETTINGS = {
   themeTemplatePath: config.DEFAULT_THEME_TEMPLATE_DIR,
   // 本地 Eagle API 地址，只用于“发送到 Eagle”功能。路由层仍会强制限制为本机地址。
   eagleApiBase: config.DEFAULT_EAGLE_API_BASE,
+  // v1.8.0: 扩展 API 平台（高级可选）。默认只提供禁用的配置卡片，不影响主流程。
+  advancedProviders: normalizeAdvancedProviders(),
   // 其他偏好
   preferences: {
     theme: 'dark',
@@ -114,6 +121,7 @@ function loadSettings({ persistMigrations = true } = {}) {
       zhenzhenBaseUrl: config.ZHENZHEN_BASE_URL,
       llmBaseUrl: config.ZHENZHEN_BASE_URL,
     };
+    merged.advancedProviders = normalizeAdvancedProviders(data.advancedProviders);
     const migrated = migrateLegacyDefaultPaths(merged);
     if (persistMigrations && migrated.changed) {
       saveSettings(migrated.settings);
@@ -165,6 +173,8 @@ router.get('/', (_req, res) => {
     grsaiApiKey: maskKey(settings.grsaiApiKey),
     geeknowApiKey: maskKey(settings.geeknowApiKey),
     // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
+    advancedProviders: maskAdvancedProviders(settings.advancedProviders),
+    advancedProviderSummary: summarizeAdvancedProviders(settings.advancedProviders),
   };
   for (const f of CLASSIFIED_KEY_FIELDS) {
     masked[f] = maskKey(settings[f]);
@@ -181,6 +191,7 @@ router.get('/raw', (_req, res) => {
 router.post('/', (req, res) => {
   const current = loadSettings();
   const incoming = req.body || {};
+  const hasAdvancedProviders = Object.prototype.hasOwnProperty.call(incoming, 'advancedProviders');
   const merged = {
     ...current,
     ...incoming,
@@ -188,6 +199,9 @@ router.post('/', (req, res) => {
     zhenzhenBaseUrl: config.ZHENZHEN_BASE_URL,
     llmBaseUrl: config.ZHENZHEN_BASE_URL,
   };
+  merged.advancedProviders = hasAdvancedProviders
+    ? normalizeAdvancedProviders(incoming.advancedProviders, current.advancedProviders)
+    : normalizeAdvancedProviders(current.advancedProviders);
   saveSettings(merged);
   // v1.2.10.2/v1.3.1/v1.3.4: 保存后重新确保本地保存路径存在
   for (const field of ['fileSavePath', 'canvasAutoSavePath', 'resourceLibraryPath', 'themeTemplatePath']) {
@@ -539,3 +553,5 @@ router.post('/rh-tools/import', (req, res) => {
 });
 
 module.exports = router;
+module.exports.loadSettings = loadSettings;
+module.exports.saveSettings = saveSettings;

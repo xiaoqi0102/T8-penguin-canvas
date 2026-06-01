@@ -35,7 +35,7 @@ import { taskCompletionSound } from '../../stores/taskCompletionSound';
  * VideoNode - 异步视频生成(完全对齐 gpt-image-2-web)
  * 支持:
  *   - Veo 3.1   (kind=veo)      — 13 个子模型 / aspect_ratio(16:9|9:16) / seed / enhance_prompt / enable_upsample / images(≤3)
- *   - Grok Video(kind=grok)     — grok-video-3 / ratio / duration(s) / resolution(480P|720P) / seed / images(≤7)
+ *   - Grok Video(kind=grok)     — Grok Video 1.5 FAL 默认 / 旧版 FAL / grok-video-3 / images(≤7)
  *   - Sora2 FAL (kind=sora)     — 文生/图生视频 / Base64 参考图(≤1) / duration / resolution
  *   - Seedance  (kind=seedance) — 零破坏兼容旧 veo 字段
  * 流程: submit → poll(5s 间隔) → 转存 → 展示
@@ -78,6 +78,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   // FAL 专属参数
   const isFal = isFalVideoModel(apiModel);
   const falReg = isFal ? VIDEO_FAL_REGISTRY[apiModel] : null;
+  const isGrokFalV15 = apiModel === 'grok-imagine-video-1.5';
   // veo-fal 专属
   const vfRatio: string = d?.vfRatio || '16:9';
   const vfDuration: string = d?.vfDuration || '8s';
@@ -85,7 +86,9 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   const vfAudio: boolean = d?.vfAudio ?? false;
   const vfSafety: number = d?.vfSafety ?? 4;
   // grok-fal 专属
-  const gkfMode: 'image_to_video' | 'reference_to_video' = d?.gkfMode === 'image_to_video' ? 'image_to_video' : 'reference_to_video';
+  const gkfMode: 'image_to_video' | 'reference_to_video' = isGrokFalV15
+    ? 'image_to_video'
+    : d?.gkfMode === 'image_to_video' ? 'image_to_video' : 'reference_to_video';
   const gkfRatio: string = d?.gkfRatio || '16:9';
   const gkfDuration: number = d?.gkfDuration ?? 6;
   const gkfResolution: string = d?.gkfResolution || '720p';
@@ -131,7 +134,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   );
   const maxMentionRefs =
     isFal && falReg
-      ? falReg.paramKind === 'grok-fal' && gkfMode !== 'reference_to_video'
+      ? falReg.paramKind === 'grok-fal' && (isGrokFalV15 || gkfMode !== 'reference_to_video')
         ? 1
         : falReg.maxRefImages
       : modelDef.maxRefImages;
@@ -181,12 +184,14 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   // 切主模型时重置所有参数为该模型默认值(避免跨模型参数遗留)
   const switchMainModel = (nextId: string) => {
     const def = VIDEO_MODELS.find((m) => m.id === nextId) || VIDEO_MODELS[0];
+    const nextModel = def.apiModelOptions[0].value;
     update({
       mainId: def.id,
-      model: def.apiModelOptions[0].value,
+      model: nextModel,
       ratio: def.defaultRatio,
       duration: def.defaultDuration ?? def.durations?.[0],
       resolution: def.defaultResolution || '',
+      ...(nextModel === 'grok-imagine-video-1.5' ? { gkfMode: 'image_to_video' } : {}),
     });
   };
 
@@ -303,7 +308,10 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
     try {
       // === FAL 分支 ===
       if (isFal && falReg) {
-        const falMaxRefs = falReg.paramKind === 'grok-fal' && gkfMode !== 'reference_to_video' ? 1 : falReg.maxRefImages;
+        const falMaxRefs =
+          falReg.paramKind === 'grok-fal' && (isGrokFalV15 || gkfMode !== 'reference_to_video')
+            ? 1
+            : falReg.maxRefImages;
         const refs = imageUrls.slice(0, falMaxRefs);
         let images: string[] | undefined;
         if (refs.length > 0) {
@@ -321,15 +329,23 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           falReq.generate_audio = vfAudio;
           falReq.safety_tolerance = vfSafety;
         } else if (falReg.paramKind === 'grok-fal') {
-          const pastedReferenceUrls = splitGrokFalRefUrls(gkfReferenceUrls).slice(0, Math.max(0, 7 - (images?.length || 0)));
-          if (gkfMode === 'reference_to_video' && (!images || images.length === 0) && pastedReferenceUrls.length === 0) {
+          const effectiveGkfMode = isGrokFalV15 ? 'image_to_video' : gkfMode;
+          const pastedReferenceUrls = isGrokFalV15
+            ? []
+            : splitGrokFalRefUrls(gkfReferenceUrls).slice(0, Math.max(0, 7 - (images?.length || 0)));
+          if (isGrokFalV15 && (!images || images.length === 0)) {
+            throw new Error('Grok Video 1.5 需要至少 1 张参考图');
+          }
+          if (!isGrokFalV15 && effectiveGkfMode === 'reference_to_video' && (!images || images.length === 0) && pastedReferenceUrls.length === 0) {
             throw new Error('Grok FAL 参考生视频需要至少 1 张参考图或 URL');
           }
-          falReq.gkMode = gkfMode;
-          falReq.gkRatio = gkfMode === 'reference_to_video' && gkfRatio === 'auto' ? '16:9' : gkfRatio;
+          falReq.gkMode = effectiveGkfMode;
+          if (!isGrokFalV15) {
+            falReq.gkRatio = effectiveGkfMode === 'reference_to_video' && gkfRatio === 'auto' ? '16:9' : gkfRatio;
+          }
           falReq.gkDuration = gkfDuration;
           falReq.resolution = gkfResolution;
-          falReq.image_mode = 'base64';
+          falReq.image_mode = falReg.defaultImageMode || 'base64';
           if (pastedReferenceUrls.length) falReq.gkReferenceUrls = pastedReferenceUrls;
         } else if (falReg.paramKind === 'sora-fal') {
           if (soraMode === 'image_to_video' && (!images || images.length === 0)) {
@@ -342,14 +358,16 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           falReq.soraDeleteVideo = soraDeleteVideo;
           falReq.soraBlockIp = soraBlockIp;
           falReq.soraCharacterIds = soraCharacterIds;
-          falReq.image_mode = 'base64';
+          falReq.image_mode = falReg.defaultImageMode || 'base64';
         }
 
         const falInfo =
           falReg.paramKind === 'veo-fal'
             ? `ratio=${vfRatio} dur=${vfDuration} res=${vfResolution} audio=${vfAudio}`
             : falReg.paramKind === 'grok-fal'
-              ? `mode=${gkfMode} ratio=${gkfMode === 'reference_to_video' && gkfRatio === 'auto' ? '16:9' : gkfRatio} dur=${gkfDuration}s res=${gkfResolution} image=base64 urls=${splitGrokFalRefUrls(gkfReferenceUrls).length}`
+              ? isGrokFalV15
+                ? `model=1.5 mode=image_to_video dur=${gkfDuration}s res=${gkfResolution} image=${falReg.defaultImageMode || 'base64'}`
+                : `mode=${gkfMode} ratio=${gkfMode === 'reference_to_video' && gkfRatio === 'auto' ? '16:9' : gkfRatio} dur=${gkfDuration}s res=${gkfResolution} image=${falReg.defaultImageMode || 'base64'} urls=${splitGrokFalRefUrls(gkfReferenceUrls).length}`
               : `mode=${soraMode} ratio=${soraRatio} dur=${soraDuration}s res=${soraResolution} image=base64`;
         logBus.info(
           `提交 FAL 视频: ${apiModel} ${falInfo} refs=${images?.length || 0} prompt="${finalPrompt.slice(0, 30)}…"`,
@@ -517,7 +535,13 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
             <label className="text-[10px] text-white/50 block mb-1">具体模型</label>
             <select
               value={apiModel}
-              onChange={(e) => update({ model: e.target.value })}
+              onChange={(e) => {
+                const nextModel = e.target.value;
+                update({
+                  model: nextModel,
+                  ...(nextModel === 'grok-imagine-video-1.5' ? { gkfMode: 'image_to_video' } : {}),
+                });
+              }}
               className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
             >
               {modelDef.apiModelOptions.map((o) => (
@@ -567,30 +591,36 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
 
         {isFal && falReg?.paramKind === 'grok-fal' && (
           <>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div>
-                <label className="text-[10px] text-white/50 block mb-1">模式 (FAL)</label>
-                <select
-                  value={gkfMode}
-                  onChange={(e) => {
-                    const next = e.target.value as 'image_to_video' | 'reference_to_video';
-                    update({
-                      gkfMode: next,
-                      ...(next === 'reference_to_video' && gkfRatio === 'auto' ? { gkfRatio: '16:9' } : {}),
-                    });
-                  }}
-                  className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
-                >
-                  {GROK_FAL_MODES.map((m) => <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>)}
-                </select>
+            {isGrokFalV15 ? (
+              <div className="rounded border border-white/10 bg-white/5 px-2 py-1.5 text-[10px] leading-relaxed text-white/60">
+                Grok Video 1.5 仅支持图生视频，必须有 1 张参考图；图像传入模式默认 Base64，不发送比例参数。
               </div>
-              <div>
-                <label className="text-[10px] text-white/50 block mb-1">比例 (FAL)</label>
-                <select value={gkfRatio} onChange={(e) => update({ gkfRatio: e.target.value })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
-                  {GROK_FAL_RATIOS.map((r) => <option key={r} value={r} className="bg-zinc-900">{r}</option>)}
-                </select>
+            ) : (
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-1">模式 (FAL)</label>
+                  <select
+                    value={gkfMode}
+                    onChange={(e) => {
+                      const next = e.target.value as 'image_to_video' | 'reference_to_video';
+                      update({
+                        gkfMode: next,
+                        ...(next === 'reference_to_video' && gkfRatio === 'auto' ? { gkfRatio: '16:9' } : {}),
+                      });
+                    }}
+                    className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+                  >
+                    {GROK_FAL_MODES.map((m) => <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-1">比例 (FAL)</label>
+                  <select value={gkfRatio} onChange={(e) => update({ gkfRatio: e.target.value })} className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30">
+                    {GROK_FAL_RATIOS.map((r) => <option key={r} value={r} className="bg-zinc-900">{r}</option>)}
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
             <div className="grid grid-cols-2 gap-1.5">
               <div>
                 <label className="text-[10px] text-white/50 block mb-1">时长(s)</label>
@@ -603,7 +633,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
                 </select>
               </div>
             </div>
-            {gkfMode === 'reference_to_video' && (
+            {!isGrokFalV15 && gkfMode === 'reference_to_video' && (
               <div>
                 <label className="text-[10px] text-white/50 block mb-1">公开参考 URL(可选)</label>
                 <textarea
@@ -615,7 +645,9 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
               </div>
             )}
             <div className="text-[10px] text-white/45 leading-relaxed">
-              {gkfMode === 'reference_to_video'
+              {isGrokFalV15
+                ? '只取第 1 张参考图，提交到 v1.5 image-to-video；Base64 为默认传入方式。'
+                : gkfMode === 'reference_to_video'
                 ? '参考生视频最多 7 张，优先使用上游/本地图，再补充 URL。'
                 : '图生视频只取第 1 张参考图；无图时保留文生视频 fallback。'}
             </div>

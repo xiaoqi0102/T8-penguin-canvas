@@ -473,7 +473,7 @@ export async function uploadFile(file: File): Promise<{ url: string; filename: s
 //   queryVideoFal  返 { status: 'pending'|'completed'|'failed', videoUrl?, error? }
 // ========================================================================
 export interface VideoFalSubmitRequest {
-  /** 'veo3.1-fal' | 'grok-video-fal' | 'sora-2' */
+  /** 'veo3.1-fal' | 'grok-video-fal' | 'grok-imagine-video-1.5' | 'sora-2' */
   apiModel: string;
   prompt: string;
   /** 参考图(base64 dataURI 或本地 /files/* URL) */
@@ -488,7 +488,7 @@ export interface VideoFalSubmitRequest {
   generate_audio?: boolean;
   /** veo-fal: 1-6 (默认 4) */
   safety_tolerance?: number;
-  /** 参考图上传方式: 'image_url'(上传取URL) | 'base64' */
+  /** 参考图上传方式: 'image_url'(上传取URL) | 'base64'；Grok 1.5 默认 base64 */
   image_mode?: 'image_url' | 'base64';
   /** grok-fal: 时长秒数 1-30 */
   gkDuration?: number;

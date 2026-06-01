@@ -63,3 +63,7 @@ Thumbs.db
 
 # Claude Code 本地配置与缓存
 .claude/
+
+# tsc -b 编译产物：vite.config.ts 为唯一入口，禁止产生 .js / .d.ts 副本（fork 维持单文件策略）
+/vite.config.js
+/vite.config.d.ts

@@ -1,0 +1,210 @@
+const fs = require('fs');
+const path = require('path');
+const config = require('../config');
+
+const DEFAULT_BASE_URL = `http://127.0.0.1:${config.PORT}`;
+
+const MIME_BY_EXT = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.avif': 'image/avif',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/mp4',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.flac': 'audio/flac',
+  '.txt': 'text/plain',
+  '.json': 'application/json',
+};
+
+function cleanBaseUrl(baseUrl) {
+  return String(baseUrl || DEFAULT_BASE_URL).trim().replace(/\/+$/, '');
+}
+
+function isDataUrl(value) {
+  return /^data:[^;,]+;base64,/i.test(String(value || '').trim());
+}
+
+function parseDataUrl(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^data:([^;,]+);base64,(.+)$/i);
+  if (!match) return null;
+  return {
+    mime: match[1] || 'application/octet-stream',
+    base64: match[2] || '',
+    dataUrl: text,
+  };
+}
+
+function isRemoteUrl(value) {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function isT8RelativeUrl(value) {
+  return /^\/(?:files|api\/resources|api\/files|input|output)\//.test(String(value || '').trim());
+}
+
+function mediaRefToAbsoluteUrl(value, options = {}) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (isDataUrl(text) || isRemoteUrl(text)) return text;
+  if (isT8RelativeUrl(text)) return `${cleanBaseUrl(options.baseUrl)}${text}`;
+  return text;
+}
+
+function safeJoinInside(root, relative) {
+  const base = path.resolve(root);
+  const target = path.resolve(base, relative);
+  if (target !== base && !target.startsWith(`${base}${path.sep}`)) return '';
+  return target;
+}
+
+function decodeUrlPathPart(value) {
+  try {
+    return decodeURIComponent(String(value || '').replace(/^\/+/, ''));
+  } catch {
+    return String(value || '').replace(/^\/+/, '');
+  }
+}
+
+function resolveT8LocalMediaPath(value) {
+  const text = String(value || '').trim().split(/[?#]/)[0];
+  const rules = [
+    ['/files/input/', config.INPUT_DIR],
+    ['/input/', config.INPUT_DIR],
+    ['/files/output/', config.OUTPUT_DIR],
+    ['/output/', config.OUTPUT_DIR],
+    ['/files/thumbnails/', config.THUMBNAILS_DIR],
+  ];
+  for (const [prefix, root] of rules) {
+    if (text.startsWith(prefix)) {
+      const relative = decodeUrlPathPart(text.slice(prefix.length));
+      return safeJoinInside(root, relative);
+    }
+  }
+  return '';
+}
+
+function mimeFromPath(filePath, fallback = 'application/octet-stream') {
+  const ext = path.extname(String(filePath || '')).toLowerCase();
+  return MIME_BY_EXT[ext] || fallback;
+}
+
+function filePathFromFileUrl(value) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'file:') return '';
+    let p = decodeURIComponent(parsed.pathname || '');
+    if (process.platform === 'win32' && /^\/[A-Za-z]:\//.test(p)) p = p.slice(1);
+    return p;
+  } catch {
+    return '';
+  }
+}
+
+function resolveDirectLocalPath(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (text.startsWith('file://')) return filePathFromFileUrl(text);
+  if (path.isAbsolute(text)) return text;
+  return '';
+}
+
+function dataUrlFromFile(filePath) {
+  const buf = fs.readFileSync(filePath);
+  const mime = mimeFromPath(filePath);
+  const base64 = buf.toString('base64');
+  return {
+    kind: 'data-url',
+    dataUrl: `data:${mime};base64,${base64}`,
+    base64,
+    mime,
+    path: filePath,
+  };
+}
+
+async function resolveMediaRef(value, options = {}) {
+  const target = options.target || 'url';
+  const text = String(value || '').trim();
+  if (!text) throw new Error('媒体引用为空');
+
+  if (isDataUrl(text)) {
+    const parsed = parseDataUrl(text);
+    return {
+      kind: 'data-url',
+      source: text,
+      dataUrl: parsed.dataUrl,
+      base64: parsed.base64,
+      mime: parsed.mime,
+      url: parsed.dataUrl,
+    };
+  }
+
+  const t8Path = resolveT8LocalMediaPath(text);
+  const localPath = t8Path || resolveDirectLocalPath(text);
+
+  if (target === 'local-path') {
+    if (localPath && fs.existsSync(localPath)) {
+      return {
+        kind: 'local-path',
+        source: text,
+        path: localPath,
+        mime: mimeFromPath(localPath),
+      };
+    }
+    throw new Error(`无法解析本地媒体路径：${text.slice(0, 160)}`);
+  }
+
+  if (target === 'data-url' || target === 'base64') {
+    if (localPath && fs.existsSync(localPath)) {
+      const resolved = dataUrlFromFile(localPath);
+      return target === 'base64'
+        ? { ...resolved, kind: 'base64', dataUrl: undefined }
+        : { ...resolved, source: text };
+    }
+    if (isRemoteUrl(text) || isT8RelativeUrl(text)) {
+      const url = mediaRefToAbsoluteUrl(text, options);
+      return {
+        kind: 'url',
+        source: text,
+        url,
+      };
+    }
+    throw new Error(`无法转换媒体为 base64：${text.slice(0, 160)}`);
+  }
+
+  if (isRemoteUrl(text) || isT8RelativeUrl(text)) {
+    return {
+      kind: 'url',
+      source: text,
+      url: mediaRefToAbsoluteUrl(text, options),
+    };
+  }
+
+  if (localPath && fs.existsSync(localPath)) {
+    return {
+      kind: 'local-path',
+      source: text,
+      path: localPath,
+      mime: mimeFromPath(localPath),
+    };
+  }
+
+  throw new Error(`不支持的媒体引用：${text.slice(0, 160)}`);
+}
+
+module.exports = {
+  isDataUrl,
+  mediaRefToAbsoluteUrl,
+  mimeFromPath,
+  resolveMediaRef,
+  resolveT8LocalMediaPath,
+};

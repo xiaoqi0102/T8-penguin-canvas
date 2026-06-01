@@ -21,6 +21,7 @@ import type { SendTargetMode, SendableMaterial } from '../utils/sendMaterials';
 import { bucketSendableMaterials, sendableMaterialSignature, summarizeSendableMaterials } from '../utils/sendMaterials';
 import type { SendNodeFragment } from '../utils/sendNodeFragment';
 import { sendNodeFragmentSignature, summarizeSendNodeFragment } from '../utils/sendNodeFragment';
+import { coerceHistorySendMode } from '../utils/sendMode';
 
 interface SendMaterialsModalProps {
   open: boolean;
@@ -32,7 +33,7 @@ interface SendMaterialsModalProps {
   activeCanvasId: string | null;
   onClose: () => void;
   onSendToCanvas: (targetCanvasId: string, mode: SendTargetMode, switchAfter: boolean) => Promise<void> | void;
-  onSaveToResource: () => Promise<void> | void;
+  onSaveToResource: (mode: SendTargetMode) => Promise<void> | void;
   onSendToEagle: () => Promise<void> | void;
 }
 
@@ -256,7 +257,12 @@ export default function SendMaterialsModal({
   const handleHistoryPick = (entry: SendHistoryEntry) => {
     if (!canvases.some((canvas) => canvas.id === entry.targetCanvasId)) return;
     setTargetId(entry.targetCanvasId);
-    if (modeOptions.some((opt) => opt.value === entry.mode)) setMode(entry.mode);
+    const historyMode = coerceHistorySendMode({
+      historyMode: entry.mode,
+      nodeCount: nodeFragment?.nodes.length || 0,
+      edgeCount: nodeFragment?.edges.length || 0,
+    });
+    if (historyMode && modeOptions.some((opt) => opt.value === historyMode)) setMode(historyMode);
   };
   const handleSendToCanvas = async () => {
     if (!canSendToCanvas) return;
@@ -500,12 +506,18 @@ export default function SendMaterialsModal({
             <button
               type="button"
               className={ghostBtn}
-              disabled={!!busy || materials.length === 0}
-              title={materials.length > 0 ? '把素材保存到资源库' : '节点片段暂不支持直接保存到资源库'}
-              onClick={() => runAction('resource', onSaveToResource)}
+              disabled={!!busy || (materials.length === 0 && !hasNodeFragment)}
+              title={
+                mode === 'node-fragment'
+                  ? '把节点片段保存为资源库工作流'
+                  : materials.length > 0
+                    ? '把素材保存到资源库'
+                    : '请选择节点片段模式保存工作流'
+              }
+              onClick={() => runAction('resource', () => onSaveToResource(mode))}
             >
               <Library size={14} className="inline-block mr-1" />
-              {busy === 'resource' ? '保存中...' : '保存到资源库'}
+              {busy === 'resource' ? '保存中...' : mode === 'node-fragment' ? '保存工作流' : '保存到资源库'}
             </button>
             <button
               type="button"

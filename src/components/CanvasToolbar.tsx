@@ -15,6 +15,7 @@ import {
   Magnet,
   Bell,
   BellOff,
+  Search,
   Terminal as TerminalIcon,
 } from 'lucide-react';
 import { useThemeStore } from '../stores/theme';
@@ -35,6 +36,7 @@ interface CanvasToolbarProps {
   onExport: () => void;
   onImport: () => void;
   onApplyTemplate: (tpl: CanvasTemplate) => void;
+  onFindNodeById: () => void;
   // 批量运行
   onRunAll: () => void;
   onCancelRun: () => void;
@@ -59,6 +61,7 @@ export default function CanvasToolbar({
   onExport,
   onImport,
   onApplyTemplate,
+  onFindNodeById,
   onRunAll,
   onCancelRun,
   isRunning,
@@ -182,6 +185,14 @@ export default function CanvasToolbar({
           aria-pressed={completionSoundEnabled}
         >
           {completionSoundEnabled ? <Bell size={15} /> : <BellOff size={15} />}
+        </button>
+        <button
+          className={baseBtn}
+          onClick={onFindNodeById}
+          title="查找 NodeID"
+          aria-label="查找 NodeID"
+        >
+          <Search size={15} />
         </button>
 
         <div className={sep} />

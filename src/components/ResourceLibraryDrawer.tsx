@@ -8,12 +8,14 @@ import {
   Music,
   PackageOpen,
   Pencil,
+  PersonStanding,
   Plus,
   Search,
   Send,
   Star,
   Trash2,
   Video,
+  Workflow,
   X,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
@@ -21,18 +23,21 @@ import { useThemeStore } from '../stores/theme';
 import * as api from '../services/api';
 import type { ResourceCategory, ResourceItem, ResourceKind } from '../services/api';
 import { resourceItemToSendMaterials } from '../utils/sendMaterials';
+import { summarizeWorkflowResource } from '../utils/workflowResource';
 
 const KIND_META: Record<ResourceKind, { label: string; icon: typeof ImageIcon; accent: string }> = {
   image: { label: '图像', icon: ImageIcon, accent: '#fbbf24' },
   video: { label: '视频', icon: Video, accent: '#fb7185' },
   audio: { label: '音频', icon: Music, accent: '#a78bfa' },
   set: { label: '素材集', icon: PackageOpen, accent: '#2dd4bf' },
+  pose: { label: '姿势', icon: PersonStanding, accent: '#fb923c' },
+  workflow: { label: '工作流', icon: Workflow, accent: '#38bdf8' },
 };
 
 interface ResourceLibraryDrawerProps {
   open: boolean;
   onClose: () => void;
-  onInsertMaterial: (item: ResourceItem) => void;
+  onInsertMaterial: (item: ResourceItem) => void | Promise<void>;
 }
 
 function formatSize(size: number) {
@@ -47,6 +52,103 @@ function materialSetLabel(kind?: string) {
   if (kind === 'audio') return '音频集';
   if (kind === 'text') return '文本集';
   return '素材集';
+}
+
+type WorkflowPreview = NonNullable<ResourceItem['workflowPreview']>;
+
+function workflowNodeColor(type: string) {
+  if (type === 'image' || type === 'edit') return '#fbbf24';
+  if (type === 'video' || type === 'seedance') return '#fb7185';
+  if (type === 'audio') return '#a78bfa';
+  if (type === 'llm') return '#86efac';
+  if (type === 'output') return '#f97316';
+  if (type === 'upload' || type === 'material-set') return '#2dd4bf';
+  if (type === 'pose-master' || type === 'portrait-master') return '#38bdf8';
+  return '#f8fafc';
+}
+
+function workflowNodeShortLabel(type: string, label: string) {
+  if (type === 'image') return '图';
+  if (type === 'video') return '视';
+  if (type === 'seedance') return 'SD';
+  if (type === 'audio') return '音';
+  if (type === 'llm') return 'AI';
+  if (type === 'output') return '出';
+  if (type === 'upload') return '入';
+  if (type === 'material-set') return '集';
+  if (type === 'pose-master') return '姿';
+  if (type === 'portrait-master') return '肖';
+  return Array.from(label || type || '?').slice(0, 2).join('');
+}
+
+function WorkflowTopologyCard({ item, accent }: { item: ResourceItem; accent: string }) {
+  const preview = item.workflowPreview as WorkflowPreview | undefined;
+  const markerId = `workflow-arrow-${String(item.id).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  if (!preview?.nodes?.length) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-1.5">
+        <Workflow size={32} className="text-white drop-shadow" />
+        <div className="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white">
+          {summarizeWorkflowResource(item)}
+        </div>
+      </div>
+    );
+  }
+  const nodeMap = new Map(preview.nodes.map((node) => [node.id, node]));
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" role="img" aria-label={`${item.title} 工作流拓扑预览`}>
+        <defs>
+          <pattern id={`${markerId}-grid`} width="10" height="10" patternUnits="userSpaceOnUse">
+            <path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="0.6" />
+          </pattern>
+          <marker id={markerId} markerWidth="4" markerHeight="4" refX="3.3" refY="2" orient="auto" markerUnits="strokeWidth">
+            <path d="M 0 0 L 4 2 L 0 4 z" fill="rgba(255,255,255,.78)" />
+          </marker>
+        </defs>
+        <rect x="0" y="0" width="100" height="100" fill={`url(#${markerId}-grid)`} opacity="0.8" />
+        {preview.edges.map((edge, index) => {
+          const source = nodeMap.get(edge.source);
+          const target = nodeMap.get(edge.target);
+          if (!source || !target) return null;
+          const midX = (source.x + target.x) / 2;
+          const bend = source.y === target.y ? 0 : (target.y > source.y ? -7 : 7);
+          return (
+            <path
+              key={`${edge.source}-${edge.target}-${index}`}
+              d={`M ${source.x} ${source.y} Q ${midX} ${(source.y + target.y) / 2 + bend} ${target.x} ${target.y}`}
+              fill="none"
+              stroke="rgba(255,255,255,.76)"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              markerEnd={`url(#${markerId})`}
+            />
+          );
+        })}
+        {preview.nodes.map((node) => {
+          const color = workflowNodeColor(node.type);
+          return (
+            <g key={node.id}>
+              <circle cx={node.x} cy={node.y} r="8.6" fill="rgba(0,0,0,.44)" stroke="rgba(255,255,255,.72)" strokeWidth="1" />
+              <circle cx={node.x} cy={node.y} r="6.8" fill={color} stroke="rgba(0,0,0,.38)" strokeWidth="1" />
+              <text x={node.x} y={node.y + 2.4} textAnchor="middle" fontSize="5.4" fontWeight="800" fill="#0f172a">
+                {workflowNodeShortLabel(node.type, node.label)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="absolute left-1.5 top-1.5 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white shadow">
+        拓扑预览
+      </div>
+      <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between gap-1 rounded-md bg-black/55 px-2 py-1 text-[10px] font-semibold text-white">
+        <span className="truncate">{summarizeWorkflowResource(item)}</span>
+        <span className="shrink-0 rounded-full px-1.5 py-0.5" style={{ background: accent, color: '#07111f' }}>
+          {preview.nodes.length}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function resultData<T>(r: api.Result<T> | any): T | null {
@@ -163,9 +265,13 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
   };
 
   const insertItem = async (item: ResourceItem) => {
-    onInsertMaterial(item);
-    await api.updateResourceItem(item.id, { touch: true });
-    setMsg('已插入画布');
+    try {
+      await onInsertMaterial(item);
+      await api.updateResourceItem(item.id, { touch: true });
+      setMsg(item.kind === 'pose' ? '已恢复为姿势大师节点' : item.kind === 'workflow' ? '已插入工作流' : '已插入画布');
+    } catch (e: any) {
+      setMsg(e?.message || '插入失败');
+    }
   };
 
   const sendItem = async (item: ResourceItem) => {
@@ -359,7 +465,7 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
               <article
                 key={item.id}
                 className={`resource-card overflow-hidden transition-transform ${isPixel ? 'border-2 border-[var(--px-ink)] bg-[var(--px-surface)] shadow-[3px_3px_0_var(--px-ink)]' : isDark ? 'rounded-lg border border-white/10 bg-white/[0.04]' : 'rounded-lg border border-black/10 bg-black/[0.03]'}`}
-                {...(item.kind === 'set'
+                {...(item.kind === 'set' || item.kind === 'pose' || item.kind === 'workflow'
                   ? {}
                   : {
                       'data-drag-source': true,
@@ -368,7 +474,15 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                       'data-drag-preview': item.thumbUrl || item.fileUrl,
                       'data-drag-node-id': 'resource-library',
                     })}
-                title={item.kind === 'set' ? '点击插入整个素材集' : 'Ctrl+拖拽到节点'}
+                title={
+                  item.kind === 'set'
+                    ? '点击插入整个素材集'
+                    : item.kind === 'pose'
+                      ? '点击恢复为姿势大师节点'
+                      : item.kind === 'workflow'
+                        ? '点击插入工作流到当前画布'
+                        : 'Ctrl+拖拽到节点'
+                }
               >
                 <div className="relative h-28 overflow-hidden bg-black/80">
                   {item.kind === 'image' && (
@@ -440,6 +554,25 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                       </div>
                     </div>
                   )}
+                  {item.kind === 'pose' && (
+                    <div
+                      className="resource-media flex h-full w-full flex-col items-center justify-center gap-1.5 p-3 text-center transition-transform duration-200"
+                      style={{ background: 'linear-gradient(135deg, rgba(251,146,60,.92), rgba(45,212,191,.78), rgba(15,23,42,.92))' }}
+                    >
+                      <PersonStanding size={36} className="text-white drop-shadow" />
+                      <div className="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        PoseMaster
+                      </div>
+                    </div>
+                  )}
+                  {item.kind === 'workflow' && (
+                    <div
+                      className="resource-media h-full w-full text-center transition-transform duration-200"
+                      style={{ background: 'linear-gradient(135deg, rgba(8,47,73,.95), rgba(14,116,144,.86), rgba(20,184,166,.78))' }}
+                    >
+                      <WorkflowTopologyCard item={item} accent={activeMeta.accent} />
+                    </div>
+                  )}
                   <button
                     onClick={() => updateItem(item, { favorite: !item.favorite })}
                     className="t8-mini-icon-button absolute top-1.5 right-1.5 h-7 w-7 rounded-full bg-black/55 text-amber-300 flex items-center justify-center"
@@ -453,6 +586,10 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                   <div className={`text-[10px] truncate ${subtle}`}>
                     {item.kind === 'set'
                       ? `${materialSetLabel(item.materialSetKind)} · ${item.materialSetItems?.length || 0} 项`
+                      : item.kind === 'pose'
+                        ? '姿势大师配置 · 可恢复节点'
+                        : item.kind === 'workflow'
+                          ? `${summarizeWorkflowResource(item)} · 可插入画布`
                       : formatSize(item.size) || item.mime || item.kind}
                   </div>
                   {item.kind === 'audio' && <audio src={item.fileUrl} controls className="w-full h-8" />}
@@ -477,7 +614,8 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                       onClick={() => sendItem(item)}
                       className="nodrag nopan t8-mini-icon-button resource-card-action"
                       style={miniActionBase}
-                      title="发送到画布 / Eagle"
+                      disabled={item.kind === 'workflow'}
+                      title={item.kind === 'workflow' ? '工作流可直接插入当前画布' : '发送到画布 / Eagle'}
                       aria-label="发送到画布 / Eagle"
                     >
                       <Send size={13} />

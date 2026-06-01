@@ -11,7 +11,7 @@ const config = require('../config');
 
 const router = express.Router();
 
-const KINDS = new Set(['image', 'video', 'audio', 'set']);
+const KINDS = new Set(['image', 'video', 'audio', 'set', 'pose', 'workflow']);
 const MATERIAL_SET_KINDS = new Set(['text', 'image', 'video', 'audio']);
 const DB_FILE = 'resource_library.json';
 const THUMB_DIR = '_thumbs';
@@ -23,6 +23,8 @@ const DEFAULT_CATEGORY_NAMES = {
   video: ['未分类', '镜头', '动作', '成片'],
   audio: ['未分类', '音乐', '人声', '音效'],
   set: ['未分类', '图像集', '视频集', '音频集', '文本集'],
+  pose: ['未分类', '常用姿势', '动作参考', '分镜姿势'],
+  workflow: ['未分类', '常用工作流', '图像流程', '视频流程', '工具链'],
 };
 
 const MIME_BY_EXT = {
@@ -45,6 +47,7 @@ const MIME_BY_EXT = {
   m4a: 'audio/mp4',
   flac: 'audio/flac',
   aac: 'audio/aac',
+  json: 'application/json',
 };
 
 function now() {
@@ -117,6 +120,139 @@ function normalizeSetItems(rawItems, fallbackKind) {
     })
     .filter(Boolean)
     .slice(0, 500);
+}
+
+function normalizePoseBackupForResource(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('缺少姿势大师配置');
+  }
+  const raw = JSON.parse(JSON.stringify(value));
+  if (raw.schema !== 't8-pose-master') {
+    throw new Error('不是有效的姿势大师配置');
+  }
+  raw.schema = 't8-pose-master';
+  raw.version = Number(raw.version) || 1;
+  raw.pointVersion = Number(raw.pointVersion) || 1;
+  raw.name = safeText(raw.name, '');
+  raw.prompt = typeof raw.prompt === 'string' ? raw.prompt.slice(0, 20_000) : '';
+  raw.createdAt = Number(raw.createdAt) || now();
+  return raw;
+}
+
+function workflowNodeLabel(node) {
+  const data = node && typeof node.data === 'object' ? node.data : {};
+  return safeText(data.label || data.title || data.name || data.displayName || node.type, node.type || 'node').slice(0, 18);
+}
+
+function normalizeWorkflowCoordinate(value, min, max, low, high) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return (low + high) / 2;
+  if (max <= min) return (low + high) / 2;
+  return low + ((n - min) / (max - min)) * (high - low);
+}
+
+function createWorkflowTopologyPreview(nodes, edges) {
+  const previewNodes = Array.isArray(nodes) ? nodes.slice(0, 16) : [];
+  if (previewNodes.length === 0) return { nodes: [], edges: [] };
+  const nodeIds = new Set(previewNodes.map((node) => node.id));
+  const xs = previewNodes.map((node) => Number(node?.position?.x) || 0);
+  const ys = previewNodes.map((node) => Number(node?.position?.y) || 0);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return {
+    nodes: previewNodes.map((node) => ({
+      id: safeText(node.id),
+      type: safeText(node.type || 'node'),
+      label: workflowNodeLabel(node),
+      x: Math.round(normalizeWorkflowCoordinate(node?.position?.x, minX, maxX, 8, 92) * 10) / 10,
+      y: Math.round(normalizeWorkflowCoordinate(node?.position?.y, minY, maxY, 12, 88) * 10) / 10,
+    })),
+    edges: (Array.isArray(edges) ? edges : [])
+      .filter((edge) => nodeIds.has(edge?.source) && nodeIds.has(edge?.target))
+      .slice(0, 24)
+      .map((edge) => ({
+        source: safeText(edge.source),
+        target: safeText(edge.target),
+      })),
+  };
+}
+
+function normalizeWorkflowTopologyPreview(value) {
+  const raw = value && typeof value === 'object' ? value : null;
+  if (!raw || !Array.isArray(raw.nodes) || !Array.isArray(raw.edges)) return null;
+  const nodes = raw.nodes
+    .filter((node) => node && typeof node === 'object' && safeText(node.id))
+    .slice(0, 16)
+    .map((node) => ({
+      id: safeText(node.id),
+      type: safeText(node.type || 'node'),
+      label: safeText(node.label || node.type || 'node').slice(0, 18),
+      x: Math.min(100, Math.max(0, Number(node.x) || 50)),
+      y: Math.min(100, Math.max(0, Number(node.y) || 50)),
+    }));
+  const ids = new Set(nodes.map((node) => node.id));
+  const edges = raw.edges
+    .filter((edge) => edge && typeof edge === 'object' && ids.has(edge.source) && ids.has(edge.target))
+    .slice(0, 24)
+    .map((edge) => ({ source: safeText(edge.source), target: safeText(edge.target) }));
+  return { nodes, edges };
+}
+
+function normalizeWorkflowBackupForResource(value, title = '') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('缺少工作流配置');
+  }
+  const raw = JSON.parse(JSON.stringify(value));
+  const manifest = raw.schema === 't8-workflow-fragment' ? raw : raw.workflowFragment;
+  if (!manifest || typeof manifest !== 'object' || manifest.schema !== 't8-workflow-fragment') {
+    throw new Error('不是有效的工作流配置');
+  }
+  const nodes = Array.isArray(manifest.nodes)
+    ? manifest.nodes
+        .filter((node) => node && typeof node === 'object' && typeof node.id === 'string' && node.id.trim())
+        .slice(0, 500)
+        .map((node) => ({
+          ...node,
+          selected: false,
+          dragging: false,
+          resizing: undefined,
+          positionAbsolute: undefined,
+          measured: undefined,
+        }))
+    : [];
+  if (nodes.length === 0) {
+    throw new Error('工作流至少需要 1 个节点');
+  }
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const edges = Array.isArray(manifest.edges)
+    ? manifest.edges
+        .filter((edge) => (
+          edge &&
+          typeof edge === 'object' &&
+          typeof edge.id === 'string' &&
+          nodeIds.has(edge.source) &&
+          nodeIds.has(edge.target)
+        ))
+        .slice(0, 1000)
+        .map((edge) => ({ ...edge, selected: false }))
+    : [];
+  const nodeTypes = [...new Set(nodes.map((node) => safeText(node.type || 'node')).filter(Boolean))].slice(0, 24);
+  const topologyPreview = normalizeWorkflowTopologyPreview(manifest.topologyPreview) || createWorkflowTopologyPreview(nodes, edges);
+  return {
+    schema: 't8-workflow-fragment',
+    version: 1,
+    title: safeText(title || manifest.title, '未命名工作流'),
+    sourceCanvasId: safeText(manifest.sourceCanvasId, ''),
+    nodes,
+    edges,
+    nodeCount: nodes.length,
+    edgeCount: edges.length,
+    nodeTypes,
+    topologyPreview,
+    savedAt: safeText(manifest.savedAt, new Date().toISOString()),
+  };
 }
 
 function extFromMime(mime) {
@@ -206,6 +342,12 @@ function normalizeDb(raw) {
     const materialSetKind = kind === 'set' ? normalizeMaterialSetKind(item?.materialSetKind) : '';
     const materialSetItems = kind === 'set' ? normalizeSetItems(item?.materialSetItems, materialSetKind) : [];
     if (kind === 'set' && (!materialSetKind || materialSetItems.length === 0)) continue;
+    const workflowNodeCount = kind === 'workflow' ? Math.max(0, Number(item?.workflowNodeCount) || Number(item?.nodeCount) || 0) : 0;
+    const workflowEdgeCount = kind === 'workflow' ? Math.max(0, Number(item?.workflowEdgeCount) || Number(item?.edgeCount) || 0) : 0;
+    const workflowNodeTypes = kind === 'workflow' && Array.isArray(item?.workflowNodeTypes)
+      ? item.workflowNodeTypes.map((t) => safeText(t)).filter(Boolean).slice(0, 24)
+      : [];
+    const workflowPreview = kind === 'workflow' ? normalizeWorkflowTopologyPreview(item?.workflowPreview) : null;
     seen.add(id);
     const fallbackCat = `${kind}_uncategorized`;
     const categoryId = catIds.has(item?.categoryId) ? item.categoryId : fallbackCat;
@@ -227,6 +369,10 @@ function normalizeDb(raw) {
       sourceCanvasId: safeText(item?.sourceCanvasId, ''),
       materialSetKind,
       materialSetItems,
+      workflowNodeCount,
+      workflowEdgeCount,
+      workflowNodeTypes,
+      workflowPreview,
       createdAt: Number(item?.createdAt) || now(),
       updatedAt: Number(item?.updatedAt) || Number(item?.createdAt) || now(),
       lastUsedAt: Number(item?.lastUsedAt) || 0,
@@ -577,7 +723,9 @@ router.post('/items/add', express.json({ limit: '4mb' }), async (req, res) => {
     const src = await readSource(url, root, db);
     const ext = normalizeExt(path.extname(src.originalName)) || extFromMime(src.mime) || 'bin';
     const kind = normalizeKind(req.body?.kind) || kindFromExt(ext) || kindFromExt(extFromMime(src.mime));
-    if (!kind) return res.status(400).json({ success: false, error: '资源类型仅支持图像 / 视频 / 音频' });
+    if (!kind || !['image', 'video', 'audio'].includes(kind)) {
+      return res.status(400).json({ success: false, error: '资源类型仅支持图像 / 视频 / 音频' });
+    }
     const sha256 = crypto.createHash('sha256').update(src.buffer).digest('hex');
     const existing = db.items.find((item) => item.kind === kind && item.sha256 === sha256);
     const requestedCat = safeText(req.body?.categoryId);
@@ -760,6 +908,132 @@ router.post('/sets/add', express.json({ limit: '8mb' }), async (req, res) => {
       sourceCanvasId: safeText(req.body?.sourceCanvasId),
       materialSetKind,
       materialSetItems,
+      createdAt: now(),
+      updatedAt: now(),
+      lastUsedAt: 0,
+    };
+    db.items.push(item);
+    writeDb(root, db);
+    res.json({ success: true, duplicate: false, data: decorateItem(item) });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e?.message || String(e) });
+  }
+});
+
+router.post('/poses/add', express.json({ limit: '3mb' }), async (req, res) => {
+  try {
+    const poseBackup = normalizePoseBackupForResource(req.body?.poseBackup);
+    const { root, db } = readDb();
+    const safeTitle = safeText(req.body?.title, poseBackup.name || '姿势大师配置');
+    const manifest = {
+      schema: 't8-pose-master-resource',
+      version: 1,
+      title: safeTitle,
+      poseBackup,
+      exportedAt: new Date().toISOString(),
+    };
+    const buffer = Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8');
+    const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+    const requestedCat = safeText(req.body?.categoryId);
+    const categoryOk = db.categories.some((c) => c.id === requestedCat && c.kind === 'pose');
+    const existing = db.items.find((item) => item.kind === 'pose' && item.sha256 === sha256);
+    if (existing) {
+      if (categoryOk) existing.categoryId = requestedCat;
+      existing.updatedAt = now();
+      existing.lastUsedAt = now();
+      writeDb(root, db);
+      return res.json({ success: true, duplicate: true, data: decorateItem(existing) });
+    }
+
+    const id = genId('respose');
+    const fileRel = path.join('pose', `${id}.pose.json`).replace(/\\/g, '/');
+    const target = assertInside(root, path.join(root, fileRel));
+    fs.writeFileSync(target, buffer);
+
+    const item = {
+      id,
+      kind: 'pose',
+      categoryId: categoryOk ? requestedCat : 'pose_uncategorized',
+      title: safeTitle,
+      originalName: `${safeFilename(safeTitle, 'pose-master')}.pose.json`,
+      fileRel,
+      thumbRel: '',
+      mime: 'application/json',
+      size: buffer.length,
+      sha256,
+      tags: Array.isArray(req.body?.tags) ? req.body.tags.map((t) => safeText(t)).filter(Boolean).slice(0, 20) : [],
+      favorite: !!req.body?.favorite,
+      sourceUrl: '',
+      sourceNodeId: safeText(req.body?.sourceNodeId),
+      sourceCanvasId: safeText(req.body?.sourceCanvasId),
+      materialSetKind: '',
+      materialSetItems: [],
+      createdAt: now(),
+      updatedAt: now(),
+      lastUsedAt: 0,
+    };
+    db.items.push(item);
+    writeDb(root, db);
+    res.json({ success: true, duplicate: false, data: decorateItem(item) });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e?.message || String(e) });
+  }
+});
+
+router.post('/workflows/add', express.json({ limit: '10mb' }), async (req, res) => {
+  try {
+    const workflowFragment = normalizeWorkflowBackupForResource(req.body?.workflowFragment, req.body?.title);
+    const { root, db } = readDb();
+    const safeTitle = safeText(req.body?.title, workflowFragment.title || '工作流');
+    const manifest = {
+      ...workflowFragment,
+      title: safeTitle,
+      savedAt: new Date().toISOString(),
+    };
+    const buffer = Buffer.from(JSON.stringify(manifest, null, 2), 'utf-8');
+    const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+    const requestedCat = safeText(req.body?.categoryId);
+    const categoryOk = db.categories.some((c) => c.id === requestedCat && c.kind === 'workflow');
+    const existing = db.items.find((item) => item.kind === 'workflow' && item.sha256 === sha256);
+    if (existing) {
+      if (categoryOk) existing.categoryId = requestedCat;
+      existing.workflowNodeCount = manifest.nodeCount;
+      existing.workflowEdgeCount = manifest.edgeCount;
+      existing.workflowNodeTypes = manifest.nodeTypes;
+      existing.workflowPreview = manifest.topologyPreview;
+      existing.updatedAt = now();
+      existing.lastUsedAt = now();
+      writeDb(root, db);
+      return res.json({ success: true, duplicate: true, data: decorateItem(existing) });
+    }
+
+    const id = genId('reswf');
+    const fileRel = path.join('workflow', `${id}.workflow.json`).replace(/\\/g, '/');
+    const target = assertInside(root, path.join(root, fileRel));
+    fs.writeFileSync(target, buffer);
+
+    const item = {
+      id,
+      kind: 'workflow',
+      categoryId: categoryOk ? requestedCat : 'workflow_uncategorized',
+      title: safeTitle,
+      originalName: `${safeFilename(safeTitle, 'workflow')}.workflow.json`,
+      fileRel,
+      thumbRel: '',
+      mime: 'application/json',
+      size: buffer.length,
+      sha256,
+      tags: Array.isArray(req.body?.tags) ? req.body.tags.map((t) => safeText(t)).filter(Boolean).slice(0, 20) : [],
+      favorite: !!req.body?.favorite,
+      sourceUrl: '',
+      sourceNodeId: safeText(req.body?.sourceNodeId),
+      sourceCanvasId: safeText(req.body?.sourceCanvasId || manifest.sourceCanvasId),
+      materialSetKind: '',
+      materialSetItems: [],
+      workflowNodeCount: manifest.nodeCount,
+      workflowEdgeCount: manifest.edgeCount,
+      workflowNodeTypes: manifest.nodeTypes,
+      workflowPreview: manifest.topologyPreview,
       createdAt: now(),
       updatedAt: now(),
       lastUsedAt: 0,

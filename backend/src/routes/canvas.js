@@ -56,6 +56,22 @@ function atomicWriteJson(file, data) {
   fs.renameSync(tmp, file);
 }
 
+function parseNodeSerialId(value) {
+  const raw = String(value ?? '').trim().replace(/^#/, '').trim();
+  if (!/^\d+$/.test(raw)) return 0;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function deriveNextNodeSerialId(nodes, incomingNext) {
+  const requested = parseNodeSerialId(incomingNext);
+  let maxSerial = 0;
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    maxSerial = Math.max(maxSerial, parseNodeSerialId(node?.data?.nodeSerialId));
+  }
+  return Math.max(1, requested || 1, maxSerial + 1);
+}
+
 // GET /api/canvas — 获取画布列表
 router.get('/', (_req, res) => {
   const list = loadCanvasList();
@@ -79,7 +95,7 @@ router.post('/', (req, res) => {
   // 初始化空画布数据
   fs.writeFileSync(
     getCanvasFile(id),
-    JSON.stringify({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }, null, 2),
+    JSON.stringify({ nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, nextNodeSerialId: 1 }, null, 2),
     'utf-8'
   );
   res.json({ success: true, data: canvas });
@@ -120,6 +136,7 @@ router.put('/:id', (req, res) => {
     nodes: Array.isArray(incoming?.nodes) ? incoming.nodes : [],
     edges: Array.isArray(incoming?.edges) ? incoming.edges : [],
     viewport: incoming?.viewport || { x: 0, y: 0, zoom: 1 },
+    nextNodeSerialId: deriveNextNodeSerialId(incoming?.nodes, incoming?.nextNodeSerialId),
   };
   fs.writeFileSync(file, JSON.stringify(persisted, null, 2), 'utf-8');
   // 更新列表元数据
@@ -169,6 +186,7 @@ router.post('/:id/auto-save', (req, res) => {
       nodes: incoming.nodes,
       edges: incoming.edges,
       viewport: incoming.viewport || { x: 0, y: 0, zoom: 1 },
+      nextNodeSerialId: deriveNextNodeSerialId(incoming.nodes, incoming.nextNodeSerialId),
     };
 
     atomicWriteJson(target, payload);

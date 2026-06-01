@@ -2,11 +2,11 @@ import { NodeResizeControl, type ResizeParams } from '@xyflow/react';
 import { useThemeStore } from '../../stores/theme';
 
 /**
- * ResizableCorners — 四角同比例缩放控件 (通用)
+ * ResizableCorners — 四角缩放控件 (通用)
  *
  * 设计:
  *   1. 仅在节点 4 个角放置 handle (不放边线), 默认低调, 鼠标 hover 时高亮
- *   2. keepAspectRatio 同比例缩放: 角拖动时 width/height 等比变化, 不会变形
+ *   2. 默认 keepAspectRatio 同比例缩放; 文本等内容节点可关闭比例锁自由调整宽高
  *   3. 主题适配: 科技风 / 像素风 × 深色 / 浅色 共 4 套视觉
  *      - 科技风: 圆角小方块 + 主题色描边 + 发光光晕 (hover)
  *      - 像素风: 黑描边小方块 + 硬阴影 (neo-brutalism)
@@ -29,6 +29,8 @@ interface Props {
   maxHeight?: number;
   /** 节点主题强调色 (科技风用作描边/发光色), 像素风固定使用主题变量, 不读此值 */
   accent?: string;
+  /** 角拖动是否保持宽高比例. 默认 true, 兼容上传 / 输出等媒体节点 */
+  keepAspectRatio?: boolean;
   /** 缩放进行中回调 (可选, 一般无需) */
   onResize?: (e: any, params: ResizeParams) => void;
   /** 缩放结束回调：用于节点在最终尺寸落定后同步 ReactFlow handle 坐标 */
@@ -44,6 +46,7 @@ export default function ResizableCorners({
   maxWidth,
   maxHeight,
   accent = '#5eead4',
+  keepAspectRatio = true,
   onResize,
   onResizeEnd,
 }: Props) {
@@ -67,7 +70,7 @@ export default function ResizableCorners({
         <NodeResizeControl
           key={p}
           position={p}
-          keepAspectRatio
+          keepAspectRatio={keepAspectRatio}
           minWidth={minWidth}
           minHeight={minHeight}
           maxWidth={maxWidth}

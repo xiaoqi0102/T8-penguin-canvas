@@ -3,16 +3,17 @@ import { Handle, Position, useUpdateNodeInternals, type NodeProps, type ResizePa
 import { Type } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import ResizableCorners from './ResizableCorners';
+import { getCornerResizeBehavior } from '../../utils/nodeResizeBehavior';
 
 /**
  * 文本节点 - 提示词输入
  * 输出 data.prompt 给下游(图像/LLM 节点通过连接读取)
  *
  * v1.x: 固定宽 260 + textarea h-24
- * v2.x: 选中后可拖 4 角同比例缩放 (ResizableCorners + xyflow NodeResizeControl);
+ * v2.x: 选中后可拖 4 角缩放 (ResizableCorners + xyflow NodeResizeControl);
  *       内部布局改为响应式 (width/height 100%), textarea 占所有剩余高度
  * v2.1: root 用本地 state 持有具体 px 尺寸 — 解决 width:'100%' + wrapper auto 形成百分比循环
- *       测量异常 (measured.width=0 → keepAspectRatio 算出 aspectRatio=0 → 只能纵向拉大) 的问题。
+ *       测量异常 (measured.width=0 → NodeResizeControl 算出 aspectRatio=0 → 只能纵向拉大) 的问题。
  *       同时 root 始终有具体 px → wrapper measured 准确 → handleBounds 准确, 连线稳定。
  */
 const TextNode = ({ id, data, selected }: NodeProps) => {
@@ -21,6 +22,7 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const syncRafRef = useRef<{ first?: number; second?: number }>({});
   const text = ((data as any)?.prompt as string) || '';
+  const resizeBehavior = getCornerResizeBehavior('text');
   // 节点本地尺寸 state: 默认 (260, 由内容撑高) → 拖角后由 ResizableCorners onResize 同步具体 px
   const [size, setSize] = useState<{ w: number; h?: number }>({ w: 260 });
 
@@ -80,16 +82,32 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
         minWidth: 220,
       }}
     >
-      {/* 四角同比例缩放 (仅选中时出现) — 主题色用 sky-400 */}
+      {/* 四角自由缩放 (仅选中时出现) — 主题色用 sky-400 */}
       <ResizableCorners
         selected={selected}
         minWidth={220}
         minHeight={140}
         accent="#38bdf8"
+        keepAspectRatio={resizeBehavior.keepAspectRatio}
         onResize={handleResize}
-        onResizeEnd={syncNodeInternals}
+        onResizeEnd={() => syncNodeInternals()}
       />
-      <Handle type="source" position={Position.Right} className="!bg-sky-400 !border-0" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!bg-sky-400 !border-0"
+        style={{
+          top: '50%',
+          right: -5,
+          width: 10,
+          height: 10,
+          minWidth: 10,
+          minHeight: 10,
+          transform: 'translateY(-50%)',
+          zIndex: 12,
+          pointerEvents: 'all',
+        }}
+      />
 
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 shrink-0">
         <div

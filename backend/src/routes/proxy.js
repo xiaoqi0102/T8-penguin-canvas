@@ -1267,23 +1267,33 @@ router.post('/llm', async (req, res) => {
 //   - 其它(seedance 等)→ 沿用旧 Veo 字段(零破坏)
 // ========================================================================
 
-// 上传参考图到上游 /v1/files 取 URL(Grok 专用,对齐 uploadFileToAPI line 3104)
+// 上传本地/远端参考素材到上游 /v1/files 取 URL
+// 对齐 gpt-image-2-web 的 uploadFileToAPI: Seedance 的图像、视频、音频都不能直接传 /files/* 本地 URL。
 async function uploadRefToZhenzhen(ref, apiKey) {
   if (typeof ref !== 'string' || !ref) return null;
+  const trimmed = ref.trim();
+  if (/^asset-[a-z0-9_-]+$/i.test(trimmed)) return trimmed;
   let buf, mime, ext;
-  if (ref.startsWith('data:')) {
-    const m = ref.match(/^data:([^;,]+);base64,(.+)$/);
+  if (trimmed.startsWith('data:')) {
+    const m = trimmed.match(/^data:([^;,]+);base64,(.+)$/);
     if (!m) return null;
     mime = m[1] || 'image/png';
     buf = Buffer.from(m[2], 'base64');
-    ext = (mime.split('/')[1] || 'png').replace('jpeg', 'jpg');
-  } else if (ref.startsWith('http://') || ref.startsWith('https://') || ref.startsWith('/files/')) {
-    const url = ref.startsWith('/') ? `http://127.0.0.1:${config.PORT}${ref}` : ref;
+    ext = extFromContentType(mime) || (mime.split('/')[1] || 'png').replace('jpeg', 'jpg');
+  } else if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('/files/') ||
+    trimmed.startsWith('/api/resources/file/') ||
+    trimmed.startsWith('/api/resources/set-file/')
+  ) {
+    const url = trimmed.startsWith('/') ? `http://127.0.0.1:${config.PORT}${trimmed}` : trimmed;
     const r = await fetch(url);
     if (!r.ok) return null;
     mime = r.headers.get('content-type') || 'image/png';
     buf = Buffer.from(await r.arrayBuffer());
-    ext = (mime.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const tailExt = url.split(/[?#]/)[0].match(/\.([a-z0-9]{2,8})$/i)?.[1];
+    ext = extFromContentType(mime) || tailExt || (mime.split('/')[1] || 'png').replace('jpeg', 'jpg');
   } else {
     return null;
   }
@@ -1323,12 +1333,22 @@ const VIDEO_FAL_REGISTRY = {
     referenceEndpoint: 'xai/grok-imagine-video/reference-to-video',
     paramKind: 'grok-fal',
     maxRefImages: 7,
+    defaultImageMode: 'base64',
+  },
+  'grok-imagine-video-1.5': {
+    endpoint: 'xai/grok-imagine-video/v1.5/image-to-video',
+    paramKind: 'grok-fal',
+    maxRefImages: 1,
+    defaultImageMode: 'base64',
+    requiresImage: true,
+    disableAspectRatio: true,
   },
   'sora-2': {
     endpoint: 'fal-ai/sora-2/text-to-video',
     i2vEndpoint: 'fal-ai/sora-2/image-to-video',
     paramKind: 'sora-fal',
     maxRefImages: 1,
+    defaultImageMode: 'base64',
   },
 };
 
@@ -1433,7 +1453,10 @@ router.post('/video/fal/submit', async (req, res) => {
       }
     } else if (reg.paramKind === 'grok-fal') {
       // ===== Grok Video FAL (主项目 runGrokFal line 3787) =====
-      const mode = String(gkMode || 'image_to_video') === 'reference_to_video' ? 'reference_to_video' : 'image_to_video';
+      const isV15 = effectiveApiModel === 'grok-imagine-video-1.5';
+      const mode = isV15
+        ? 'image_to_video'
+        : String(gkMode || 'image_to_video') === 'reference_to_video' ? 'reference_to_video' : 'image_to_video';
       const extraReferenceUrls = splitGrokReferenceUrls(gkReferenceUrls);
       const hasImg = trimmedRefs.length > 0;
       const effectiveRatio = (mode === 'reference_to_video' || !hasImg) && String(gkRatio || '16:9') === 'auto'
@@ -1442,11 +1465,19 @@ router.post('/video/fal/submit', async (req, res) => {
       payload = {
         prompt,
         duration: parseInt(gkDuration ?? 6, 10) || 6,
-        aspect_ratio: effectiveRatio,
         resolution: String(resolution || '720p'),
       };
-      const useBase64 = String(image_mode || 'base64') === 'base64';
-      if (mode === 'reference_to_video') {
+      if (!isV15) payload.aspect_ratio = effectiveRatio;
+      const useBase64 = String(image_mode || reg.defaultImageMode || 'base64') === 'base64';
+      if (isV15) {
+        endpoint = reg.endpoint;
+        if (!hasImg) throw new Error('Grok Video 1.5 requires one uploaded image');
+        const imgData = useBase64
+          ? await refToBananaImage(trimmedRefs[0])
+          : await uploadRefToZhenzhen(trimmedRefs[0], apiKey);
+        if (imgData) payload.image_url = imgData;
+        else throw new Error('Grok Video 1.5 参考图处理失败');
+      } else if (mode === 'reference_to_video') {
         endpoint = reg.referenceEndpoint || reg.i2vEndpoint || reg.endpoint;
         const referenceImageUrls = [];
         const uploadRefs = trimmedRefs.slice(0, 7);
@@ -1762,8 +1793,8 @@ router.get('/video/query', async (req, res) => {
 // content 数组成员:
 //   { type:'text', text }
 //   { type:'image_url', image_url:{url}, role:'first_frame'|'last_frame'|'reference_image' }
-//   { type:'video_url', video_url:{url}, role:'reference_video' }
-//   { type:'audio_url', audio_url:{url}, role:'reference_audio' }
+//   { type:'video_url', video_url:{url}, role:'reference_video' }   // 需先 /v1/files 上传换 URL
+//   { type:'audio_url', audio_url:{url}, role:'reference_audio' }   // 需先 /v1/files 上传换 URL
 // ========================================================================
 router.post('/seedance/submit', async (req, res) => {
   const settings = loadRawSettings();
@@ -1816,18 +1847,26 @@ router.post('/seedance/submit', async (req, res) => {
       }
     }
 
-    // reference_video / reference_audio (传入的应是 URL,不上传文件)
+    // reference_video / reference_audio:
+    // gpt-image-2-web 的 runSeedance 会把本地视频/音频先上传到 /v1/files，再把返回 URL 放入 content。
+    // T8 画布上游素材通常是 /files/input 或 /files/output，本地地址不能直接提交给 Seedance。
     if (Array.isArray(videos)) {
-      for (const v of videos) {
+      for (let i = 0; i < videos.length; i++) {
+        const v = videos[i];
         if (typeof v === 'string' && v) {
-          content.push({ type: 'video_url', video_url: { url: v }, role: 'reference_video' });
+          const u = await uploadRefToZhenzhen(v, apiKey);
+          if (!u) throw new Error(`reference_video ${i + 1} 上传失败`);
+          content.push({ type: 'video_url', video_url: { url: u }, role: 'reference_video' });
         }
       }
     }
     if (Array.isArray(audios)) {
-      for (const a of audios) {
+      for (let i = 0; i < audios.length; i++) {
+        const a = audios[i];
         if (typeof a === 'string' && a) {
-          content.push({ type: 'audio_url', audio_url: { url: a }, role: 'reference_audio' });
+          const u = await uploadRefToZhenzhen(a, apiKey);
+          if (!u) throw new Error(`reference_audio ${i + 1} 上传失败`);
+          content.push({ type: 'audio_url', audio_url: { url: u }, role: 'reference_audio' });
         }
       }
     }

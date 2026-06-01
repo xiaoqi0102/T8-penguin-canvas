@@ -360,6 +360,12 @@ export interface VideoFalEndpointDef {
   referenceEndpoint?: string;
   paramKind: 'veo-fal' | 'grok-fal' | 'sora-fal';
   maxRefImages: number;
+  /** 参考图默认传入方式；Grok/Sora 新 FAL 默认走 base64 */
+  defaultImageMode?: 'image_url' | 'base64';
+  /** 该 FAL 端点是否必须带参考图 */
+  requiresImage?: boolean;
+  /** 该 FAL 端点是否不支持 aspect_ratio UI/参数 */
+  disableAspectRatio?: boolean;
 }
 export const VIDEO_FAL_REGISTRY: Record<string, VideoFalEndpointDef> = {
   // 主项目 runVeo3Fal (index.html line 3713)
@@ -375,6 +381,16 @@ export const VIDEO_FAL_REGISTRY: Record<string, VideoFalEndpointDef> = {
     referenceEndpoint: 'xai/grok-imagine-video/reference-to-video',
     paramKind: 'grok-fal',
     maxRefImages: 7,
+    defaultImageMode: 'base64',
+  },
+  // 主项目 gpt-image-2-web v4.5U: Grok Video 1.5 只走 image-to-video,不传 aspect_ratio。
+  'grok-imagine-video-1.5': {
+    endpoint: 'xai/grok-imagine-video/v1.5/image-to-video',
+    paramKind: 'grok-fal',
+    maxRefImages: 1,
+    defaultImageMode: 'base64',
+    requiresImage: true,
+    disableAspectRatio: true,
   },
   // 主项目 runSora2Fal (index.html line 5341)
   'sora-2': {
@@ -382,6 +398,7 @@ export const VIDEO_FAL_REGISTRY: Record<string, VideoFalEndpointDef> = {
     i2vEndpoint: 'fal-ai/sora-2/image-to-video',
     paramKind: 'sora-fal',
     maxRefImages: 1,
+    defaultImageMode: 'base64',
   },
 };
 export function isFalVideoModel(apiModel: string): boolean {
@@ -457,25 +474,16 @@ const VEO_MODELS = [
 
 export const VIDEO_MODELS: VideoModelDef[] = [
   {
-    id: 'veo3.1',
-    label: 'Veo 3.1',
-    kind: 'veo',
-    provider: 'zhenzhen',
-    description: 'Google Veo 3.1 系列 (最多 3 张参考图)',
-    apiModelOptions: VEO_MODELS,
-    // 主项目 veo_ratio 只有 16:9 / 9:16(line 1352)
-    ratios: ['16:9', '9:16'],
-    defaultRatio: '16:9',
-    supportImages: true,
-    maxRefImages: 3,
-  },
-  {
     id: 'grok-video-3',
     label: 'Grok Video',
     kind: 'grok',
     provider: 'zhenzhen',
     description: 'xAI Grok Video (最多 7 张参考图)',
-    apiModelOptions: [{ value: 'grok-video-3', label: 'grok-video-3' }, { value: 'grok-video-fal', label: 'grok-video-fal (FAL)' }],
+    apiModelOptions: [
+      { value: 'grok-imagine-video-1.5', label: 'Grok Video 1.5 (FAL)' },
+      { value: 'grok-video-3', label: 'grok-video-3' },
+      { value: 'grok-video-fal', label: 'grok-video-fal (FAL)' },
+    ],
     // 主项目 gk_ratio(line 1410): 2:3 / 3:2 / 16:9 / 9:16 / 1:1
     ratios: ['2:3', '3:2', '16:9', '9:16', '1:1'],
     defaultRatio: '16:9',
@@ -487,6 +495,19 @@ export const VIDEO_MODELS: VideoModelDef[] = [
     defaultResolution: '720P',
     supportImages: true,
     maxRefImages: 7,
+  },
+  {
+    id: 'veo3.1',
+    label: 'Veo 3.1',
+    kind: 'veo',
+    provider: 'zhenzhen',
+    description: 'Google Veo 3.1 系列 (最多 3 张参考图)',
+    apiModelOptions: VEO_MODELS,
+    // 主项目 veo_ratio 只有 16:9 / 9:16(line 1352)
+    ratios: ['16:9', '9:16'],
+    defaultRatio: '16:9',
+    supportImages: true,
+    maxRefImages: 3,
   },
   {
     id: 'sora-2',

@@ -182,12 +182,21 @@ function main() {
   checkFile(path.join(RES, 'backend-enc', 'routes', 'canvas.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'settings.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'proxy.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'routes', 'externalProviders.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'files.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'imageOps.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'recharge.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'resources.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'themes.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'eagle.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'providers', 'registry.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'providers', 'mediaResolver.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'providers', 'adapters.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'providers', 'openaiCompatible.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'providers', 'modelscope.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'providers', 'volcengine.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'providers', 'comfyui.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'providers', 'jimengCli.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'utils', 'duckPayload.t8c'));
 
   console.log('\n[2] 前端 dist:');
@@ -201,6 +210,8 @@ function main() {
   checkFrontendAsset('naruto-shinsei-gyakuten-', '.mp3');
   checkFrontendAsset('eva-decisive-battle-', '.mp3');
   checkFrontendAsset('yyh-unbalanced-kiss-piano-', '.mp3');
+  checkFrontendAsset('yyh-hidden-tonight-', '.mp3');
+  checkFrontendAsset('slamdunk-kimi-ga-suki-', '.mp3');
 
   console.log('\n[3] 清除可能混入的明文后端源码:');
   nukePlainBackend();
