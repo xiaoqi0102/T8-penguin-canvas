@@ -37,6 +37,12 @@ _*.log
 # Local reference copy of external SS_tools project (do not publish binaries/assets)
 /SS_tools/
 
+# Optional remove-ai-watermarks Python/Torch sidecar runtime.
+# Keep the slot docs, but never commit the multi-GB runtime itself.
+/tools/remove-ai-watermarks-runtime/**
+!/tools/remove-ai-watermarks-runtime/
+!/tools/remove-ai-watermarks-runtime/README.md
+
 # Dependencies
 node_modules
 .pnp

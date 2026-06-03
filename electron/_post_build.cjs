@@ -166,6 +166,30 @@ function checkNoRechargeSecrets() {
   console.log('  ✅ recharge private config / HMAC not present in packaged resources');
 }
 
+function checkAiWatermarkRuntime() {
+  const runtimeRoot = path.join(RES, 'tools', 'remove-ai-watermarks');
+  const required = process.env.T8_REQUIRE_AI_WATERMARK_RUNTIME === '1';
+  const candidates = [
+    path.join(runtimeRoot, 'remove-ai-watermarks.exe'),
+    path.join(runtimeRoot, 'Scripts', 'remove-ai-watermarks.exe'),
+    path.join(runtimeRoot, 'python.exe'),
+    path.join(runtimeRoot, 'python', 'python.exe'),
+    path.join(runtimeRoot, '.venv', 'Scripts', 'python.exe'),
+  ];
+  const found = candidates.find((p) => fs.existsSync(p));
+  if (found) {
+    ok(found);
+    const manifest = path.join(runtimeRoot, 'runtime-manifest.json');
+    if (fs.existsSync(manifest)) ok(manifest);
+    else console.log('  ⚠️  optional runtime-manifest.json not found');
+    return;
+  }
+  const message = 'remove-ai-watermarks sidecar runtime not bundled; packaged app will require PATH/env installed CLI';
+  if (required) failSecurity(message, runtimeRoot);
+  console.log('  ⚠️ ', message);
+  console.log('     Set T8_REQUIRE_AI_WATERMARK_RUNTIME=1 for user-release builds that must be offline/self-contained.');
+}
+
 function main() {
   console.log('==========================================');
   console.log('[post-build] 验证打包产物');
@@ -189,6 +213,7 @@ function main() {
   checkFile(path.join(RES, 'backend-enc', 'routes', 'resources.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'themes.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'eagle.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'routes', 'aiWatermark.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'providers', 'registry.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'providers', 'mediaResolver.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'providers', 'adapters.t8c'));
@@ -197,6 +222,8 @@ function main() {
   checkFile(path.join(RES, 'backend-enc', 'providers', 'volcengine.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'providers', 'comfyui.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'providers', 'jimengCli.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'tools', 'aiWatermark', 'runner.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'tools', 'aiWatermark', 'media.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'utils', 'duckPayload.t8c'));
 
   console.log('\n[2] 前端 dist:');
@@ -219,7 +246,10 @@ function main() {
   console.log('\n[4] 充值密钥分发安全检查:');
   checkNoRechargeSecrets();
 
-  console.log('\n[5] resources/ 完整结构:');
+  console.log('\n[5] 去AI水印 sidecar runtime:');
+  checkAiWatermarkRuntime();
+
+  console.log('\n[6] resources/ 完整结构:');
   listDir(RES);
 
   if (missingCount > 0) {

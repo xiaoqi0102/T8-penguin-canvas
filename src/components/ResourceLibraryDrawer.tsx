@@ -24,6 +24,7 @@ import * as api from '../services/api';
 import type { ResourceCategory, ResourceItem, ResourceKind } from '../services/api';
 import { resourceItemToSendMaterials } from '../utils/sendMaterials';
 import { summarizeWorkflowResource } from '../utils/workflowResource';
+import LoopingVideo from './LoopingVideo';
 
 const KIND_META: Record<ResourceKind, { label: string; icon: typeof ImageIcon; accent: string }> = {
   image: { label: '图像', icon: ImageIcon, accent: '#fbbf24' },
@@ -510,11 +511,9 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                     </>
                   )}
                   {item.kind === 'video' && (
-                    <video
+                    <LoopingVideo
                       src={item.fileUrl}
                       muted
-                      loop
-                      preload="metadata"
                       className="resource-media w-full h-full object-cover transition-transform duration-200"
                       onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
                       onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}

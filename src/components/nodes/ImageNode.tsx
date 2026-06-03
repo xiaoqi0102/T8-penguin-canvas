@@ -6,6 +6,8 @@ import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
 import MentionPromptInput from './MentionPromptInput';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
+import QiniuImageTab from '../../integrations/qiniu/QiniuImageTab';
+import GrsaiImageTab from '../../integrations/grsai/GrsaiImageTab';
 import {
   IMAGE_MODELS,
   FAL_REGISTRY,
@@ -31,16 +33,9 @@ import {
   queryMjTask,
   uploadMjImage,
   buildMjPrompt,
+  generateExternalImage,
   type MjSpeed,
 } from '../../services/generation';
-// >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时，本块整体保留即可)
-import QiniuImageTab from '../../integrations/qiniu/QiniuImageTab';
-import { runQiniuImage } from '../../integrations/qiniu/runQiniuImage';
-import { getQiniuRatiosForApiModel, DEFAULT_QINIU_RATIO } from '../../integrations/qiniu/sizeMap';
-import GrsaiImageTab from '../../integrations/grsai/GrsaiImageTab';
-import { runGrsaiImage } from '../../integrations/grsai/runGrsaiImage';
-import { getGrsaiRatiosForApiModel, DEFAULT_GRSAI_RATIO } from '../../integrations/grsai/sizeMap';
-// <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useHasAutoOutput } from './useHasAutoOutput';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
@@ -49,6 +44,19 @@ import { logBus } from '../../stores/logs';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
 import { taskCompletionSound } from '../../stores/taskCompletionSound';
+import { useApiKeysStore } from '../../stores/apiKeys';
+import {
+  advancedProviderModelOptions,
+  advancedProvidersForNode,
+  externalImageSizeFor,
+  resolveAdvancedProviderSelection,
+} from '../../utils/advancedProviders';
+import {
+  countExcludedMaterials,
+  excludeMaterialId,
+  filterExcludedMaterials,
+  normalizeExcludedMaterialIds,
+} from '../../utils/materialExclusion';
 
 /**
  * ImageNode - 图像生成(ZhenzhenMagic)
@@ -73,6 +81,25 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const d = data as any;
   const model = d?.model || IMAGE_MODELS[0].id;
   const modelDef = useMemo(() => IMAGE_MODELS.find((m) => m.id === model) || IMAGE_MODELS[0], [model]);
+  const advancedProviders = useApiKeysStore((s) => s.settings.advancedProviders);
+  const imageAdvancedProviders = useMemo(
+    () => advancedProvidersForNode(advancedProviders, 'image'),
+    [advancedProviders],
+  );
+  const providerSelection = useMemo(
+    () => resolveAdvancedProviderSelection(advancedProviders, 'image', {
+      providerSource: d?.providerSource,
+      providerId: d?.providerId,
+      providerModel: d?.providerModel,
+    }),
+    [advancedProviders, d?.providerSource, d?.providerId, d?.providerModel],
+  );
+  const isExternalSelected = providerSelection.available && providerSelection.providerSource !== 'zhenzhen';
+  const savedExternalMissing = !!d?.providerSource && d.providerSource !== 'zhenzhen' && !providerSelection.available;
+  const externalModelOptions = providerSelection.provider
+    ? advancedProviderModelOptions(providerSelection.provider, 'image')
+    : [];
+  const externalProviderModel = providerSelection.providerModel || externalModelOptions[0] || '';
 
   const aspectRatio = d?.aspectRatio || modelDef.defaultAspectRatio;
   const sizeLevel = d?.sizeLevel || modelDef.defaultSize;
@@ -121,13 +148,8 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const mjOrefImages: string[] = Array.isArray(d?.mjOrefImages) ? d.mjOrefImages : [];
   const MJ_REF_MAX = 2; // sref 与 oref 各最多 2 张
 
-  // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
-  const isQiniu = modelDef.paramKind === 'qiniu';
-  const isGrsai = modelDef.paramKind === 'grsai';
-  // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
-
   // 参考图上限(FAL 使用 FAL_REGISTRY.maxRefs,其他走原设计)
-  const maxRefs = falDef?.maxRefs ?? modelDef.maxReferenceImages;
+  const maxRefs = isExternalSelected ? Math.max(8, modelDef.maxReferenceImages || 0) : (falDef?.maxRefs ?? modelDef.maxReferenceImages);
   const status: 'idle' | 'generating' | 'success' | 'error' = d?.status || 'idle';
   const imageUrl = d?.imageUrl as string | undefined;
   const localPrompt = d?.prompt || '';
@@ -137,6 +159,22 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
 
   // ============ 上游素材聚合 (新机制) ============
   const upstream = useUpstreamMaterials(id);
+  const excludedMaterialIds = useMemo(
+    () => normalizeExcludedMaterialIds(d?.excludedMaterialIds),
+    [d?.excludedMaterialIds],
+  );
+  const visibleUpstreamImages = useMemo(
+    () => filterExcludedMaterials(upstream.images, excludedMaterialIds),
+    [upstream.images, excludedMaterialIds],
+  );
+  const visibleUpstreamTexts = useMemo(
+    () => filterExcludedMaterials(upstream.texts, excludedMaterialIds),
+    [upstream.texts, excludedMaterialIds],
+  );
+  const excludedUpstreamCount = useMemo(
+    () => countExcludedMaterials(excludedMaterialIds, [...upstream.images, ...upstream.texts]),
+    [excludedMaterialIds, upstream.images, upstream.texts],
+  );
   const localImageMaterials: Material[] = useMemo(
     () =>
       refImages.map((url, i) => ({
@@ -150,12 +188,12 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
     [refImages, id],
   );
   const allImagesUnordered = useMemo(
-    () => [...localImageMaterials, ...upstream.images],
-    [localImageMaterials, upstream.images],
+    () => [...localImageMaterials, ...visibleUpstreamImages],
+    [localImageMaterials, visibleUpstreamImages],
   );
   const materialOrder: string[] = Array.isArray(d?.materialOrder) ? d.materialOrder : [];
   const orderedImages = useOrderedMaterials(allImagesUnordered, materialOrder);
-  const orderedTexts = useOrderedMaterials(upstream.texts, materialOrder);
+  const orderedTexts = useOrderedMaterials(visibleUpstreamTexts, materialOrder);
   const mentionMaterials = useMemo(
     () => orderedImages.slice(0, maxRefs),
     [orderedImages, maxRefs],
@@ -165,6 +203,14 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
     if (m.origin !== 'local') return;
     update({ referenceImages: refImages.filter((u) => u !== m.url) });
   };
+  const handleExcludeUpstreamMaterial = (m: Material) => {
+    if (m.origin !== 'upstream') return;
+    update({
+      excludedMaterialIds: excludeMaterialId(excludedMaterialIds, m.id),
+      materialOrder: materialOrder.filter((itemId) => itemId !== m.id),
+    });
+  };
+  const handleRestoreExcludedMaterials = () => update({ excludedMaterialIds: [] });
 
   // 切换模型时,如果当前比例/尺寸不在新模型选项里则重置
   const switchModel = (mId: string) => {
@@ -175,24 +221,6 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       if (!d?.mjAr) patch.mjAr = DEFAULT_MJ_RATIO;
       if (!d?.mjSpeed) patch.mjSpeed = DEFAULT_MJ_SPEED;
       if (d?.mjSv === undefined) patch.mjSv = '1';
-    } else if (newDef.paramKind === 'qiniu') {
-      // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
-      if (!d?.qiniuQuality) patch.qiniuQuality = 'auto';
-      // 切换到七牛云时，按新 apiModel（默认 gemini）支持的比例集合迁移 qiniuSize
-      const qiniuAllowed = getQiniuRatiosForApiModel(newDef.apiModel);
-      const curQiniuSize = d?.qiniuSize || DEFAULT_QINIU_RATIO;
-      if (!qiniuAllowed.includes(curQiniuSize)) patch.qiniuSize = DEFAULT_QINIU_RATIO;
-      // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
-    } else if (newDef.paramKind === 'grsai') {
-      // >>> CUSTOM-PROVIDER-INTEGRATIONS-START
-      // 按新 apiModel 的允许比例集合迁移 grsaiAspectRatio
-      const grsaiAllowed = getGrsaiRatiosForApiModel(newDef.apiModel);
-      const curGrsaiRatio = d?.grsaiAspectRatio || newDef.defaultAspectRatio || DEFAULT_GRSAI_RATIO;
-      if (!grsaiAllowed.includes(curGrsaiRatio)) patch.grsaiAspectRatio = DEFAULT_GRSAI_RATIO;
-      else if (!d?.grsaiAspectRatio) patch.grsaiAspectRatio = newDef.defaultAspectRatio || DEFAULT_GRSAI_RATIO;
-      const curGrsaiSize = d?.grsaiImageSize || newDef.defaultSize;
-      if (!newDef.sizes.includes(curGrsaiSize)) patch.grsaiImageSize = newDef.defaultSize;
-      // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
     } else {
       if (!newDef.aspectRatios.includes(aspectRatio)) patch.aspectRatio = newDef.defaultAspectRatio;
       if (!newDef.sizes.includes(sizeLevel)) patch.sizeLevel = newDef.defaultSize;
@@ -287,6 +315,45 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       // collectUpstream 已返回「本地上传 + 上游接入」按用户拖拽顺序合并后的列表,
       // 这里不再二次叠加 refImages, 避免本地参考图重复传递。
       const allRefs = upstreamImages.slice(0, maxRefs);
+
+      if (isExternalSelected && providerSelection.provider) {
+        const providerModel = externalProviderModel;
+        if (!providerModel) throw new Error('扩展平台未配置可用图像模型');
+        const size = externalImageSizeFor(aspectRatio, sizeLevel);
+        logBus.info(
+          `扩展平台提交: ${providerSelection.provider.label || providerSelection.provider.id} · ${providerModel} · size=${size} · 参考图=${allRefs.length}`,
+          src,
+        );
+        const res = await generateExternalImage({
+          providerId: providerSelection.provider.id,
+          providerModel,
+          model: providerModel,
+          prompt: finalPrompt,
+          size,
+          images: allRefs,
+          n: Math.max(1, Math.min(4, Number(d?.providerParams?.n || 1))),
+          providerParams: providerSelection.provider.protocol === 'qiniu'
+            ? { aspectRatio: d?.qiniuSize || 'auto', resolution: d?.qiniuResolution || '1K', quality: d?.qiniuQuality || 'auto' }
+            : providerSelection.provider.protocol === 'grsai'
+            ? { aspectRatio: d?.grsaiAspectRatio || 'auto', resolution: d?.grsaiImageSize || '1K' }
+            : d?.providerParams || {},
+        });
+        const urls = res.imageUrls || [];
+        if (!urls.length) throw new Error('扩展平台完成但未返回图片');
+        update({
+          status: 'success',
+          progress: '100%',
+          imageUrl: urls[0],
+          imageUrls: urls,
+          remoteImageUrls: res.remoteImageUrls,
+          lastPrompt: finalPrompt,
+          usedI2I: allRefs.length > 0,
+          taskId: res.taskId || d?.taskId,
+        });
+        logBus.success(`扩展平台完成 → ${urls[0]}`, src);
+        taskCompletionSound.notifyComplete(id, 'image');
+        return;
+      }
 
       // ============ MJ 路径(对齐 gpt-image-2-web runMJ L4437~L4716) ============
       if (isMj) {
@@ -384,17 +451,6 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         }
         throw new Error(`MJ 轮询超时: ${maxPoll} 次 × ${interval / 1000}s`);
       }
-
-      // >>> CUSTOM-PROVIDER-INTEGRATIONS-START (七牛云走独立 runner，逻辑见 integrations/qiniu/runQiniuImage.ts)
-      if (isQiniu) {
-        await runQiniuImage({ id, apiModel, finalPrompt, allRefs, d, update });
-        return;
-      }
-      if (isGrsai) {
-        await runGrsaiImage({ id, apiModel, finalPrompt, allRefs, d, update });
-        return;
-      }
-      // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 
       // ============ FAL 路径(对齐 gpt-image-2-web runGPTFal / runNanoFal) ============
       if (isFal && falDef) {
@@ -618,14 +674,85 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         </div>
         <div className="flex-1">
           <div className="text-sm font-semibold text-white">图像</div>
-          <div className="text-[10px] text-white/40">{modelDef.label} · {modelDef.description}</div>
+          <div className="text-[10px] text-white/40">
+            {isExternalSelected && providerSelection.provider
+              ? `${providerSelection.provider.label || providerSelection.provider.id} · ${externalProviderModel || '未选模型'}`
+              : `${modelDef.label} · ${modelDef.description}`}
+          </div>
         </div>
       </div>
 
       {/* 配置区 */}
       <div className="p-2.5 space-y-2" onMouseDown={(e) => e.stopPropagation()}>
+        {imageAdvancedProviders.length > 0 && (
+          <div className="rounded border border-white/10 bg-white/[0.03] p-2 space-y-2">
+            <button
+              type="button"
+              onClick={() => update({ advancedProviderOpen: !d?.advancedProviderOpen })}
+              className="w-full flex items-center justify-between text-[10px] font-semibold text-white/70 hover:text-white"
+            >
+              <span>高级来源</span>
+              <span>{isExternalSelected && providerSelection.provider ? providerSelection.provider.label : '默认贞贞工坊'}</span>
+            </button>
+            {d?.advancedProviderOpen && (
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-1">平台</label>
+                  <select
+                    value={isExternalSelected ? providerSelection.providerId : 'zhenzhen'}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      if (nextId === 'zhenzhen') {
+                        update({ providerSource: 'zhenzhen', providerId: '', providerModel: '' });
+                        return;
+                      }
+                      const provider = imageAdvancedProviders.find((item) => item.id === nextId);
+                      if (!provider) return;
+                      const nextModels = advancedProviderModelOptions(provider, 'image');
+                      update({
+                        providerSource: provider.protocol,
+                        providerId: provider.id,
+                        providerModel: nextModels[0] || '',
+                      });
+                    }}
+                    style={{ background: '#18181b', color: '#ffffff' }}
+                    className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+                  >
+                    <option value="zhenzhen" style={{ background: '#18181b', color: '#ffffff' }}>贞贞工坊（默认）</option>
+                    {imageAdvancedProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id} style={{ background: '#18181b', color: '#ffffff' }}>
+                        {provider.label || provider.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {isExternalSelected && providerSelection.provider && (
+                  <div>
+                    <label className="text-[10px] text-white/50 block mb-1">外部模型</label>
+                    <select
+                      value={externalProviderModel}
+                      onChange={(e) => update({ providerModel: e.target.value })}
+                      style={{ background: '#18181b', color: '#ffffff' }}
+                      className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+                    >
+                      {externalModelOptions.map((m) => (
+                        <option key={m} value={m} style={{ background: '#18181b', color: '#ffffff' }}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {savedExternalMissing && (
+                  <div className="text-[10px] text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
+                    当前画布记录的扩展平台未启用或不存在，已临时回到默认来源。
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 模型 TAB 切换(对应主项目 gpt-image-2-web Tab 0/1/2) */}
-        <div>
+        {!isExternalSelected && <div>
           <label className="text-[10px] text-white/50 block mb-1">模型</label>
           <div
             className={`flex gap-0.5 p-0.5 rounded ${isPixel ? '' : 'bg-white/5'}`}
@@ -652,31 +779,15 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
               );
             })}
           </div>
-        </div>
+        </div>}
 
         {/* 子模型选择(对齐主项目 Tab 内的 model 下拉) - MJ 模式隐藏(用下面专属版本选择) */}
-        {!isMj && (
+        {!isExternalSelected && !isMj && (
           <div>
             <label className="text-[10px] text-white/50 block mb-1">具体模型</label>
             <select
               value={apiModel}
-              onChange={(e) => {
-                const newApiModel = e.target.value;
-                const patch: any = { apiModel: newApiModel };
-                // 七牛云不同子模型支持的比例集合不同：跨模型切换时迁移 qiniuSize
-                if (isQiniu) {
-                  const allowed = getQiniuRatiosForApiModel(newApiModel);
-                  const cur = d?.qiniuSize;
-                  if (cur && !allowed.includes(cur)) patch.qiniuSize = DEFAULT_QINIU_RATIO;
-                }
-                // Grsai 同理：nano-banana-2 系列支持极端比例，切到 gpt-image-2 系列要回退
-                if (isGrsai) {
-                  const allowed = getGrsaiRatiosForApiModel(newApiModel);
-                  const cur = d?.grsaiAspectRatio;
-                  if (cur && !allowed.includes(cur)) patch.grsaiAspectRatio = DEFAULT_GRSAI_RATIO;
-                }
-                update(patch);
-              }}
+              onChange={(e) => update({ apiModel: e.target.value })}
               style={{ background: '#18181b', color: '#ffffff' }}
               className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
             >
@@ -687,8 +798,15 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           </div>
         )}
 
-        {/* 比例 + 尺寸 并排(非 FAL 且非 MJ 且非七牛/Grsai 模型);Grok Image 只需要比例 */}
-        {!isFal && !isMj && !isQiniu && !isGrsai && (
+        {/* 比例 + 尺寸 并排(非 FAL 且非 MJ 模型);Grok Image 只需要比例 */}
+        {/* 七牛/Grsai 专属 UI 控件 */}
+        {isExternalSelected && providerSelection.provider?.protocol === 'qiniu' && (
+          <QiniuImageTab d={d} update={update} apiModel={externalProviderModel} />
+        )}
+        {isExternalSelected && providerSelection.provider?.protocol === 'grsai' && (
+          <GrsaiImageTab d={d} update={update} apiModel={externalProviderModel} />
+        )}
+        {(!isFal && !isMj || isExternalSelected) && !(isExternalSelected && (providerSelection.provider?.protocol === 'qiniu' || providerSelection.provider?.protocol === 'grsai')) && (
           <div className={`grid gap-2 ${isGrokImage || !modelDef.sizes.length ? 'grid-cols-1' : 'grid-cols-2'}`}>
             <div>
               <label className="text-[10px] text-white/50 block mb-1">比例</label>
@@ -721,13 +839,8 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           </div>
         )}
 
-        {/* >>> CUSTOM-PROVIDER-INTEGRATIONS-START (七牛云专属参数面板) */}
-        {isQiniu && <QiniuImageTab d={d} update={update} apiModel={apiModel} />}
-        {isGrsai && <GrsaiImageTab d={d} update={update} apiModel={apiModel} />}
-        {/* <<< CUSTOM-PROVIDER-INTEGRATIONS-END */}
-
         {/* ========== FAL 专属参数面板(完全对齐 gpt-image-2-web gf_panel / nano_fal_panel) ========== */}
-        {isFal && falKind === 'gpt-fal' && (
+        {!isExternalSelected && isFal && falKind === 'gpt-fal' && (
           <div className="space-y-2 rounded border border-blue-400/30 bg-blue-500/5 p-2">
             <div className="text-[10px] text-blue-300 font-semibold tracking-wide">
               💡 FAL Queue API · openai/gpt-image-2
@@ -833,7 +946,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           </div>
         )}
 
-        {isFal && falKind === 'nbpro-fal' && (
+        {!isExternalSelected && isFal && falKind === 'nbpro-fal' && (
           <div className="space-y-2 rounded border border-blue-400/30 bg-blue-500/5 p-2">
             <div className="text-[10px] text-blue-300 font-semibold tracking-wide">
               💡 FAL Queue API · fal-ai/nano-banana-pro/edit (需参考图)
@@ -954,7 +1067,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* ========== MJ 专属参数面板(完全对齐 gpt-image-2-web mj_* 控件 L1552~L1580) ========== */}
-        {isMj && (
+        {!isExternalSelected && isMj && (
           <div className="space-y-2 rounded border border-purple-400/30 bg-purple-500/5 p-2">
             <div className="text-[10px] text-purple-300 font-semibold tracking-wide">
               ✨ Midjourney(严格对齐主项目 runMJ)
@@ -1158,13 +1271,16 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* 上游素材聚合预览区 (新机制) - 本地上传 + 上游接入统一呈现, 可拖动排序 */}
-        {modelDef.supportsReference && (
+        {(isExternalSelected || modelDef.supportsReference) && (
           <MaterialPreviewSection
             texts={orderedTexts}
             images={orderedImages}
             order={materialOrder}
             onReorder={setMaterialOrder}
             onRemoveLocal={handleRemoveLocalMaterial}
+            onExcludeUpstream={handleExcludeUpstreamMaterial}
+            excludedCount={excludedUpstreamCount}
+            onRestoreExcluded={handleRestoreExcludedMaterials}
             selected={!!selected}
             isDark={isDark}
             isPixel={isPixel}

@@ -55,12 +55,13 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'upscale', label: '放大', category: 'utility', description: '图像放大', icon: 'ZoomIn', color: 'orange', hidden: true },
   { type: 'grid-crop', label: '宫格剪裁', category: 'utility', description: '网格切图', icon: 'Grid3x3', color: 'orange' },
 
-  // ========== Auxiliary 辅助节点(5) ==========
+  // ========== Auxiliary 辅助节点(6) ==========
   // 其中 2 个暂时隐藏: edit / video-output
   { type: 'edit', label: '编辑', category: 'auxiliary', description: '图像编辑/局部', icon: 'Edit3', color: 'slate', hidden: true },
   { type: 'idea', label: '灵感', category: 'auxiliary', description: '灵感记录', icon: 'Lightbulb', color: 'slate' },
   { type: 'bp', label: 'BP 蓝图', category: 'auxiliary', description: 'Blueprint 蓝图', icon: 'Map', color: 'slate' },
   { type: 'relay', label: '中继', category: 'auxiliary', description: '数据中转', icon: 'ArrowRightLeft', color: 'slate' },
+  { type: 'remove-ai-watermark', label: '去AI水印', category: 'auxiliary', description: '基于 remove-ai-watermarks 的可见/隐形水印、局部擦除、元数据清理与鉴别', icon: 'ShieldOff', color: 'slate' },
   { type: 'video-output', label: '视频输出', category: 'auxiliary', description: '视频结果展示', icon: 'MonitorPlay', color: 'slate', hidden: true },
 
   // ========== Toolbox 工具箱(5) ==========

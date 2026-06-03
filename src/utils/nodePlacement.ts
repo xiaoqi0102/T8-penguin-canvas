@@ -67,6 +67,7 @@ export const NODE_DEFAULT_SIZE: Record<string, { w: number; h: number }> = {
   'multi-angle-visual': { w: 760, h: 520 },
   'portrait-master': { w: 560, h: 360 },
   'pose-master': { w: 900, h: 720 },
+  'remove-ai-watermark': { w: 380, h: 520 },
   groupBox: { w: 480, h: 320 },
 };
 

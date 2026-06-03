@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useNodeConnections, useNodesData } from '@xyflow/react';
 import { collectMaterialSetBucketsFromData, valueOfMaterialSetItem } from '../../utils/materialSet';
+import { normalizeRhNodeId } from '../../utils/rhTextBinding';
 
 /**
  * useUpstreamMaterials - 通用「上游素材聚合」hook
@@ -33,6 +34,8 @@ export interface Material {
   sourceNodeId: string;
   origin: 'upstream' | 'local';
   label?: string;
+  rhNodeId?: string;
+  sourceNodeSerialId?: number;
 }
 
 export interface UpstreamMaterials {
@@ -75,7 +78,16 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
 
     const list = Array.isArray(upstreamNodes) ? upstreamNodes : [];
 
-    const pushText = (sourceId: string, v: any, keyOverride?: string, labelOverride?: string) => {
+    const textMetaFromData = (ud: any) => {
+      const rhNodeId = normalizeRhNodeId(ud?.rhNodeId ?? ud?.rhTextNodeId ?? ud?.runningHubNodeId);
+      const serial = Number(ud?.nodeSerialId);
+      return {
+        rhNodeId: rhNodeId || undefined,
+        sourceNodeSerialId: Number.isFinite(serial) && serial > 0 ? serial : undefined,
+      };
+    };
+
+    const pushText = (sourceId: string, v: any, keyOverride?: string, labelOverride?: string, meta?: Pick<Material, 'rhNodeId' | 'sourceNodeSerialId'>) => {
       if (typeof v !== 'string') return;
       const s = v.trim();
       if (!s) return;
@@ -89,6 +101,8 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
         sourceNodeId: sourceId,
         origin: 'upstream',
         label: labelOverride || (s.length > 24 ? s.slice(0, 22) + '…' : s),
+        rhNodeId: meta?.rhNodeId,
+        sourceNodeSerialId: meta?.sourceNodeSerialId,
       });
     };
 
@@ -121,13 +135,14 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
       const sid = n.id;
       const ud: any = n.data || {};
       const handles = handleMap.get(sid) || new Set<string | null>([null]);
+      const textMeta = textMetaFromData(ud);
 
       // 显式素材集: 保留素材集内部顺序，并用序号 key 避免相同 URL 被全局去重误删。
       // 同时跳过下面的旧字段读取，避免 imageUrls/textSegments 双写后重复出现。
       if (n.type === 'material-set' && Array.isArray(ud.materialSetItems)) {
         const buckets = collectMaterialSetBucketsFromData(ud);
         buckets.text.forEach((item, index) => {
-          pushText(sid, valueOfMaterialSetItem(item), `material-set:${sid}:text:${index}`, item.name);
+          pushText(sid, valueOfMaterialSetItem(item), `material-set:${sid}:text:${index}`, item.name, textMeta);
         });
         buckets.image.forEach((item, index) => {
           pushUrl(sid, 'image', item.url, images, `material-set:${sid}:image:${index}`, item.name);
@@ -146,14 +161,14 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
       const textArrayField = textArrayFields.find((f) => Array.isArray(ud[f]) && ud[f].length > 0);
       if (textArrayField) {
         ud[textArrayField].forEach((item: any, index: number) => {
-          pushText(sid, item, `text-array:${sid}:${textArrayField}:${index}`);
+          pushText(sid, item, `text-array:${sid}:${textArrayField}:${index}`, undefined, textMeta);
         });
       } else {
         // 文本: outputText (用户编辑覆盖) > reply > prompt > text
-        pushText(sid, ud.outputText);
-        pushText(sid, ud.reply);
-        pushText(sid, ud.prompt);
-        pushText(sid, ud.text);
+        pushText(sid, ud.outputText, `text-field:${sid}:outputText`, undefined, textMeta);
+        pushText(sid, ud.reply, `text-field:${sid}:reply`, undefined, textMeta);
+        pushText(sid, ud.prompt, `text-field:${sid}:prompt`, undefined, textMeta);
+        pushText(sid, ud.text, `text-field:${sid}:text`, undefined, textMeta);
       }
 
       // === v1.2.8.3: FramePair 双端口语义 ===

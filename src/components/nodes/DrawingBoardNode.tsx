@@ -1,8 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   Circle,
   ChevronDown,
   ChevronRight,
@@ -15,26 +17,46 @@ import {
   Layers,
   Loader2,
   Lock,
+  Maximize2,
+  Minimize2,
   MousePointer2,
   PenLine,
+  PenTool,
   Pencil,
   Plus,
   RectangleHorizontal,
   RotateCcw,
   Save,
+  Scissors,
   Send,
   Trash2,
   Type,
   Unlock,
   Upload,
+  X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { PORT_COLOR } from '../../config/portTypes';
 import { uploadDataUrl, uploadFileBlob } from '../../services/imageOps';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useUpstreamMaterials } from './useUpstreamMaterials';
+import {
+  boardPointToImageFraction,
+  closeCutoutPath,
+  distanceBetween,
+  isValidCutoutPath,
+  simplifyCutoutPath,
+} from '../../utils/drawingBoardCutout';
+import {
+  boardPointFromClientPoint,
+  clampBoardZoom,
+  fitBoardViewport,
+  zoomBoardViewport,
+} from '../../utils/drawingBoardViewport';
 
-type BoardTool = 'select' | 'pen' | 'eraser' | 'text' | 'rect' | 'circle' | 'arrow';
+type BoardTool = 'select' | 'pen' | 'eraser' | 'text' | 'rect' | 'circle' | 'arrow' | 'cutout-lasso' | 'cutout-pen';
 type BoardRatio = 'free' | '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
 
 interface Point {
@@ -85,6 +107,14 @@ interface ShapeElement {
   rotation?: number;
 }
 
+interface CutoutDraft {
+  mode: 'lasso' | 'pen';
+  sourceLayerId: string;
+  sourceElementId: string;
+  points: Point[];
+  closed: boolean;
+}
+
 type BoardElement = ImageElement | PathElement | TextElement | ShapeElement;
 type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
 type BoxElement = ImageElement | ShapeElement;
@@ -129,6 +159,8 @@ const TOOL_LABEL: Record<BoardTool, string> = {
   rect: '矩形',
   circle: '圆形',
   arrow: '箭头',
+  'cutout-lasso': '套索',
+  'cutout-pen': '钢笔',
 };
 
 function uid(prefix: string) {
@@ -137,6 +169,10 @@ function uid(prefix: string) {
 
 function clamp(v: number, min: number, max: number) {
   return Math.min(max, Math.max(min, v));
+}
+
+function isCutoutTool(value: BoardTool) {
+  return value === 'cutout-lasso' || value === 'cutout-pen';
 }
 
 function createBlankLayer(index = 1, groupId: string | null = null): BoardLayer {
@@ -505,11 +541,14 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const focusCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const focusOverlayRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const boardJsonInputRef = useRef<HTMLInputElement | null>(null);
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const autoImportSigRef = useRef('');
   const actionRef = useRef<BoardAction | null>(null);
+  const cutoutDragRef = useRef<{ pointerId: number; sourceLayerId: string; sourceElementId: string } | null>(null);
 
   const [layers, setLayers] = useState<BoardLayer[]>(() => initialLayersRef.current || [createBlankLayer(1)]);
   const [activeLayerId, setActiveLayerId] = useState<string>(() => {
@@ -525,6 +564,16 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   const [strokeColor, setStrokeColor] = useState(typeof d.boardColor === 'string' ? d.boardColor : '#111827');
   const [strokeSize, setStrokeSize] = useState(Math.max(1, Number(d.boardStrokeSize) || 5));
   const [textDraft, setTextDraft] = useState(typeof d.boardTextDraft === 'string' ? d.boardTextDraft : '文字');
+  const [cutoutDraft, setCutoutDraft] = useState<CutoutDraft | null>(null);
+  const [cutoutSmooth, setCutoutSmooth] = useState(Math.max(0, Number(d.boardCutoutSmooth) || 2));
+  const [cutoutFeather, setCutoutFeather] = useState(Math.max(0, Number(d.boardCutoutFeather) || 0));
+  const [cutoutInvert, setCutoutInvert] = useState(false);
+  const [focusEditorOpen, setFocusEditorOpen] = useState(false);
+  const [focusZoom, setFocusZoom] = useState<'fit' | number>('fit');
+  const [windowSize, setWindowSize] = useState(() => ({
+    w: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    h: typeof window !== 'undefined' ? window.innerHeight : 820,
+  }));
   const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>((d.status as any) || 'idle');
   const [error, setError] = useState<string | null>(typeof d.error === 'string' ? d.error : null);
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
@@ -542,21 +591,35 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     }
     return null;
   }, [layers, selectedElementId]);
+  const selectedCutoutSource = useMemo(() => {
+    if (!selectedElement || selectedElement.element.kind !== 'image') return null;
+    if (!isLayerEditable(layers, selectedElement.layer)) return null;
+    return selectedElement as { layer: BoardLayer; element: ImageElement };
+  }, [layers, selectedElement]);
   const boardHasKeyboardFocus = useCallback(() => {
     const root = rootRef.current;
+    const focusOverlay = focusOverlayRef.current;
     const active = document.activeElement;
-    return !!root && active instanceof globalThis.Node && root.contains(active);
+    return !!active && active instanceof globalThis.Node && (!!root?.contains(active) || !!focusOverlay?.contains(active));
   }, []);
   const hasUpstreamImages = upstream.images.length > 0;
   const previewSize = useMemo(() => {
     const maxW = NODE_W - CONTROL_W - 72;
     const maxH = NODE_H - 210;
-    const scale = Math.min(maxW / boardW, maxH / boardH);
-    return {
-      w: Math.max(1, Math.round(boardW * scale)),
-      h: Math.max(1, Math.round(boardH * scale)),
-    };
+    return fitBoardViewport({ boardW, boardH, maxW, maxH });
   }, [boardH, boardW]);
+  const focusFitSize = useMemo(() => (
+    fitBoardViewport({
+      boardW,
+      boardH,
+      maxW: Math.max(360, windowSize.w - 430),
+      maxH: Math.max(260, windowSize.h - 190),
+    })
+  ), [boardH, boardW, windowSize]);
+  const focusStageSize = useMemo(() => (
+    focusZoom === 'fit' ? focusFitSize : zoomBoardViewport({ boardW, boardH, zoom: focusZoom })
+  ), [boardH, boardW, focusFitSize, focusZoom]);
+  const focusZoomPercent = Math.round((focusStageSize.scale || 1) * 100);
 
   const persistLayers = useCallback(
     (next: BoardLayer[]) => {
@@ -588,10 +651,20 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   }, [activeLayerId, update]);
 
   useEffect(() => {
+    if (!focusEditorOpen) return;
+    const syncWindowSize = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight });
+    syncWindowSize();
+    window.addEventListener('resize', syncWindowSize);
+    window.setTimeout(() => focusOverlayRef.current?.focus(), 0);
+    return () => window.removeEventListener('resize', syncWindowSize);
+  }, [focusEditorOpen]);
+
+  useEffect(() => {
     const onPointerDownOutside = (event: globalThis.PointerEvent) => {
       const root = rootRef.current;
+      const focusOverlay = focusOverlayRef.current;
       const target = event.target;
-      if (!root || !(target instanceof globalThis.Node) || root.contains(target)) return;
+      if (!root || !(target instanceof globalThis.Node) || root.contains(target) || focusOverlay?.contains(target)) return;
       actionRef.current = null;
       setSelectedElementId(null);
       const active = document.activeElement;
@@ -739,6 +812,42 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     [imageForUrl, selectedElementId],
   );
 
+  const drawCutoutDraft = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      if (!cutoutDraft || cutoutDraft.points.length === 0) return;
+      const pathPoints = cutoutDraft.closed ? closeCutoutPath(cutoutDraft.points) : cutoutDraft.points;
+      ctx.save();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#fb923c';
+      ctx.fillStyle = cutoutInvert ? 'rgba(239, 68, 68, .16)' : 'rgba(34, 211, 238, .14)';
+      ctx.setLineDash(cutoutDraft.mode === 'pen' ? [10, 6] : [7, 6]);
+      ctx.beginPath();
+      pathPoints.forEach((p, index) => {
+        if (index === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      if (cutoutDraft.closed && pathPoints.length >= 3) {
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (cutoutDraft.mode === 'pen') {
+        ctx.fillStyle = '#22d3ee';
+        cutoutDraft.points.forEach((p, index) => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, index === 0 ? 6 : 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(2, 6, 23, .78)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+      }
+      ctx.restore();
+    },
+    [cutoutDraft, cutoutInvert],
+  );
+
   const renderCanvas = useCallback(
     (ctx: CanvasRenderingContext2D, includeSelection = true) => {
       ctx.clearRect(0, 0, boardW, boardH);
@@ -762,27 +871,48 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       }
       ctx.restore();
       renderableLayers.forEach((layer) => layer.elements.forEach((el) => drawElement(ctx, el, includeSelection)));
+      if (includeSelection) drawCutoutDraft(ctx);
     },
-    [boardH, boardW, drawElement, renderableLayers],
+    [boardH, boardW, drawCutoutDraft, drawElement, renderableLayers],
   );
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
+  const paintCanvas = useCallback((canvas: HTMLCanvasElement | null, displaySize: { w: number; h: number }) => {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
-    canvas.width = boardW;
-    canvas.height = boardH;
+    const pixelRatio = Math.min(3, Math.max(1, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1));
+    canvas.width = Math.max(1, Math.round(displaySize.w * pixelRatio));
+    canvas.height = Math.max(1, Math.round(displaySize.h * pixelRatio));
+    canvas.style.width = `${Math.max(1, displaySize.w)}px`;
+    canvas.style.height = `${Math.max(1, displaySize.h)}px`;
+    ctx.setTransform(canvas.width / boardW, 0, 0, canvas.height / boardH, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     renderCanvas(ctx, true);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }, [boardH, boardW, renderCanvas]);
 
+  const handleFocusCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
+    focusCanvasRef.current = canvas;
+    if (canvas) paintCanvas(canvas, focusStageSize);
+  }, [focusStageSize, paintCanvas]);
+
+  useEffect(() => {
+    paintCanvas(canvasRef.current, previewSize);
+    if (focusEditorOpen) paintCanvas(focusCanvasRef.current, focusStageSize);
+  }, [focusEditorOpen, focusStageSize, paintCanvas, previewSize]);
+
   const clientToBoard = (event: PointerEvent<HTMLCanvasElement>): Point => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: clamp(((event.clientX - rect.left) / rect.width) * boardW, 0, boardW),
-      y: clamp(((event.clientY - rect.top) / rect.height) * boardH, 0, boardH),
-    };
+    const rect = event.currentTarget.getBoundingClientRect();
+    return boardPointFromClientPoint({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      rectLeft: rect.left,
+      rectTop: rect.top,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
+      boardW,
+      boardH,
+    });
   };
 
   const hitElement = (pnt: Point) => {
@@ -796,6 +926,50 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     }
     return null;
   };
+
+  const resolveCutoutSource = (pnt: Point) => {
+    if (selectedCutoutSource && pointInElement(pnt, selectedCutoutSource.element)) return selectedCutoutSource;
+    const hit = hitElement(pnt);
+    if (!hit || hit.element.kind !== 'image') return null;
+    const layer = layers.find((item) => item.id === hit.layerId && item.kind === 'layer');
+    if (!layer || !isLayerEditable(layers, layer)) return null;
+    return { layer, element: hit.element as ImageElement };
+  };
+
+  const closeCurrentCutoutDraft = useCallback(() => {
+    let closed = false;
+    let invalid = false;
+    setCutoutDraft((prev) => {
+      if (!prev || prev.closed || prev.points.length < 3) {
+        invalid = true;
+        return prev;
+      }
+      const points = closeCutoutPath(simplifyCutoutPath(prev.points, cutoutSmooth));
+      if (!isValidCutoutPath(points)) {
+        invalid = true;
+        return prev;
+      }
+      closed = true;
+      return { ...prev, points, closed: true };
+    });
+    if (closed) setError(null);
+    if (invalid) setError('选区太小或点数不足，至少需要 3 个有效点');
+    return closed;
+  }, [cutoutSmooth]);
+
+  const cancelCutoutDraft = useCallback(() => {
+    cutoutDragRef.current = null;
+    setCutoutDraft(null);
+    setError(null);
+  }, []);
+
+  const removeLastCutoutPoint = useCallback(() => {
+    setCutoutDraft((prev) => {
+      if (!prev || prev.mode !== 'pen' || prev.closed) return prev;
+      const next = prev.points.slice(0, -1);
+      return next.length ? { ...prev, points: next } : null;
+    });
+  }, []);
 
   const appendToActiveLayer = (el: BoardElement) => {
     if (!activeLayer || !activeLayerWritable) {
@@ -869,6 +1043,53 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       return;
     }
 
+    if (isCutoutTool(tool)) {
+      const source = resolveCutoutSource(pos);
+      if (!source) {
+        setError('请先选中一张未锁定的图片图层，再开始抠图');
+        return;
+      }
+      if (!pointInElement(pos, source.element)) {
+        setError('请在图片范围内开始抠图');
+        return;
+      }
+      setError(null);
+      setActiveLayerId(source.layer.id);
+      setSelectedElementId(source.element.id);
+      if (tool === 'cutout-lasso') {
+        cutoutDragRef.current = { pointerId: event.pointerId, sourceLayerId: source.layer.id, sourceElementId: source.element.id };
+        setCutoutDraft({
+          mode: 'lasso',
+          sourceLayerId: source.layer.id,
+          sourceElementId: source.element.id,
+          points: [pos],
+          closed: false,
+        });
+        return;
+      }
+      setCutoutDraft((prev) => {
+        if (prev?.mode === 'pen' && prev.sourceElementId === source.element.id && prev.sourceLayerId === source.layer.id && !prev.closed) {
+          if (prev.points.length >= 3 && distanceBetween(pos, prev.points[0]) <= 18) {
+            const points = closeCutoutPath(simplifyCutoutPath(prev.points, cutoutSmooth));
+            if (!isValidCutoutPath(points)) {
+              setError('选区太小或点数不足，至少需要 3 个有效点');
+              return prev;
+            }
+            return { ...prev, points, closed: true };
+          }
+          return { ...prev, points: [...prev.points, pos] };
+        }
+        return {
+          mode: 'pen',
+          sourceLayerId: source.layer.id,
+          sourceElementId: source.element.id,
+          points: [pos],
+          closed: false,
+        };
+      });
+      return;
+    }
+
     if (tool === 'text') {
       const text = textDraft.trim() || window.prompt('输入画板文字', '文字') || '';
       if (!text.trim()) return;
@@ -920,6 +1141,19 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
+    const cutoutDrag = cutoutDragRef.current;
+    if (cutoutDrag) {
+      event.preventDefault();
+      event.stopPropagation();
+      const pos = clientToBoard(event);
+      setCutoutDraft((prev) => {
+        if (!prev || prev.closed || prev.sourceElementId !== cutoutDrag.sourceElementId || prev.sourceLayerId !== cutoutDrag.sourceLayerId) return prev;
+        const last = prev.points[prev.points.length - 1];
+        if (last && distanceBetween(last, pos) < 2) return prev;
+        return { ...prev, points: [...prev.points, pos] };
+      });
+      return;
+    }
     const action = actionRef.current;
     if (!action) return;
     event.preventDefault();
@@ -970,6 +1204,21 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
 
   const endPointerAction = (event?: PointerEvent<HTMLCanvasElement>) => {
     event?.stopPropagation();
+    const cutoutDrag = cutoutDragRef.current;
+    if (cutoutDrag) {
+      cutoutDragRef.current = null;
+      setCutoutDraft((prev) => {
+        if (!prev || prev.sourceElementId !== cutoutDrag.sourceElementId || prev.sourceLayerId !== cutoutDrag.sourceLayerId) return prev;
+        const points = closeCutoutPath(simplifyCutoutPath(prev.points, cutoutSmooth));
+        if (!isValidCutoutPath(points)) {
+          setError('套索选区太小，请重新圈选');
+          return null;
+        }
+        setError(null);
+        return { ...prev, points, closed: true };
+      });
+      return;
+    }
     const action = actionRef.current;
     actionRef.current = null;
     if (!action) return;
@@ -1040,6 +1289,109 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     },
     [boardH, boardW, layers, loadImage, patchLayers],
   );
+
+  const applyCutoutDraft = useCallback(async () => {
+    if (!cutoutDraft || !cutoutDraft.closed) {
+      setError('请先完成套索或钢笔闭合选区');
+      return;
+    }
+    const sourceLayer = layers.find((layer) => layer.id === cutoutDraft.sourceLayerId && layer.kind === 'layer');
+    const source = sourceLayer?.kind === 'layer'
+      ? sourceLayer.elements.find((el): el is ImageElement => el.id === cutoutDraft.sourceElementId && el.kind === 'image')
+      : null;
+    if (!sourceLayer || sourceLayer.kind !== 'layer' || !source || !isLayerEditable(layers, sourceLayer)) {
+      setError('源图片图层已隐藏、锁定或不存在，无法抠图');
+      return;
+    }
+    const points = closeCutoutPath(simplifyCutoutPath(cutoutDraft.points, cutoutSmooth));
+    if (!isValidCutoutPath(points)) {
+      setError('选区太小或点数不足，无法抠图');
+      return;
+    }
+
+    setStatus('running');
+    setError(null);
+    try {
+      const img = await loadImage(source.url);
+      const W = Math.max(1, img.naturalWidth || Math.round(source.w));
+      const H = Math.max(1, img.naturalHeight || Math.round(source.h));
+      const mask = document.createElement('canvas');
+      mask.width = W;
+      mask.height = H;
+      const maskCtx = mask.getContext('2d');
+      if (!maskCtx) throw new Error('无法创建抠图遮罩');
+      maskCtx.clearRect(0, 0, W, H);
+      if (cutoutInvert) {
+        maskCtx.fillStyle = '#fff';
+        maskCtx.fillRect(0, 0, W, H);
+        maskCtx.globalCompositeOperation = 'destination-out';
+      }
+      maskCtx.fillStyle = '#fff';
+      maskCtx.beginPath();
+      points.forEach((point, index) => {
+        const f = boardPointToImageFraction(point, source);
+        const x = f.x * W;
+        const y = f.y * H;
+        if (index === 0) maskCtx.moveTo(x, y);
+        else maskCtx.lineTo(x, y);
+      });
+      maskCtx.closePath();
+      maskCtx.fill();
+      maskCtx.globalCompositeOperation = 'source-over';
+
+      const softMask = document.createElement('canvas');
+      softMask.width = W;
+      softMask.height = H;
+      const softCtx = softMask.getContext('2d');
+      if (!softCtx) throw new Error('无法创建羽化遮罩');
+      if (cutoutFeather > 0) {
+        softCtx.filter = `blur(${cutoutFeather}px)`;
+        softCtx.drawImage(mask, 0, 0);
+        softCtx.filter = 'none';
+      } else {
+        softCtx.drawImage(mask, 0, 0);
+      }
+
+      const out = document.createElement('canvas');
+      out.width = W;
+      out.height = H;
+      const outCtx = out.getContext('2d');
+      if (!outCtx) throw new Error('无法创建抠图画布');
+      outCtx.clearRect(0, 0, W, H);
+      outCtx.drawImage(img, 0, 0, W, H);
+      outCtx.globalCompositeOperation = 'destination-in';
+      outCtx.drawImage(softMask, 0, 0);
+      outCtx.globalCompositeOperation = 'source-over';
+
+      const url = await uploadDataUrl(out.toDataURL('image/png'), 'drawing-board-cutout');
+      await loadImage(url);
+      const layerCount = layers.filter((layer) => layer.kind === 'layer').length;
+      const newLayer = createBlankLayer(layerCount + 1, sourceLayer.groupId || null);
+      const newImage: ImageElement = {
+        ...source,
+        id: uid('image-cutout'),
+        url,
+        name: `${source.name || '图片'} 抠图`,
+        opacity: 1,
+      };
+      newLayer.name = `${source.name || '图片'} 抠图`;
+      newLayer.elements = [newImage];
+      setActiveLayerId(newLayer.id);
+      setSelectedElementId(newImage.id);
+      setCutoutDraft(null);
+      setTool('select');
+      patchLayers((prev) => {
+        const sourceIndex = prev.findIndex((layer) => layer.id === sourceLayer.id);
+        if (sourceIndex < 0) return [...prev, newLayer];
+        return [...prev.slice(0, sourceIndex + 1), newLayer, ...prev.slice(sourceIndex + 1)];
+      });
+      setStatus('success');
+    } catch (e: any) {
+      const msg = e?.message || '抠图失败';
+      setError(msg);
+      setStatus('error');
+    }
+  }, [cutoutDraft, cutoutFeather, cutoutInvert, cutoutSmooth, layers, loadImage, patchLayers]);
 
   const upstreamSig = useMemo(() => upstream.images.map((m) => m.url).join('|'), [upstream.images]);
 
@@ -1160,6 +1512,29 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
 
   const handleRootKeyDownCapture = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (cutoutDraft && !isEditableEventTarget(event.target)) {
+        if (event.key === 'Escape') {
+          cancelCutoutDraft();
+          event.preventDefault();
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation?.();
+          return;
+        }
+        if (event.key === 'Enter' && cutoutDraft.mode === 'pen' && !cutoutDraft.closed) {
+          closeCurrentCutoutDraft();
+          event.preventDefault();
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation?.();
+          return;
+        }
+        if (event.key === 'Backspace' && cutoutDraft.mode === 'pen' && !cutoutDraft.closed) {
+          removeLastCutoutPoint();
+          event.preventDefault();
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation?.();
+          return;
+        }
+      }
       if ((event.key !== 'Delete' && event.key !== 'Backspace') || isEditableEventTarget(event.target)) return;
       if (!selectedElementId) return;
       if (!deleteSelectedElement()) return;
@@ -1167,12 +1542,35 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       event.stopPropagation();
       event.nativeEvent.stopImmediatePropagation?.();
     },
-    [deleteSelectedElement, selectedElementId],
+    [cancelCutoutDraft, closeCurrentCutoutDraft, cutoutDraft, deleteSelectedElement, removeLastCutoutPoint, selectedElementId],
   );
 
   useEffect(() => {
-    if (!selected || !selectedElementId) return;
+    if (!selected || (!selectedElementId && !cutoutDraft)) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (cutoutDraft && !isEditableEventTarget(event.target)) {
+        if (event.key === 'Escape') {
+          cancelCutoutDraft();
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          return;
+        }
+        if (event.key === 'Enter' && cutoutDraft.mode === 'pen' && !cutoutDraft.closed) {
+          closeCurrentCutoutDraft();
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          return;
+        }
+        if (event.key === 'Backspace' && cutoutDraft.mode === 'pen' && !cutoutDraft.closed) {
+          removeLastCutoutPoint();
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          return;
+        }
+      }
       if ((event.key !== 'Delete' && event.key !== 'Backspace') || isEditableEventTarget(event.target)) return;
       if (!boardHasKeyboardFocus()) return;
       if (!deleteSelectedElement()) return;
@@ -1182,7 +1580,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [boardHasKeyboardFocus, deleteSelectedElement, selected, selectedElementId]);
+  }, [boardHasKeyboardFocus, cancelCutoutDraft, closeCurrentCutoutDraft, cutoutDraft, deleteSelectedElement, removeLastCutoutPoint, selected, selectedElementId]);
 
   const handleLocalImageChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1292,11 +1690,18 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
 
   useRunTrigger(id, exportBoard);
 
+  const chooseTool = (value: BoardTool) => {
+    actionRef.current = null;
+    cutoutDragRef.current = null;
+    setTool(value);
+    if (!isCutoutTool(value)) setCutoutDraft(null);
+  };
+
   const toolButton = (value: BoardTool, icon: ReactNode) => (
     <button
       type="button"
       className={`t8-btn min-h-8 min-w-0 px-1.5 text-[10px] ${tool === value ? 't8-btn-primary' : ''}`}
-      onClick={() => setTool(value)}
+      onClick={() => chooseTool(value)}
       title={TOOL_LABEL[value]}
     >
       {icon}
@@ -1304,7 +1709,378 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     </button>
   );
 
+  const getCutoutToolbarPosition = useCallback((size: { w: number; h: number }) => {
+    if (!cutoutDraft?.closed || cutoutDraft.points.length < 3) return null;
+    const xs = cutoutDraft.points.map((p) => p.x);
+    const ys = cutoutDraft.points.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const left = clamp(((minX + maxX) / 2 / boardW) * size.w - 90, 8, Math.max(8, size.w - 188));
+    const top = clamp((minY / boardH) * size.h - 44, 8, Math.max(8, size.h - 42));
+    return { left, top };
+  }, [boardH, boardW, cutoutDraft]);
+  const cutoutToolbarPosition = useMemo(() => getCutoutToolbarPosition(previewSize), [getCutoutToolbarPosition, previewSize]);
+  const focusCutoutToolbarPosition = useMemo(() => getCutoutToolbarPosition(focusStageSize), [focusStageSize, getCutoutToolbarPosition]);
+
   const activeLayerIndex = layers.findIndex((layer) => layer.id === activeLayerId);
+  const numericFocusZoom = focusZoom === 'fit' ? focusStageSize.scale : focusZoom;
+  const setFocusZoomStep = (next: number) => setFocusZoom(clampBoardZoom(next));
+  const openFocusEditor = () => {
+    setFocusEditorOpen(true);
+    setFocusZoom('fit');
+  };
+
+  const renderCutoutQuickBar = (position: { left: number; top: number } | null) => (
+    cutoutDraft?.closed && position ? (
+      <div
+        className="absolute z-10 flex items-center gap-1 rounded border p-1 shadow-lg"
+        style={{
+          left: position.left,
+          top: position.top,
+          borderColor: 'var(--t8-border-strong, var(--t8-border, rgba(148,163,184,.45)))',
+          background: 'var(--t8-card, rgba(15,23,42,.92))',
+          color: 'var(--t8-text, #fff)',
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <button type="button" className="t8-mini-icon-button" title="抠出为新图层" onClick={() => void applyCutoutDraft()} disabled={status === 'running'}>
+          {status === 'running' ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+        </button>
+        <button type="button" className={`t8-mini-icon-button ${cutoutInvert ? 't8-btn-primary' : ''}`} title="反选" onClick={() => setCutoutInvert((v) => !v)}>
+          <Scissors size={13} />
+        </button>
+        <button type="button" className="t8-mini-icon-button" title="取消选区" onClick={cancelCutoutDraft}>
+          <X size={13} />
+        </button>
+      </div>
+    ) : null
+  );
+
+  const renderLayerPanel = (variant: 'inline' | 'focus') => (
+    <>
+      <section className={`t8-card flex min-h-0 flex-1 flex-col space-y-2 p-2 ${variant === 'focus' ? 'min-h-[260px]' : ''}`}>
+        <div className="flex items-center gap-1.5 text-[12px] font-semibold">
+          <Layers size={14} /> 图层
+          <span className="ml-auto text-[10px] font-normal opacity-60">{activeLayer?.name || '未选择'}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          <button type="button" className="t8-btn min-h-7 px-2 text-[10px]" onClick={addBlankLayer}>
+            <Plus size={12} /> 新图层
+          </button>
+          <button type="button" className="t8-btn min-h-7 px-2 text-[10px]" onClick={addLayerGroup}>
+            <FolderPlus size={12} /> 新建组
+          </button>
+        </div>
+        <div
+          className="nowheel min-h-0 flex-1 space-y-1 overflow-y-auto pr-1"
+          onDragOver={(e) => {
+            if (!dragLayerId) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            const layerId = layerIdFromDrag(e);
+            if (!layerId) return;
+            e.preventDefault();
+            moveLayerToGroup(layerId, null);
+            setDragLayerId(null);
+          }}
+        >
+          {layers
+            .map((layer, index) => ({ layer, index }))
+            .filter(({ layer }) => !isLayerFoldedInList(layers, layer))
+            .slice()
+            .reverse()
+            .map(({ layer }) => {
+              const isActive = layer.id === activeLayerId;
+              const isGroup = layer.kind === 'group';
+              return (
+                <div
+                  key={layer.id}
+                  draggable={layer.kind === 'layer'}
+                  onDragStart={(e) => startLayerDrag(e, layer)}
+                  onDragEnd={() => setDragLayerId(null)}
+                  onDragOver={(e) => {
+                    if (!dragLayerId || layer.kind !== 'group') return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    if (layer.kind !== 'group') return;
+                    const layerId = layerIdFromDrag(e);
+                    if (!layerId) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    moveLayerToGroup(layerId, layer.id);
+                    setDragLayerId(null);
+                  }}
+                  className={`flex w-full items-center gap-1 rounded border px-1 py-1 text-left text-[10px] ${
+                    isActive ? 't8-btn-primary' : ''
+                  }`}
+                  style={{
+                    borderColor: 'var(--t8-border, rgba(148,163,184,.25))',
+                    paddingLeft: layer.groupId ? 14 : undefined,
+                    opacity: layer.hidden ? 0.55 : 1,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="t8-mini-icon-button h-5 w-5 shrink-0"
+                    title={layer.hidden ? '显示图层' : '隐藏图层'}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleLayerFlag(layer.id, 'hidden');
+                    }}
+                  >
+                    {layer.hidden ? <EyeOff size={11} /> : <Eye size={11} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="t8-mini-icon-button h-5 w-5 shrink-0"
+                    title={layer.locked ? '解锁图层' : '锁定图层'}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleLayerFlag(layer.id, 'locked');
+                    }}
+                  >
+                    {layer.locked ? <Lock size={11} /> : <Unlock size={11} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-1 bg-transparent text-left"
+                    title={isGroup ? (layer.collapsed ? '展开组内图层' : '折叠组内图层') : '选中图层'}
+                    onClick={() => {
+                      if (layer.kind === 'layer') {
+                        setActiveLayerId(layer.id);
+                        setTool('select');
+                      } else {
+                        toggleGroupCollapsed(layer.id);
+                      }
+                    }}
+                  >
+                    {isGroup ? (layer.collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />) : <Layers size={12} />}
+                    <span className="min-w-0 flex-1 truncate">{layer.name}</span>
+                    <span className="opacity-50">{isGroup ? '组' : layer.elements.length}</span>
+                  </button>
+                </div>
+              );
+            })}
+        </div>
+      </section>
+
+      <section className="t8-card flex-none space-y-2 p-2">
+        <div className="text-[12px] font-semibold">当前图层</div>
+        {activeLayer ? (
+          <>
+            <input
+              className="t8-input nodrag nowheel h-8 w-full px-2 text-[11px]"
+              value={activeLayer.name}
+              onChange={(e) => {
+                const value = e.target.value;
+                patchLayers((prev) => prev.map((layer) => (layer.id === activeLayer.id ? { ...layer, name: value } : layer)));
+              }}
+            />
+            <div className="grid grid-cols-5 gap-1">
+              <button className="t8-mini-icon-button" type="button" title="下移" onClick={() => reorderLayer(activeLayer.id, -1)} disabled={activeLayerIndex <= 0}>
+                <ArrowDown size={13} />
+              </button>
+              <button className="t8-mini-icon-button" type="button" title="上移" onClick={() => reorderLayer(activeLayer.id, 1)} disabled={activeLayerIndex >= layers.length - 1}>
+                <ArrowUp size={13} />
+              </button>
+              <button className="t8-mini-icon-button" type="button" title="删除图层" onClick={() => deleteLayer(activeLayer.id)}>
+                <Trash2 size={13} />
+              </button>
+              <button className="t8-mini-icon-button" type="button" title="输出 PNG" onClick={exportBoard} disabled={status === 'running'}>
+                {status === 'running' ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+              </button>
+              <button className="t8-mini-icon-button" type="button" title="删除选中元素" onClick={() => deleteSelectedElement()} disabled={!selectedElement}>
+                <Eraser size={13} />
+              </button>
+            </div>
+            <div className="text-[10px] leading-relaxed opacity-60">
+              {activeLayerWritable ? '画笔和图形会写入当前图层。' : '当前图层隐藏或锁定，不能编辑。'}
+              {selectedElement && <span> 选中：{labelForElement(selectedElement.element)}</span>}
+            </div>
+          </>
+        ) : (
+          <div className="rounded border border-dashed p-4 text-center text-[11px] opacity-50">没有可编辑图层</div>
+        )}
+      </section>
+    </>
+  );
+
+  const renderFocusEditor = () => {
+    if (!focusEditorOpen || typeof document === 'undefined') return null;
+    return createPortal(
+      <div
+        ref={focusOverlayRef}
+        tabIndex={-1}
+        data-canvas-floating-ui="drawing-board-focus"
+        className="fixed inset-0 z-[10020] flex flex-col bg-black/72 p-4 backdrop-blur-sm"
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onWheelCapture={(e) => e.stopPropagation()}
+      >
+        <div className="t8-node flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
+          <div className="t8-node-header flex flex-none items-center gap-2 rounded-t-[inherit] px-3 py-2">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+              style={{ background: 'color-mix(in srgb, var(--t8-accent, #fb923c) 18%, transparent)', color: 'var(--t8-accent, #fb923c)' }}
+            >
+              <Pencil size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-base font-bold">画板 · 放大编辑</div>
+              <div className="truncate text-[11px] opacity-70">{boardW}×{boardH} · {focusZoomPercent}% · {TOOL_LABEL[tool]}</div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button type="button" className="t8-mini-icon-button" title="适应窗口" onClick={() => setFocusZoom('fit')}>
+                <Minimize2 size={13} />
+              </button>
+              <button type="button" className="t8-mini-icon-button" title="缩小" onClick={() => setFocusZoomStep(numericFocusZoom - 0.15)}>
+                <ZoomOut size={13} />
+              </button>
+              <button type="button" className="t8-btn min-h-8 px-2 text-[11px]" onClick={() => setFocusZoom(1)}>
+                100%
+              </button>
+              <button type="button" className="t8-mini-icon-button" title="放大" onClick={() => setFocusZoomStep(numericFocusZoom + 0.15)}>
+                <ZoomIn size={13} />
+              </button>
+              <button type="button" className="t8-mini-icon-button" title="关闭放大编辑" onClick={() => setFocusEditorOpen(false)}>
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid min-h-0 flex-1 grid-cols-[250px_1fr_250px] gap-3 overflow-hidden p-3">
+            <aside className="flex min-h-0 flex-col gap-2 overflow-auto pr-1">
+              <div className="grid grid-cols-3 gap-1.5">
+                {toolButton('select', <MousePointer2 size={13} />)}
+                {toolButton('pen', <PenLine size={13} />)}
+                {toolButton('eraser', <Eraser size={13} />)}
+                {toolButton('text', <Type size={13} />)}
+                {toolButton('rect', <RectangleHorizontal size={13} />)}
+                {toolButton('circle', <Circle size={13} />)}
+                {toolButton('arrow', <Send size={13} />)}
+                {toolButton('cutout-lasso', <Scissors size={13} />)}
+                {toolButton('cutout-pen', <PenTool size={13} />)}
+              </div>
+              <div className="grid grid-cols-[38px_1fr_46px] items-center gap-2">
+                <input
+                  type="color"
+                  value={strokeColor}
+                  onChange={(e) => {
+                    setStrokeColor(e.target.value);
+                    update({ boardColor: e.target.value });
+                  }}
+                  className="nodrag h-8 w-full rounded border bg-transparent"
+                  title="颜色"
+                />
+                <input
+                  type="range"
+                  min={1}
+                  max={28}
+                  value={strokeSize}
+                  onChange={(e) => {
+                    const v = Number(e.target.value) || 5;
+                    setStrokeSize(v);
+                    update({ boardStrokeSize: v });
+                  }}
+                  className="nodrag nowheel w-full accent-orange-400"
+                />
+                <div className="text-right text-[11px] opacity-70">{strokeSize}px</div>
+              </div>
+              {tool === 'text' && (
+                <input
+                  className="t8-input nodrag nowheel h-8 w-full px-2 text-[11px]"
+                  value={textDraft}
+                  onChange={(e) => {
+                    setTextDraft(e.target.value);
+                    update({ boardTextDraft: e.target.value });
+                  }}
+                  placeholder="点击画布放置文字"
+                />
+              )}
+              {isCutoutTool(tool) && (
+                <div className="space-y-2 rounded border border-dashed p-2 text-[10px]" style={{ borderColor: 'var(--t8-border, rgba(148,163,184,.32))' }}>
+                  <div className="flex items-center gap-1.5">
+                    <Scissors size={12} />
+                    <span className="font-semibold">抠图</span>
+                    <span className="ml-auto opacity-60">{selectedCutoutSource ? '已选图片' : '先选中图片'}</span>
+                  </div>
+                  <div className="grid grid-cols-[52px_1fr_34px] items-center gap-1.5">
+                    <span className="opacity-70">平滑</span>
+                    <input type="range" min={0} max={12} value={cutoutSmooth} onChange={(e) => {
+                      const v = Number(e.target.value) || 0;
+                      setCutoutSmooth(v);
+                      update({ boardCutoutSmooth: v });
+                    }} className="nodrag nowheel w-full accent-orange-400" />
+                    <span className="text-right opacity-70">{cutoutSmooth}</span>
+                  </div>
+                  <div className="grid grid-cols-[52px_1fr_34px] items-center gap-1.5">
+                    <span className="opacity-70">羽化</span>
+                    <input type="range" min={0} max={32} value={cutoutFeather} onChange={(e) => {
+                      const v = Number(e.target.value) || 0;
+                      setCutoutFeather(v);
+                      update({ boardCutoutFeather: v });
+                    }} className="nodrag nowheel w-full accent-orange-400" />
+                    <span className="text-right opacity-70">{cutoutFeather}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <button type="button" className={`t8-btn min-h-7 px-2 text-[10px] ${cutoutInvert ? 't8-btn-primary' : ''}`} onClick={() => setCutoutInvert((v) => !v)}>
+                      反选
+                    </button>
+                    <button type="button" className="t8-btn min-h-7 px-2 text-[10px]" onClick={closeCurrentCutoutDraft} disabled={!cutoutDraft || cutoutDraft.closed || cutoutDraft.points.length < 3}>
+                      <Check size={12} /> 闭合
+                    </button>
+                    <button type="button" className="t8-btn min-h-7 px-2 text-[10px]" onClick={cancelCutoutDraft} disabled={!cutoutDraft}>
+                      <X size={12} /> 取消
+                    </button>
+                  </div>
+                  <button type="button" className="t8-btn t8-btn-primary min-h-8 w-full px-2 text-[11px]" onClick={() => void applyCutoutDraft()} disabled={!cutoutDraft?.closed || status === 'running'}>
+                    {status === 'running' ? <Loader2 size={13} className="animate-spin" /> : <Scissors size={13} />}
+                    抠出为新图层
+                  </button>
+                </div>
+              )}
+              <button type="button" className="t8-btn min-h-8 w-full px-2 text-[11px]" onClick={() => imageInputRef.current?.click()}>
+                <ImagePlus size={13} /> 载入图片
+              </button>
+            </aside>
+
+            <main
+              className="flex min-h-0 items-center justify-center overflow-auto rounded-lg border p-4"
+              style={{
+                borderColor: 'var(--t8-border, rgba(148,163,184,.25))',
+                background: 'repeating-conic-gradient(rgba(148,163,184,.18) 0% 25%, transparent 0% 50%) 50% / 22px 22px',
+              }}
+            >
+              <div className="relative flex-none shadow-2xl" style={{ width: focusStageSize.w, height: focusStageSize.h }}>
+                <canvas
+                  ref={handleFocusCanvasRef}
+                  className={`block h-full w-full touch-none ${tool === 'select' ? 'cursor-default' : 'cursor-crosshair'}`}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={endPointerAction}
+                  onPointerCancel={endPointerAction}
+                  onPointerLeave={endPointerAction}
+                />
+                {renderCutoutQuickBar(focusCutoutToolbarPosition)}
+              </div>
+            </main>
+
+            <aside className="flex min-h-0 flex-col gap-2 overflow-auto pl-1 text-[11px]">
+              {renderLayerPanel('focus')}
+            </aside>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  };
 
   return (
     <div
@@ -1346,7 +2122,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       >
         <div className="flex min-h-0 flex-col gap-2.5 overflow-hidden">
           <section className="t8-card flex-none space-y-2 p-2">
-            <div className="grid grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
               {toolButton('select', <MousePointer2 size={13} />)}
               {toolButton('pen', <PenLine size={13} />)}
               {toolButton('eraser', <Eraser size={13} />)}
@@ -1354,6 +2130,8 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
               {toolButton('rect', <RectangleHorizontal size={13} />)}
               {toolButton('circle', <Circle size={13} />)}
               {toolButton('arrow', <Send size={13} />)}
+              {toolButton('cutout-lasso', <Scissors size={13} />)}
+              {toolButton('cutout-pen', <PenTool size={13} />)}
             </div>
             <div className="grid grid-cols-[1fr_82px_82px] gap-2">
               <select className="t8-select nodrag nowheel h-8 px-2 text-[11px]" value={ratio} onChange={(e) => changeRatio(e.target.value as BoardRatio)}>
@@ -1429,157 +2207,82 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
                 placeholder="点击右侧画布放置文字"
               />
             )}
-          </section>
-
-          <section className="t8-card flex min-h-0 flex-1 flex-col space-y-2 p-2">
-            <div className="flex items-center gap-1.5 text-[12px] font-semibold">
-              <Layers size={14} /> 图层
-              <span className="ml-auto text-[10px] font-normal opacity-60">{activeLayer?.name || '未选择'}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-1">
-              <button type="button" className="t8-btn min-h-7 px-2 text-[10px]" onClick={addBlankLayer}>
-                <Plus size={12} /> 新图层
-              </button>
-              <button type="button" className="t8-btn min-h-7 px-2 text-[10px]" onClick={addLayerGroup}>
-                <FolderPlus size={12} /> 新建组
-              </button>
-            </div>
-            <div
-              className="nowheel min-h-0 flex-1 space-y-1 overflow-y-auto pr-1"
-              onDragOver={(e) => {
-                if (!dragLayerId) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-              }}
-              onDrop={(e) => {
-                const layerId = layerIdFromDrag(e);
-                if (!layerId) return;
-                e.preventDefault();
-                moveLayerToGroup(layerId, null);
-                setDragLayerId(null);
-              }}
-            >
-              {layers
-                .map((layer, index) => ({ layer, index }))
-                .filter(({ layer }) => !isLayerFoldedInList(layers, layer))
-                .slice()
-                .reverse()
-                .map(({ layer }) => {
-                  const isActive = layer.id === activeLayerId;
-                  const isGroup = layer.kind === 'group';
-                  return (
-                    <div
-                      key={layer.id}
-                      draggable={layer.kind === 'layer'}
-                      onDragStart={(e) => startLayerDrag(e, layer)}
-                      onDragEnd={() => setDragLayerId(null)}
-                      onDragOver={(e) => {
-                        if (!dragLayerId || layer.kind !== 'group') return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        e.dataTransfer.dropEffect = 'move';
-                      }}
-                      onDrop={(e) => {
-                        if (layer.kind !== 'group') return;
-                        const layerId = layerIdFromDrag(e);
-                        if (!layerId) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        moveLayerToGroup(layerId, layer.id);
-                        setDragLayerId(null);
-                      }}
-                      className={`flex w-full items-center gap-1 rounded border px-1 py-1 text-left text-[10px] ${
-                        isActive ? 't8-btn-primary' : ''
-                      }`}
-                      style={{
-                        borderColor: 'var(--t8-border, rgba(148,163,184,.25))',
-                        paddingLeft: layer.groupId ? 14 : undefined,
-                        opacity: layer.hidden ? 0.55 : 1,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="t8-mini-icon-button h-5 w-5 shrink-0"
-                        title={layer.hidden ? '显示图层' : '隐藏图层'}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleLayerFlag(layer.id, 'hidden');
-                        }}
-                      >
-                        {layer.hidden ? <EyeOff size={11} /> : <Eye size={11} />}
-                      </button>
-                      <button
-                        type="button"
-                        className="t8-mini-icon-button h-5 w-5 shrink-0"
-                        title={layer.locked ? '解锁图层' : '锁定图层'}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleLayerFlag(layer.id, 'locked');
-                        }}
-                      >
-                        {layer.locked ? <Lock size={11} /> : <Unlock size={11} />}
-                      </button>
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-center gap-1 bg-transparent text-left"
-                        title={isGroup ? (layer.collapsed ? '展开组内图层' : '折叠组内图层') : '选中图层'}
-                        onClick={() => {
-                          if (layer.kind === 'layer') {
-                            setActiveLayerId(layer.id);
-                            setTool('select');
-                          } else {
-                            toggleGroupCollapsed(layer.id);
-                          }
-                        }}
-                      >
-                        {isGroup ? (layer.collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />) : <Layers size={12} />}
-                        <span className="min-w-0 flex-1 truncate">{layer.name}</span>
-                        <span className="opacity-50">{isGroup ? '组' : layer.elements.length}</span>
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-          </section>
-
-          <section className="t8-card flex-none space-y-2 p-2">
-            <div className="text-[12px] font-semibold">当前图层</div>
-            {activeLayer ? (
-              <>
-                <input
-                  className="t8-input nodrag nowheel h-8 w-full px-2 text-[11px]"
-                  value={activeLayer.name}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    patchLayers((prev) => prev.map((layer) => (layer.id === activeLayer.id ? { ...layer, name: value } : layer)));
-                  }}
-                />
-                <div className="grid grid-cols-5 gap-1">
-                  <button className="t8-mini-icon-button" type="button" title="下移" onClick={() => reorderLayer(activeLayer.id, -1)} disabled={activeLayerIndex <= 0}>
-                    <ArrowDown size={13} />
+            {isCutoutTool(tool) && (
+              <div className="space-y-2 rounded border border-dashed p-2 text-[10px]" style={{ borderColor: 'var(--t8-border, rgba(148,163,184,.32))' }}>
+                <div className="flex items-center gap-1.5">
+                  <Scissors size={12} />
+                  <span className="font-semibold">抠图</span>
+                  <span className="ml-auto opacity-60">
+                    {selectedCutoutSource ? '已选图片' : '先选中图片'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-[52px_1fr_34px] items-center gap-1.5">
+                  <span className="opacity-70">平滑</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={12}
+                    value={cutoutSmooth}
+                    onChange={(e) => {
+                      const v = Number(e.target.value) || 0;
+                      setCutoutSmooth(v);
+                      update({ boardCutoutSmooth: v });
+                    }}
+                    className="nodrag nowheel w-full accent-orange-400"
+                  />
+                  <span className="text-right opacity-70">{cutoutSmooth}</span>
+                </div>
+                <div className="grid grid-cols-[52px_1fr_34px] items-center gap-1.5">
+                  <span className="opacity-70">羽化</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={32}
+                    value={cutoutFeather}
+                    onChange={(e) => {
+                      const v = Number(e.target.value) || 0;
+                      setCutoutFeather(v);
+                      update({ boardCutoutFeather: v });
+                    }}
+                    className="nodrag nowheel w-full accent-orange-400"
+                  />
+                  <span className="text-right opacity-70">{cutoutFeather}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  <button type="button" className={`t8-btn min-h-7 px-2 text-[10px] ${cutoutInvert ? 't8-btn-primary' : ''}`} onClick={() => setCutoutInvert((v) => !v)}>
+                    反选
                   </button>
-                  <button className="t8-mini-icon-button" type="button" title="上移" onClick={() => reorderLayer(activeLayer.id, 1)} disabled={activeLayerIndex >= layers.length - 1}>
-                    <ArrowUp size={13} />
+                  <button
+                    type="button"
+                    className="t8-btn min-h-7 px-2 text-[10px]"
+                    onClick={closeCurrentCutoutDraft}
+                    disabled={!cutoutDraft || cutoutDraft.closed || cutoutDraft.points.length < 3}
+                  >
+                    <Check size={12} /> 闭合
                   </button>
-                  <button className="t8-mini-icon-button" type="button" title="删除图层" onClick={() => deleteLayer(activeLayer.id)}>
-                    <Trash2 size={13} />
-                  </button>
-                  <button className="t8-mini-icon-button" type="button" title="输出 PNG" onClick={exportBoard} disabled={status === 'running'}>
-                    {status === 'running' ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                  </button>
-                  <button className="t8-mini-icon-button" type="button" title="删除选中元素" onClick={() => deleteSelectedElement()} disabled={!selectedElement}>
-                    <Eraser size={13} />
+                  <button type="button" className="t8-btn min-h-7 px-2 text-[10px]" onClick={cancelCutoutDraft} disabled={!cutoutDraft}>
+                    <X size={12} /> 取消
                   </button>
                 </div>
-                <div className="text-[10px] leading-relaxed opacity-60">
-                  {activeLayerWritable ? '画笔和图形会写入当前图层。' : '当前图层隐藏或锁定，不能编辑。'}
-                  {selectedElement && <span> 选中：{labelForElement(selectedElement.element)}</span>}
+                <button
+                  type="button"
+                  className="t8-btn t8-btn-primary min-h-8 w-full px-2 text-[11px]"
+                  onClick={() => void applyCutoutDraft()}
+                  disabled={!cutoutDraft?.closed || status === 'running'}
+                >
+                  {status === 'running' ? <Loader2 size={13} className="animate-spin" /> : <Scissors size={13} />}
+                  抠出为新图层
+                </button>
+                <div className="leading-relaxed opacity-60">
+                  {tool === 'cutout-lasso'
+                    ? '套索：按住拖动圈选，松手后确认。'
+                    : '钢笔：点击加点，点回起点或按 Enter 闭合，Backspace 撤回点。'}
                 </div>
-              </>
-            ) : (
-              <div className="rounded border border-dashed p-4 text-center text-[11px] opacity-50">没有可编辑图层</div>
+              </div>
             )}
           </section>
+
+          {renderLayerPanel('inline')}
 
         </div>
 
@@ -1593,6 +2296,15 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
                 onClick={() => imageInputRef.current?.click()}
               >
                 <ImagePlus size={12} /> 载入图片
+              </button>
+              <button
+                type="button"
+                className="t8-mini-icon-button"
+                title="放大编辑"
+                aria-label="放大编辑"
+                onClick={openFocusEditor}
+              >
+                <Maximize2 size={13} />
               </button>
               {hasUpstreamImages && (
                 <button
@@ -1612,16 +2324,18 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
               background: 'repeating-conic-gradient(rgba(148,163,184,.18) 0% 25%, transparent 0% 50%) 50% / 22px 22px',
             }}
           >
-            <canvas
-              ref={canvasRef}
-              className="block touch-none cursor-crosshair"
-              style={{ width: previewSize.w, height: previewSize.h }}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={endPointerAction}
-              onPointerCancel={endPointerAction}
-              onPointerLeave={endPointerAction}
-            />
+            <div className="relative flex-none" style={{ width: previewSize.w, height: previewSize.h }}>
+              <canvas
+                ref={canvasRef}
+                className={`block h-full w-full touch-none ${tool === 'select' ? 'cursor-default' : 'cursor-crosshair'}`}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={endPointerAction}
+                onPointerCancel={endPointerAction}
+                onPointerLeave={endPointerAction}
+              />
+              {renderCutoutQuickBar(cutoutToolbarPosition)}
+            </div>
           </div>
           {error && (
             <div
@@ -1658,6 +2372,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
           </div>
         </section>
       </div>
+      {renderFocusEditor()}
     </div>
   );
 };

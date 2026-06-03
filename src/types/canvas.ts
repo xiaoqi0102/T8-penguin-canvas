@@ -41,6 +41,7 @@ export type NodeType =
   | 'idea'
   | 'bp'
   | 'relay'
+  | 'remove-ai-watermark'
   | 'video-output'
   // Toolbox (5)
   | 'cinematic'
@@ -85,7 +86,10 @@ export type AdvancedProviderProtocol =
   | 'modelscope'
   | 'volcengine'
   | 'comfyui'
-  | 'jimeng-cli';
+  | 'jimeng-cli'
+  | 'qiniu'
+  | 'grsai'
+  | 'geeknow';
 
 export interface AdvancedProviderConfig {
   id: string;
@@ -109,7 +113,12 @@ export interface AdvancedProviderConfig {
   };
   comfyuiConfig?: {
     instances?: string[];
-    workflows?: Array<{ id: string; name: string }>;
+    workflows?: Array<{
+      id: string;
+      name: string;
+      workflowJson?: Record<string, any>;
+      fields?: Array<{ nodeId: string; fieldName: string; source?: string; value?: any }>;
+    }>;
   };
   jimengConfig?: {
     executablePath?: string;
