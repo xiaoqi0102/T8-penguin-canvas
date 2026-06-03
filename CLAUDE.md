@@ -176,8 +176,8 @@ graph TD
 | 主题 / 视觉调整 | `src/theme/` · `src/styles/theme-*.css` · `docs/theme-design-guide.md` |
 | 端口连接语义 | `src/config/portTypes.ts`（NODE_PORTS） · `src/types/canvas.ts` |
 | 调试运行总线 | `src/stores/runBus.ts` · `src/hooks/useRunTrigger.ts` |
-| 修改 / 新增 LLM 推理接入 | [docs/llm-inference.md](./docs/llm-inference.md) §后端代理路由 · `src/components/nodes/LLMNode.tsx` · `src/providers/models.ts` |
-| 合并 upstream / 接入新 provider / API 协议查询 | [fork-maintenance-guide.md](./fork-maintenance-guide.md) — 三合一指南（fork 维护 + provider 接入 + API 规范） |
+| 修改 / 新增 LLM 推理接入 | `src/components/nodes/LLMNode.tsx` · `src/providers/models.ts` · `backend/src/providers/geeknow.js` |
+| 合并 upstream / 接入新 provider / API 协议查询 | [docs/advanced-provider-guide.md](./docs/advanced-provider-guide.md) — 高级 Provider 接入指南 |
 
 **注意事项**：
 - 不要随意 `git pull --rebase`（参考 `phase29` 灾难抢救历史），改用 merge 或新分支
