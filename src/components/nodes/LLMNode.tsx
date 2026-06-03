@@ -14,24 +14,16 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import {
-  DEFAULT_LLM_MODEL,
-  isImageOutputLlm,
-  getModelsByProvider,
-  getDefaultModelForProvider,
-  type ProviderType,
-} from '../../providers/models';
+import { LLM_MODELS, DEFAULT_LLM_MODEL, isImageOutputLlm } from '../../providers/models';
 import {
   fileToDataUrl,
+  generateExternalLlm,
+  generateExternalLlmStream,
   generateLlm,
   generateLlmStream,
   type LlmContentPart,
   type LlmMessage,
 } from '../../services/generation';
-import {
-  generateGeeknowLlm,
-  generateGeeknowLlmStream,
-} from '../../integrations/geeknow/runGeeknowLlm';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { logBus } from '../../stores/logs';
@@ -47,6 +39,18 @@ import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { splitText } from '../../utils/textSplit';
 import { defaultSizeOf, placeBatchNodes, type Rect as PlacementRect } from '../../utils/nodePlacement';
 import { taskCompletionSound } from '../../stores/taskCompletionSound';
+import { useApiKeysStore } from '../../stores/apiKeys';
+import {
+  advancedProviderModelOptions,
+  advancedProvidersForNode,
+  resolveAdvancedProviderSelection,
+} from '../../utils/advancedProviders';
+import {
+  countExcludedMaterials,
+  excludeMaterialId,
+  filterExcludedMaterials,
+  normalizeExcludedMaterialIds,
+} from '../../utils/materialExclusion';
 
 /**
  * LLM / Vision 节点 —— 完全对齐 gpt-image-2-web Chat (index.html L1600 / L8128~L8400)
@@ -69,20 +73,17 @@ interface ChatTurn {
 }
 
 const PRESET_KEY = 't8-llm-sys-presets';
-const GEEKNOW_PRESET_KEY = 't8f-geeknow-sys-presets';
 
-function loadPresets(provider: ProviderType = 'llm-direct'): Record<string, string> {
+function loadPresets(): Record<string, string> {
   try {
-    const key = provider === 'geeknow' ? GEEKNOW_PRESET_KEY : PRESET_KEY;
-    return JSON.parse(localStorage.getItem(key) || '{}');
+    return JSON.parse(localStorage.getItem(PRESET_KEY) || '{}');
   } catch {
     return {};
   }
 }
-function savePresets(map: Record<string, string>, provider: ProviderType = 'llm-direct') {
+function savePresets(map: Record<string, string>) {
   try {
-    const key = provider === 'geeknow' ? GEEKNOW_PRESET_KEY : PRESET_KEY;
-    localStorage.setItem(key, JSON.stringify(map));
+    localStorage.setItem(PRESET_KEY, JSON.stringify(map));
   } catch {
     /* noop */
   }
@@ -146,11 +147,12 @@ function splitAssistantReplyForScatter(input: string): string[] {
   return fallbacks.find((parts) => parts.length > 1) || [text];
 }
 
-const LLMNode = ({ id, data, type, selected }: NodeProps) => {
+const LLMNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const { getEdges, getNodes, getNode, addNodes } = useReactFlow();
   const [error, setError] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState('');
+  const [presetMap, setPresetMap] = useState<Record<string, string>>(() => loadPresets());
   const [pickedFiles, setPickedFiles] = useState<{ name: string; dataUrl: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -162,11 +164,26 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
   const chatRef = useCallback((el: HTMLDivElement | null) => attachWheelBlock(el), []);
 
   const d = data as any;
-  const provider: ProviderType = d?.provider || 'llm-direct';
-  const model: string = d?.model || (provider === 'geeknow' ? 'gemini-3.1-pro-preview' : DEFAULT_LLM_MODEL);
-
-  // 根据 provider 加载对应的预设
-  const [presetMap, setPresetMap] = useState<Record<string, string>>(() => loadPresets(provider));
+  const model: string = d?.model || DEFAULT_LLM_MODEL;
+  const advancedProviders = useApiKeysStore((s) => s.settings.advancedProviders);
+  const llmAdvancedProviders = useMemo(
+    () => advancedProvidersForNode(advancedProviders, 'llm'),
+    [advancedProviders],
+  );
+  const providerSelection = useMemo(
+    () => resolveAdvancedProviderSelection(advancedProviders, 'llm', {
+      providerSource: d?.providerSource,
+      providerId: d?.providerId,
+      providerModel: d?.providerModel,
+    }),
+    [advancedProviders, d?.providerSource, d?.providerId, d?.providerModel],
+  );
+  const isExternalSelected = providerSelection.available && providerSelection.providerSource !== 'zhenzhen';
+  const savedExternalMissing = !!d?.providerSource && d.providerSource !== 'zhenzhen' && !providerSelection.available;
+  const externalModelOptions = providerSelection.provider
+    ? advancedProviderModelOptions(providerSelection.provider, 'llm')
+    : [];
+  const externalProviderModel = providerSelection.providerModel || externalModelOptions[0] || '';
   const status: 'idle' | 'generating' | 'success' | 'error' = d?.status || 'idle';
     // 用户输入框值: 改用 d.userPrompt 私有字段（避免与对下游开放的 d.prompt=助手回复 冲突，
     // 否则下游 useUpstreamMaterials 会同时 pushText(d.prompt) + pushText(d.reply) 出现两条文本）
@@ -180,45 +197,31 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
   const history: ChatTurn[] = Array.isArray(d?.history) ? d.history : [];
   const generatedImages: string[] = Array.isArray(d?.generatedImages) ? d.generatedImages : [];
 
-  const src = `LLM·${model}·#${id.slice(-4)}`;
-  const isImgOut = isImageOutputLlm(model);
-
-  // 向后兼容：根据节点类型初始化 provider（新节点默认 llm-direct）
-  useLayoutEffect(() => {
-    if (!d?.provider) {
-      update({ provider: 'llm-direct' });
-    }
-  }, [d?.provider, update]);
-
-  // 提供商切换时重新加载预设
-  useLayoutEffect(() => {
-    setPresetMap(loadPresets(provider));
-  }, [provider]);
-
-  // 提供商切换函数
-  const switchProvider = useCallback((newProvider: ProviderType) => {
-    const availableModels = getModelsByProvider(newProvider);
-    const defaultModel = getDefaultModelForProvider(newProvider);
-
-    // 检查当前模型是否在新提供商的模型列表中
-    const currentModelExists = availableModels.some(m => m.id === model);
-
-    const patch: any = { provider: newProvider };
-
-    // 如果当前模型不在新提供商的列表中，重置为默认模型
-    if (!currentModelExists) {
-      patch.model = defaultModel;
-    }
-
-    update(patch);
-    logBus.info(`切换提供商: ${newProvider}`, src);
-  }, [model, src, update]);
+  const activeModel = isExternalSelected ? externalProviderModel : model;
+  const src = `LLM·${activeModel || model}·#${id.slice(-4)}`;
+  const isImgOut = !isExternalSelected && isImageOutputLlm(model);
 
   // 上游素材实时订阅(跟随上游 data 变化重渲染) —— 用于节点内预览。
   // 跟 ImageNode / SeedanceNode 同一套机制(useNodeConnections + useNodesData),
   // 仅负责画面预览;实际发送仍走已有 collectUpstream 退路, 隐式零破坏。
   const upstreamMats = useUpstreamMaterials(id);
-  const upstreamImages = upstreamMats.images;
+  const excludedMaterialIds = useMemo(
+    () => normalizeExcludedMaterialIds(d?.excludedMaterialIds),
+    [d?.excludedMaterialIds],
+  );
+  const visibleUpstreamImages = useMemo(
+    () => filterExcludedMaterials(upstreamMats.images, excludedMaterialIds),
+    [upstreamMats.images, excludedMaterialIds],
+  );
+  const visibleUpstreamTexts = useMemo(
+    () => filterExcludedMaterials(upstreamMats.texts, excludedMaterialIds),
+    [upstreamMats.texts, excludedMaterialIds],
+  );
+  const excludedUpstreamCount = useMemo(
+    () => countExcludedMaterials(excludedMaterialIds, [...upstreamMats.images, ...upstreamMats.texts]),
+    [excludedMaterialIds, upstreamMats.images, upstreamMats.texts],
+  );
+  const upstreamImages = visibleUpstreamImages;
 
   // === 主题适配 (dark / pixel) ===
   const { theme, style } = useThemeStore();
@@ -239,17 +242,25 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
     [pickedFiles, id],
   );
   const allImagesUnordered = useMemo(
-    () => [...localImageMaterials, ...upstreamMats.images],
-    [localImageMaterials, upstreamMats.images],
+    () => [...localImageMaterials, ...visibleUpstreamImages],
+    [localImageMaterials, visibleUpstreamImages],
   );
   const materialOrder: string[] = Array.isArray(d?.materialOrder) ? d.materialOrder : [];
   const orderedImages = useOrderedMaterials(allImagesUnordered, materialOrder);
-  const orderedTexts = useOrderedMaterials(upstreamMats.texts, materialOrder);
+  const orderedTexts = useOrderedMaterials(visibleUpstreamTexts, materialOrder);
   const setMaterialOrder = (newOrder: string[]) => update({ materialOrder: newOrder });
   const handleRemoveLocalMaterial = (m: Material) => {
     if (m.origin !== 'local') return;
     setPickedFiles((s) => s.filter((f) => f.dataUrl !== m.url));
   };
+  const handleExcludeUpstreamMaterial = (m: Material) => {
+    if (m.origin !== 'upstream') return;
+    update({
+      excludedMaterialIds: excludeMaterialId(excludedMaterialIds, m.id),
+      materialOrder: materialOrder.filter((itemId) => itemId !== m.id),
+    });
+  };
+  const handleRestoreExcludedMaterials = () => update({ excludedMaterialIds: [] });
 
   // 上游: 收集 text + image (使用按用户拖拽顺序排好的 ordered 列表，与预览区呈现一致)
   const collectUpstream = (): { text: string; images: string[] } => {
@@ -325,7 +336,12 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
 
     taskCompletionSound.primeAudio();
     update({ status: 'generating', error: null });
-    logBus.info(`发送到 ${model} · ${useStream && !isImgOut ? 'SSE' : '非流式'} · imgs=${userImages.length}`, src);
+    logBus.info(
+      `发送到 ${isExternalSelected && providerSelection.provider ? providerSelection.provider.label : model} · ${
+        !isExternalSelected && useStream && !isImgOut ? 'SSE' : '非流式'
+      } · imgs=${userImages.length}`,
+      src,
+    );
 
     const messages = buildMessages(userText, userImages);
     // 立即把当前轮加入历史(回复占位)
@@ -333,14 +349,11 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
     const nextHistory: ChatTurn[] = [...history, userTurn];
 
     try {
-      if (useStream && !isImgOut) {
-        // ====== 流式 ======
+      if (!isExternalSelected && useStream && !isImgOut) {
+        // ====== 流式（直连） ======
         const ctrl = new AbortController();
         abortRef.current = ctrl;
-
-        // 根据 provider 选择生成函数
-        const streamFn = provider === 'geeknow' ? generateGeeknowLlmStream : generateLlmStream;
-        const { content } = await streamFn(
+        const { content } = await generateLlmStream(
           { model, messages, temperature, max_tokens: maxTokens },
           {
             onDelta: (chunk) => setStreamingText((s) => s + chunk),
@@ -354,20 +367,45 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
           status: 'success',
           history: finalHistory,
           reply: replyText,
-          prompt: replyText, // 下游可作为 prompt 消费
-          // 记录本轮被「消化」的上游文本: 下游 useUpstreamMaterials 聚合时
-          // 会跳过这些文本, 避免「原始 TextNode + LLM 优化结果」同时出现 2 条文本。
+          prompt: replyText,
           consumedTexts: orderedTexts.map((t) => t.url).filter((s) => !!s),
         });
         setStreamingText('');
         setPickedFiles([]);
         logBus.success(`完成 · ${replyText.length} 字`, src);
         taskCompletionSound.notifyComplete(id, 'llm');
+      } else if (isExternalSelected && providerSelection.provider?.protocol === 'geeknow' && useStream) {
+        // ====== 流式（Geeknow external） ======
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
+        const { content } = await generateExternalLlmStream(
+          { providerId: providerSelection.provider.id, providerModel: externalProviderModel, model: externalProviderModel, messages, temperature, max_tokens: maxTokens, stream: true, providerParams: d?.providerParams || {} },
+          { onDelta: (chunk) => setStreamingText((s) => s + chunk), signal: ctrl.signal }
+        );
+        abortRef.current = null;
+        const replyText = content || '';
+        const finalHistory: ChatTurn[] = [...nextHistory, { role: 'assistant', text: replyText }];
+        update({ status: 'success', history: finalHistory, reply: replyText, prompt: replyText, consumedTexts: orderedTexts.map((t) => t.url).filter((s) => !!s) });
+        setStreamingText('');
+        setPickedFiles([]);
+        logBus.success(`完成 · ${replyText.length} 字`, src);
+        taskCompletionSound.notifyComplete(id, 'llm');
+        setPickedFiles([]);
+        logBus.success(`完成 · ${replyText.length} 字`, src);
+        taskCompletionSound.notifyComplete(id, 'llm');
       } else {
         // ====== 非流式(出图模型 或 关流式) ======
-        // 根据 provider 选择生成函数
-        const generateFn = provider === 'geeknow' ? generateGeeknowLlm : generateLlm;
-        const res = await generateFn({ model, messages, temperature, max_tokens: maxTokens });
+        const res = isExternalSelected && providerSelection.provider
+          ? await generateExternalLlm({
+              providerId: providerSelection.provider.id,
+              providerModel: externalProviderModel,
+              model: externalProviderModel,
+              messages,
+              temperature,
+              max_tokens: maxTokens,
+              providerParams: d?.providerParams || {},
+            })
+          : await generateLlm({ model, messages, temperature, max_tokens: maxTokens });
         const replyText = res.content || '';
         const imgs = res.imageUrls || [];
         const finalHistory: ChatTurn[] = [
@@ -425,13 +463,13 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
       return;
     }
     const map = { ...presetMap, [name]: systemPrompt };
-    savePresets(map, provider);
+    savePresets(map);
     setPresetMap(map);
   };
   const handleDeletePreset = (name: string) => {
     const { [name]: _del, ...rest } = presetMap;
     void _del;
-    savePresets(rest, provider);
+    savePresets(rest);
     setPresetMap(rest);
   };
 
@@ -580,7 +618,9 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-white truncate">LLM / Vision</div>
           <div className="text-[10px] text-white/40 truncate">
-            {provider === 'geeknow' ? 'Geeknow · 5 模型 · 多模态 · 流式' : '直连 · 6 模型 · 多模态 · 流式'}
+            {isExternalSelected && providerSelection.provider
+              ? `${providerSelection.provider.label || providerSelection.provider.id} · ${externalProviderModel || '未选模型'}`
+              : '独立 Key · 5 模型 · 多模态 · 流式'}
           </div>
         </div>
         {history.length > 0 && (
@@ -595,45 +635,89 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
       </div>
 
       <div className="p-2.5 space-y-2" onMouseDown={(e) => e.stopPropagation()}>
-        {/* 提供商切换 TAB */}
-        <div className="flex gap-0.5 p-0.5 rounded bg-white/5">
-          <button
-            onClick={() => switchProvider('llm-direct')}
-            className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
-              provider === 'llm-direct'
-                ? 'bg-emerald-500/30 text-emerald-200 font-medium'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
-            }`}
-          >
-            直连
-          </button>
-          <button
-            onClick={() => switchProvider('geeknow')}
-            className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
-              provider === 'geeknow'
-                ? 'bg-amber-500/30 text-amber-200 font-medium'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
-            }`}
-          >
-            Geeknow
-          </button>
-        </div>
+        {llmAdvancedProviders.length > 0 && (
+          <div className="rounded border border-white/10 bg-white/[0.03] p-2 space-y-2">
+            <button
+              type="button"
+              onClick={() => update({ advancedProviderOpen: !d?.advancedProviderOpen })}
+              className="w-full flex items-center justify-between text-[10px] font-semibold text-white/70 hover:text-white"
+            >
+              <span>高级来源</span>
+              <span>{isExternalSelected && providerSelection.provider ? providerSelection.provider.label : '默认 LLM Key'}</span>
+            </button>
+            {d?.advancedProviderOpen && (
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-1">平台</label>
+                  <select
+                    value={isExternalSelected ? providerSelection.providerId : 'zhenzhen'}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      if (nextId === 'zhenzhen') {
+                        update({ providerSource: 'zhenzhen', providerId: '', providerModel: '' });
+                        return;
+                      }
+                      const provider = llmAdvancedProviders.find((item) => item.id === nextId);
+                      if (!provider) return;
+                      const nextModels = advancedProviderModelOptions(provider, 'llm');
+                      update({
+                        providerSource: provider.protocol,
+                        providerId: provider.id,
+                        providerModel: nextModels[0] || '',
+                        stream: false,
+                      });
+                    }}
+                    style={{ background: '#18181b', color: '#ffffff' }}
+                    className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+                  >
+                    <option value="zhenzhen" style={{ background: '#18181b', color: '#ffffff' }}>LLM 独立 Key（默认）</option>
+                    {llmAdvancedProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id} style={{ background: '#18181b', color: '#ffffff' }}>
+                        {provider.label || provider.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {isExternalSelected && providerSelection.provider && (
+                  <div>
+                    <label className="text-[10px] text-white/50 block mb-1">外部模型</label>
+                    <select
+                      value={externalProviderModel}
+                      onChange={(e) => update({ providerModel: e.target.value })}
+                      style={{ background: '#18181b', color: '#ffffff' }}
+                      className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+                    >
+                      {externalModelOptions.map((m) => (
+                        <option key={m} value={m} style={{ background: '#18181b', color: '#ffffff' }}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {savedExternalMissing && (
+                  <div className="text-[10px] text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
+                    当前画布记录的扩展平台未启用或不存在，已临时回到默认来源。
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 模型 */}
-        <div>
+        {!isExternalSelected && <div>
           <label className="text-[10px] text-white/50 block mb-1">模型</label>
           <select
             value={model}
             onChange={(e) => update({ model: e.target.value })}
             className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
           >
-            {getModelsByProvider(provider).map((m) => (
+            {LLM_MODELS.map((m) => (
               <option key={m.id} value={m.id} className="bg-zinc-900">
                 {m.label}
               </option>
             ))}
           </select>
-        </div>
+        </div>}
 
         {/* 温度 / max_tokens / 流式 */}
         <div className="grid grid-cols-3 gap-1.5">
@@ -665,19 +749,19 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
             <label className="text-[9px] text-white/40 block mb-0.5">流式</label>
             <label
               className={`flex items-center justify-center gap-1 rounded px-1.5 py-1 text-[10px] cursor-pointer ${
-                useStream && !isImgOut
+                useStream && !isImgOut && !isExternalSelected
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                   : 'bg-white/5 text-white/40 border border-white/10'
-              } ${isImgOut ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${isImgOut || isExternalSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <input
                 type="checkbox"
-                disabled={isImgOut}
-                checked={useStream && !isImgOut}
+                disabled={isImgOut || isExternalSelected}
+                checked={useStream && !isImgOut && !isExternalSelected}
                 onChange={(e) => update({ stream: e.target.checked })}
                 className="hidden"
               />
-              {isImgOut ? '关(出图)' : useStream ? 'SSE' : '关'}
+              {isExternalSelected ? '关(扩展)' : isImgOut ? '关(出图)' : useStream ? 'SSE' : '关'}
             </label>
           </div>
         </div>
@@ -757,6 +841,9 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
           order={materialOrder}
           onReorder={setMaterialOrder}
           onRemoveLocal={handleRemoveLocalMaterial}
+          onExcludeUpstream={handleExcludeUpstreamMaterial}
+          excludedCount={excludedUpstreamCount}
+          onRestoreExcluded={handleRestoreExcludedMaterials}
           selected={!!selected}
           isDark={isDark}
           isPixel={isPixel}
@@ -796,7 +883,7 @@ const LLMNode = ({ id, data, type, selected }: NodeProps) => {
               </>
             )}
           </button>
-          {status === 'generating' && useStream && !isImgOut && (
+          {status === 'generating' && useStream && !isImgOut && !isExternalSelected && (
             <button
               onClick={handleStop}
               className="px-2 py-1.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs"

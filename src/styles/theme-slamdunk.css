@@ -527,8 +527,8 @@ html[data-theme-visual="slamdunk"] .react-flow__node.selected:not(.react-flow__n
 }
 
 html[data-theme-visual="slamdunk"] .t8-node-serial-badge {
-  top: -12px;
-  right: -12px;
+  --t8-node-serial-offset-x: 12px;
+  --t8-node-serial-offset-y: -12px;
   min-width: 27px;
   height: 22px;
   border: 2px solid var(--sd-ink);

@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { AlertCircle, Loader2, Film, Sparkles, Square, X } from 'lucide-react';
 import {
+  generateExternalVideo,
   submitSeedance,
   querySeedance,
   type SeedanceSubmitRequest,
@@ -15,10 +16,23 @@ import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
 import MentionPromptInput from './MentionPromptInput';
+import LoopingVideo from '../LoopingVideo';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
 import { taskCompletionSound } from '../../stores/taskCompletionSound';
+import { useApiKeysStore } from '../../stores/apiKeys';
+import {
+  advancedProviderModelOptions,
+  advancedProvidersForNode,
+  resolveAdvancedProviderSelection,
+} from '../../utils/advancedProviders';
+import {
+  countExcludedMaterials,
+  excludeMaterialId,
+  filterExcludedMaterials,
+  normalizeExcludedMaterialIds,
+} from '../../utils/materialExclusion';
 
 /**
  * SeedanceNode — 字节 Seedance 2.0 视频分镜节点
@@ -58,6 +72,25 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
   const isPixel = themeStyle === 'pixel';
 
   const d = (data as any) || {};
+  const advancedProviders = useApiKeysStore((s) => s.settings.advancedProviders);
+  const videoAdvancedProviders = useMemo(
+    () => advancedProvidersForNode(advancedProviders, 'video'),
+    [advancedProviders],
+  );
+  const providerSelection = useMemo(
+    () => resolveAdvancedProviderSelection(advancedProviders, 'video', {
+      providerSource: d?.providerSource,
+      providerId: d?.providerId,
+      providerModel: d?.providerModel,
+    }),
+    [advancedProviders, d?.providerSource, d?.providerId, d?.providerModel],
+  );
+  const isExternalSelected = providerSelection.available && providerSelection.providerSource !== 'zhenzhen';
+  const savedExternalMissing = !!d?.providerSource && d.providerSource !== 'zhenzhen' && !providerSelection.available;
+  const externalModelOptions = providerSelection.provider
+    ? advancedProviderModelOptions(providerSelection.provider, 'video')
+    : [];
+  const externalProviderModel = providerSelection.providerModel || externalModelOptions[0] || '';
   const model: string = d.model || MODEL_OPTIONS[0].value;
   const duration: number = typeof d.duration === 'number' ? d.duration : 5;
   const ratio: string = d.ratio || '16:9';
@@ -81,12 +114,44 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
 
   // === 上游素材聚合 (跨节点统一机制) ===
   const upstream = useUpstreamMaterials(id);
+  const excludedMaterialIds = useMemo(
+    () => normalizeExcludedMaterialIds(d?.excludedMaterialIds),
+    [d?.excludedMaterialIds],
+  );
+  const visibleUpstreamTexts = useMemo(
+    () => filterExcludedMaterials(upstream.texts, excludedMaterialIds),
+    [upstream.texts, excludedMaterialIds],
+  );
+  const visibleUpstreamImages = useMemo(
+    () => filterExcludedMaterials(upstream.images, excludedMaterialIds),
+    [upstream.images, excludedMaterialIds],
+  );
+  const visibleUpstreamVideos = useMemo(
+    () => filterExcludedMaterials(upstream.videos, excludedMaterialIds),
+    [upstream.videos, excludedMaterialIds],
+  );
+  const visibleUpstreamAudios = useMemo(
+    () => filterExcludedMaterials(upstream.audios, excludedMaterialIds),
+    [upstream.audios, excludedMaterialIds],
+  );
+  const excludedUpstreamCount = useMemo(
+    () => countExcludedMaterials(excludedMaterialIds, [...upstream.texts, ...upstream.images, ...upstream.videos, ...upstream.audios]),
+    [excludedMaterialIds, upstream.texts, upstream.images, upstream.videos, upstream.audios],
+  );
   const materialOrder: string[] = Array.isArray(d?.materialOrder) ? d.materialOrder : [];
-  const orderedTexts = useOrderedMaterials(upstream.texts, materialOrder);
-  const orderedImages = useOrderedMaterials(upstream.images, materialOrder);
-  const orderedVideos = useOrderedMaterials(upstream.videos, materialOrder);
-  const orderedAudios = useOrderedMaterials(upstream.audios, materialOrder);
+  const orderedTexts = useOrderedMaterials(visibleUpstreamTexts, materialOrder);
+  const orderedImages = useOrderedMaterials(visibleUpstreamImages, materialOrder);
+  const orderedVideos = useOrderedMaterials(visibleUpstreamVideos, materialOrder);
+  const orderedAudios = useOrderedMaterials(visibleUpstreamAudios, materialOrder);
   const setMaterialOrder = (newOrder: string[]) => update({ materialOrder: newOrder });
+  const handleExcludeUpstreamMaterial = (m: Material) => {
+    if (m.origin !== 'upstream') return;
+    update({
+      excludedMaterialIds: excludeMaterialId(excludedMaterialIds, m.id),
+      materialOrder: materialOrder.filter((itemId) => itemId !== m.id),
+    });
+  };
+  const handleRestoreExcludedMaterials = () => update({ excludedMaterialIds: [] });
 
   // === 本地拖入参考素材 (跨节点 Ctrl 拖拽) ===
   const localRefImages: string[] = Array.isArray(d?.localRefImages) ? d.localRefImages : [];
@@ -226,6 +291,50 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
     update({ status: 'submitting', error: null, videoUrl: null, taskId: null });
 
     try {
+      if (isExternalSelected && providerSelection.provider) {
+        const providerModel = externalProviderModel;
+        logBus.info(
+          `扩展平台 SD2.0 提交: ${providerSelection.provider.label || providerSelection.provider.id} · ${providerModel} · 图${imageUrls.length}/视${videoUrls.length}/音${audioUrls.length}`,
+          src,
+        );
+        const r = await generateExternalVideo({
+          providerId: providerSelection.provider.id,
+          providerModel,
+          model: providerModel,
+          prompt: finalPrompt,
+          aspect_ratio: ratio,
+          ratio,
+          duration,
+          resolution,
+          seed: seed >= 0 ? seed : undefined,
+          images: imageUrls,
+          videos: videoUrls,
+          audios: audioUrls,
+          providerParams: {
+            ...(d?.providerParams || {}),
+            generate_audio: generateAudio,
+            return_last_frame: returnLastFrame,
+            watermark,
+            web_search: webSearch,
+            frameMode,
+          },
+        });
+        const nextVideoUrl = r.videoUrls[0];
+        if (!nextVideoUrl) throw new Error('扩展平台没有返回视频。');
+        update({
+          status: 'success',
+          videoUrl: nextVideoUrl,
+          videoUrls: r.videoUrls,
+          remoteVideoUrls: r.remoteVideoUrls,
+          taskId: r.taskId || null,
+          lastPrompt: finalPrompt,
+          progress: '100%',
+        });
+        logBus.success(`扩展平台 SD2.0 完成 → ${nextVideoUrl}`, src);
+        taskCompletionSound.notifyComplete(id, 'seedance');
+        return;
+      }
+
       // 拆分参考图(对齐主项目 sd_firstFrame / sd_lastFrame / sd_refImgs):
       //  - frameMode='auto'(默认): 全部走 reference_image
       //  - frameMode='first':   第 1 张作为 firstFrame, 其余作为 reference_image
@@ -359,11 +468,82 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
         </div>
         <div className="flex-1">
           <div className="text-sm font-semibold text-white">SD2.0</div>
-          <div className="text-[10px] text-white/40">Seedance 2.0 · 字节</div>
+          <div className="text-[10px] text-white/40">
+            {isExternalSelected && providerSelection.provider
+              ? `${providerSelection.provider.label || providerSelection.provider.id} · ${externalProviderModel || '未选模型'}`
+              : 'Seedance 2.0 · 字节'}
+          </div>
         </div>
       </div>
 
       <div className="p-2.5 space-y-2" onMouseDown={(e) => e.stopPropagation()}>
+        {videoAdvancedProviders.length > 0 && (
+          <div className="rounded border border-white/10 bg-white/[0.03] p-2 space-y-2">
+            <button
+              type="button"
+              onClick={() => update({ advancedProviderOpen: !d?.advancedProviderOpen })}
+              className="w-full flex items-center justify-between text-[10px] font-semibold text-white/70 hover:text-white"
+            >
+              <span>高级来源</span>
+              <span>{isExternalSelected && providerSelection.provider ? providerSelection.provider.label : '默认 SD2.0'}</span>
+            </button>
+            {d?.advancedProviderOpen && (
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] text-white/50 block mb-1">平台</label>
+                  <select
+                    value={isExternalSelected ? providerSelection.providerId : 'zhenzhen'}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      if (nextId === 'zhenzhen') {
+                        update({ providerSource: 'zhenzhen', providerId: '', providerModel: '' });
+                        return;
+                      }
+                      const provider = videoAdvancedProviders.find((item) => item.id === nextId);
+                      if (!provider) return;
+                      const nextModels = advancedProviderModelOptions(provider, 'video');
+                      update({
+                        providerSource: provider.protocol,
+                        providerId: provider.id,
+                        providerModel: nextModels[0] || '',
+                      });
+                    }}
+                    style={{ background: '#18181b', color: '#ffffff' }}
+                    className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+                  >
+                    <option value="zhenzhen" style={{ background: '#18181b', color: '#ffffff' }}>贞贞工坊 SD2.0（默认）</option>
+                    {videoAdvancedProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id} style={{ background: '#18181b', color: '#ffffff' }}>
+                        {provider.label || provider.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {isExternalSelected && providerSelection.provider && (
+                  <div>
+                    <label className="text-[10px] text-white/50 block mb-1">外部模型</label>
+                    <select
+                      value={externalProviderModel}
+                      onChange={(e) => update({ providerModel: e.target.value })}
+                      style={{ background: '#18181b', color: '#ffffff' }}
+                      className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+                    >
+                      {externalModelOptions.map((m) => (
+                        <option key={m} value={m} style={{ background: '#18181b', color: '#ffffff' }}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {savedExternalMissing && (
+                  <div className="text-[10px] text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1">
+                    当前画布记录的扩展平台未启用或不存在，已临时回到默认来源。
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 模型 */}
         <div>
           <label className="text-[10px] text-white/50 block mb-1">Model</label>
@@ -521,6 +701,9 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
           audios={orderedAudios}
           order={materialOrder}
           onReorder={setMaterialOrder}
+          onExcludeUpstream={handleExcludeUpstreamMaterial}
+          excludedCount={excludedUpstreamCount}
+          onRestoreExcluded={handleRestoreExcludedMaterials}
           selected={!!selected}
           isDark={isDark}
           isPixel={isPixel}
@@ -563,7 +746,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
               <div className="space-y-1">
                 {localRefVideos.map((u, i) => (
                   <div key={`v${i}`} className="flex items-center gap-1">
-                    <video
+                    <LoopingVideo
                       src={u}
                       data-drag-source
                       data-drag-kind="video"
@@ -660,7 +843,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
 
       {videoUrl && !hasAutoOutput && (
         <div className="border-t border-white/10 p-2">
-          <video
+          <LoopingVideo
             src={videoUrl}
             controls
             className="w-full rounded"

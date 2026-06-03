@@ -1,5 +1,8 @@
 const DEFAULT_MODELSCOPE_BASE_URL = 'https://api-inference.modelscope.cn/v1';
 const DEFAULT_VOLCENGINE_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
+const DEFAULT_QINIU_BASE_URL = 'https://openai.qiniu.com';
+const DEFAULT_GRSAI_BASE_URL = 'https://grsai.dakka.com.cn';
+const DEFAULT_GEEKNOW_BASE_URL = 'https://www.geeknow.top';
 
 const SUPPORTED_PROTOCOLS = new Set([
   'openai-compatible',
@@ -7,6 +10,9 @@ const SUPPORTED_PROTOCOLS = new Set([
   'volcengine',
   'comfyui',
   'jimeng-cli',
+  'qiniu',
+  'grsai',
+  'geeknow',
 ]);
 
 const PROVIDER_ID_RE = /^[a-z0-9][a-z0-9_-]{1,47}$/;
@@ -81,6 +87,39 @@ const DEFAULT_ADVANCED_PROVIDERS = [
       wslDistro: '',
       pollSeconds: 900,
     },
+  },
+  {
+    id: 'qiniu',
+    label: '七牛云',
+    protocol: 'qiniu',
+    baseUrl: DEFAULT_QINIU_BASE_URL,
+    enabled: false,
+    imageModels: ['openai/gpt-image-2', 'gemini-3.1-flash-image-preview'],
+    videoModels: [],
+    chatModels: [],
+    defaults: {},
+  },
+  {
+    id: 'grsai',
+    label: 'Grsai',
+    protocol: 'grsai',
+    baseUrl: DEFAULT_GRSAI_BASE_URL,
+    enabled: false,
+    imageModels: ['gpt-image-2', 'gpt-image-2-vip', 'nano-banana', 'nano-banana-fast', 'nano-banana-2', 'nano-banana-2-cl', 'nano-banana-2-4k-cl', 'nano-banana-pro', 'nano-banana-pro-cl', 'nano-banana-pro-vip', 'nano-banana-pro-4k-vip'],
+    videoModels: [],
+    chatModels: [],
+    defaults: {},
+  },
+  {
+    id: 'geeknow',
+    label: 'Geeknow',
+    protocol: 'geeknow',
+    baseUrl: DEFAULT_GEEKNOW_BASE_URL,
+    enabled: false,
+    imageModels: [],
+    videoModels: [],
+    chatModels: ['gpt-5.5', 'gemini-3-pro-preview', 'gemini-3.1-pro-preview', 'gemini-3.5-flash', 'deepseek-v4-pro'],
+    defaults: {},
   },
 ];
 
@@ -187,6 +226,33 @@ function normalizePlainObject(value, maxEntries = 64) {
   return out;
 }
 
+function cloneJsonValue(value, maxBytes = 2 * 1024 * 1024) {
+  if (value == null) return undefined;
+  try {
+    const text = JSON.stringify(value);
+    if (!text || text.length > maxBytes) return undefined;
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeComfyFields(value) {
+  const out = [];
+  for (const raw of Array.isArray(value) ? value : []) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const nodeId = cleanText(raw.nodeId || raw.node || '', 80);
+    const fieldName = cleanText(raw.fieldName || raw.input || raw.name || '', 80);
+    const source = cleanText(raw.source || fieldName, 80);
+    if (!nodeId || !fieldName) continue;
+    const field = { nodeId, fieldName, source };
+    const fixedValue = cloneJsonValue(raw.value, 64 * 1024);
+    if (fixedValue !== undefined) field.value = fixedValue;
+    out.push(field);
+  }
+  return out.slice(0, 200);
+}
+
 function normalizeVolcengineConfig(value, previous = {}) {
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   return {
@@ -207,10 +273,18 @@ function normalizeComfyuiConfig(value) {
   }
   const workflows = Array.isArray(raw.workflows)
     ? raw.workflows
-        .map((item) => (item && typeof item === 'object' ? {
-          id: cleanText(item.id || item.name, 80),
-          name: cleanText(item.name || item.id, 120),
-        } : null))
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null;
+          const workflowJson = cloneJsonValue(item.workflowJson || item.workflow || item.raw);
+          const workflow = {
+            id: cleanText(item.id || item.name, 80),
+            name: cleanText(item.name || item.id, 120),
+          };
+          if (workflowJson !== undefined) workflow.workflowJson = workflowJson;
+          const fields = normalizeComfyFields(item.fields);
+          if (fields.length) workflow.fields = fields;
+          return workflow;
+        })
         .filter((item) => item && item.id && item.name)
         .slice(0, 80)
     : [];

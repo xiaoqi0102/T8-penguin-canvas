@@ -8,6 +8,7 @@ import { useRunBusStore } from '../../stores/runBus';
 import { useUpstreamMaterials, type MaterialKind, type Material } from './useUpstreamMaterials';
 import { topologicalSort } from '../../utils/topologicalSort';
 import { PORT_COLOR } from '../../config/portTypes';
+import LoopingVideo from '../LoopingVideo';
 // v1.2.10.5: 节点落点防重叠 —— 多链克隆子图整组避让
 import { placeBatchNodes, rectOf, type Rect as PlacementRect } from '../../utils/nodePlacement';
 
@@ -843,7 +844,7 @@ const LoopNode = (p: NodeProps) => {
               {kind === 'image' ? (
                 <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
               ) : kind === 'video' ? (
-                <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} muted playsInline preload="metadata" />
+                <LoopingVideo src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} muted />
               ) : kind === 'audio' ? (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: labelColor }}>♪ {(m.url.split('/').pop() || '').slice(0, 10)}</div>
               ) : (

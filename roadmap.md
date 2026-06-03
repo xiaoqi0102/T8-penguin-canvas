@@ -1,5 +1,32 @@
 # T8-penguin-canvas Roadmap
 
+## 画板节点抠图路线（开发中）
+
+> 目标：在现有「画板」节点内增加轻量 Photoshop 式套索与钢笔抠图，让用户可以直接在图层画板中对图片素材做非破坏式透明 PNG 抠出，不打断画板、图层、导入导出和 RUN 输出流程。
+
+### 1. 第一阶段：非破坏式基础版
+
+- 工具栏新增「套索」与「钢笔」两个抠图工具，仍在画板节点内部操作，不新增独立弹窗。
+- 抠图只对当前选中的图片元素生效；未选图片、图层隐藏或锁定时禁用并显示明确提示。
+- 套索支持按住拖动绘制自由闭合路径，松手后显示选区轮廓与操作浮条。
+- 钢笔支持点击添加锚点，点击起点附近或按 Enter 闭合，Backspace 删除最后一个点，Esc 取消草稿。
+- 默认动作是「抠出为新图层」：原图片图层保持不变，抠出的透明 PNG 作为新图片图层插入到当前图层上方，方便用户撤销或删除。
+- 抠图草稿在确认前只存在组件状态中，不实时写入 `boardLayers`，避免拖动时触发大量自动保存和历史污染。
+
+### 2. 数据与渲染规范
+
+- 新增 `src/utils/drawingBoardCutout.ts` 存放路径闭合、RDP 简化、有效面积判断、旋转图片坐标映射等纯函数，必须配套 `tests/drawingBoardCutout.test.ts`。
+- 路径坐标以画板坐标展示，合成时映射到图片元素本地坐标；旋转图片要通过图片中心反向旋转处理，避免选区与图像错位。
+- 离屏 canvas 负责最终透明 PNG 合成：先裁出源图片，再用闭合路径生成 alpha mask，再通过 `/api/files/upload-base64` 落到 `/files/output/*`。
+- 羽化和平滑作为轻量选项保留；第一阶段以路径简化和平滑边缘为主，后续再扩展更强的边缘优化。
+- 导出画板 JSON 仍保存最终图层状态；后续如需要可把可编辑抠图路径作为图片元素 metadata 扩展，但第一阶段不强制用户维护复杂历史。
+
+### 3. 后续扩展
+
+- 第二阶段增加钢笔贝塞尔手柄、选区增减、重新编辑旧选区、删除选区 / 仅保留选区等更多 Photoshop 式操作。
+- 第三阶段可复用已有 `remove-bg` / AI 去背能力，增加「自动主体抠图后手动修边」模式。
+- 所有新增 UI 必须使用 `t8-*` 主题变量和 `t8-mini-icon-button`，不得写死某个主题颜色；新增官方主题时要检查画板抠图浮条、锚点、选区线在浅色/深色下都可见。
+
 ## 肖像大师开发路线
 
 > 目标：新增「肖像大师」节点，定位为创作者可用的捏人 Prompt 设计器。节点只输出 prompt / metadata，不直接生成图片；负面约束暂不开发。
@@ -194,25 +221,130 @@
 
 #### Phase C：OpenAI 兼容与 ModelScope
 
-- 状态：下一阶段开发重点，尚未接入图像/LLM 节点真实生成调用。
-- 先接入图像与 LLM，视频只保留配置和模型列表。
-- 图像节点增加高级 provider 选择；默认不显示，只有已启用 provider 时出现。
-- ModelScope 实现异步提交、轮询、错误归一化和自动保存。
+- 状态：已在 v1.8.4 落地。
+- 已接入 OpenAI 兼容图像 / 视频 / LLM 调用，统一走 `/api/proxy/external/{image,video,llm}`，输出自动转存到 `/files/output/*`。
+- 图像节点与 LLM 节点已增加高级 provider 选择；默认不显示，只有已启用 provider 时出现。
+- ModelScope 已实现异步图像提交、轮询、错误归一化和自动保存。
 
 #### Phase D：火山引擎与即梦 Seedance CLI
 
-- 火山接入 Seedream 图像与 Seedance 视频，优先支持 base64/dataURL 与远程 URL。
-- 即梦 CLI 支持状态检测、text2image、image2image、text2video、image2video、frames/multiframe video 的最小可用链路。
-- 视频节点/SD2.0 节点提供高级来源选择，但默认仍走当前贞贞工坊路径。
+- 状态：已在 v1.8.4 落地。
+- 火山已接入 Seedream 图像与 Seedance 视频，支持 dataURL / 本地 T8 素材解析、提交任务、轮询和视频转存。
+- 即梦 CLI 已支持状态检测、text2image、image2image、text2video、单图 multimodal2video、多图 multiframe2video、poll 与输出转存。
+- 视频节点 / SD2.0 节点已提供高级来源选择，但默认仍走当前贞贞工坊路径。
 
 #### Phase E：本地 ComfyUI 工作流
 
-- 支持 ComfyUI 实例列表、队列状态、工作流 JSON 导入/保存、参数映射。
-- 实现运行、轮询 history、下载 image/video/audio/text 输出。
-- 如果用户已有工作流，新增可选「本地 ComfyUI」节点或在图像节点高级来源中选择工作流。
+- 状态：已在 v1.8.4 落地图像节点高级来源版。
+- API 设置页支持 ComfyUI 实例列表、队列状态测试、工作流 JSON 粘贴保存和参数映射 JSON。
+- 后端已实现 `/prompt` 提交、`/history/{prompt_id}` 轮询，并归一化 image/video/audio/text 输出；图像节点可在高级来源中选择已保存工作流。
+- 独立「本地 ComfyUI」节点仍作为后续可选扩展，不影响当前节点融合方案。
 
 #### Phase F：体验收口与回归
 
-- 所有扩展平台错误统一成用户可读文案：未配置 Key、模型不存在、格式不支持、CLI 未安装、ComfyUI 不在线、任务超时。
-- 输出素材统一进入自动保存、资源库、节点发送、Loop 等既有链路。
-- 浏览器回归设置页折叠态、节点默认态、扩展平台启用态；命令回归 `npm run build`、后端语法检查和相关 node tests。
+- 状态：已在 v1.8.4 落地基础收口。
+- 扩展平台错误已统一成用户可读文案：未配置 Key、模型不存在、格式不支持、CLI 未安装、ComfyUI 不在线、任务超时。
+- 输出素材统一进入 `/files/output/*`，因此可继续被 OutputNode、资源库、节点发送、Loop 与自动保存链路识别。
+- 命令回归已覆盖 `node --test tests/*.test.ts`、`npm run build`；浏览器插件验证因当前本地 URL 安全策略阻止，未绕过策略。
+
+## 去 AI 水印辅助节点路线（参考 wiltodelta/remove-ai-watermarks）
+
+> 目标：新增辅助节点「去AI水印」，完整接入 `wiltodelta/remove-ai-watermarks` 的可见水印、局部擦除、隐形水印、元数据清理和鉴别能力。T8 只负责画布节点、用户交互、媒体解析、CLI 桥接和输出协议；算法能力由上游 Python 包提供，后续上游新增水印类型、修复 bug 或扩展参数时，T8 通过动态能力探测和少量 adapter 维护即可跟进。
+
+### 1. 上游集成原则
+
+- 不把上游算法重写成 JS，不复制上游核心源码到 T8 仓库；T8 只维护 adapter、媒体协议、UI 与输出协议。
+- 后端通过 `remove-ai-watermarks` CLI / `python -m remove_ai_watermarks.cli` 调用上游能力；用户可用系统 PATH、Python 环境、`T8_REMOVE_AI_WATERMARKS_RUNTIME`、`T8_REMOVE_AI_WATERMARKS_BIN` 或 `T8_REMOVE_AI_WATERMARKS_SRC` 指定安装位置。
+- 开发环境允许指向本地克隆 `E:\PenguinPravite\_external\remove-ai-watermarks`；普通用户环境可用 `pipx/uv/pip install remove-ai-watermarks`，完整 Electron 离线分发包则使用 `tools/remove-ai-watermarks-runtime` sidecar runtime。
+- 去AI水印 full runtime 可能包含 Python、Torch、CUDA、LaMA/invisible 模型，禁止提交 Git；仓库只保留 runtime slot README 和打包规范。
+- 后端状态接口必须返回上游版本、CLI 可用性、已知 visible mark 列表和可选能力状态；若上游以后新增 mark，T8 不需要改前端枚举即可显示。
+- UI 必须有明确提示：该节点用于合法授权素材处理、去除本人作品中的平台标记或清理元数据，不鼓励规避版权、署名或平台合规标记。
+- 输出仍统一转存到 `/files/output/*`，继续兼容 OutputNode、资源库、节点发送、Loop、自动保存和 Eagle。
+
+### 2. 用户入口与节点体验
+
+- 节点分类放入「辅助节点」，名称为「去AI水印」，默认可见。
+- 节点左侧可接图像 / 视频 / 音频；图像支持完整处理，视频 / 音频首阶段只支持元数据检查和移除，避免误导用户以为能直接擦视频画面水印。
+- 默认模式为「智能清理」：先尝试 known visible mark 自动识别移除，再清理 AI 元数据；用户可选是否追加隐形水印处理。
+- 模式列表：
+  - 智能清理：visible auto + metadata remove，可选 invisible。
+  - 可见水印：`visible`，mark 支持 auto 和动态 mark 列表，参数含 detect、inpaint、method、strength、strip metadata。
+  - 框选擦除：`erase`，支持多矩形区域、cv2/lama backend、telea/ns、dilate、strip metadata。
+  - 隐形水印：`invisible`，支持 device、pipeline、strength、steps、seed、humanize、max resolution、protect text / face。
+  - 隐形水印参数必须在 T8 层做安全钳制：steps 至少 4，非 0 max resolution 至少 256，strength 至少保证一个 diffusion timestep，避免上游 diffusers 空 latent 崩溃。
+  - 元数据：`metadata --check` / `metadata --remove`，支持图片、视频、音频容器。
+  - 鉴别：`identify --json`，输出 platform、confidence、watermarks、signals、caveats。
+- 节点运行后按结果类型写入 `imageUrl / imageUrls / videoUrl / audioUrl / outputText / metadata`；鉴别和检查模式可直接接文本 / LLM / 输出素材。
+- 错误要用户可读：未安装上游 CLI、Python 版本不足、可选依赖缺失、没有上游素材、不支持当前媒体类型、框选区域为空、任务超时。
+
+### 3. 后端设计
+
+- 新增 `backend/src/tools/aiWatermark/runner.js`：
+  - 解析 CLI：`T8_REMOVE_AI_WATERMARKS_RUNTIME` sidecar root > Electron `resources/tools/remove-ai-watermarks` > `T8_REMOVE_AI_WATERMARKS_BIN` > `T8_REMOVE_AI_WATERMARKS_SRC` > 开发期 `_external/remove-ai-watermarks` > PATH `remove-ai-watermarks(.cmd)` > `python -m remove_ai_watermarks.cli`。
+  - 提供 `detectCapabilities()`、`buildAiWatermarkPlan()`、`runAiWatermarkProcess()` 等纯函数，便于测试。
+  - 对 smart 模式进行 T8 自己的串联编排，优先调用 `visible --mark auto`，如果未生成文件则复制原图继续 metadata remove；不直接依赖上游 `all`，避免固定 Gemini 引擎漏掉 Doubao/Jimeng 等 registry mark。
+  - 子进程日志只返回 stdout/stderr 摘要，不打印本地绝对路径以外的敏感配置。
+- 新增 `backend/src/tools/aiWatermark/media.js`：
+  - 复用 T8 媒体协议，解析 `/files/input/*`、`/files/output/*`、`/input/*`、`/output/*`、`/api/resources/file/*`、`/api/resources/set-file/*`、dataURL、远程 URL、本地绝对路径。
+  - dataURL 和远程 URL 会先落到 input 临时文件，再交给 CLI 处理；输出文件写入 `config.OUTPUT_DIR`。
+  - 远程 URL 需超时、限制大小，并保留文件扩展名或 MIME 推断。
+- 新增 `backend/src/routes/aiWatermark.js`：
+  - `GET /api/ai-watermark/status`：返回 installed、version、resolver、markKeys、optionalFeatures、setupHints。
+  - `POST /api/ai-watermark/process`：执行单个素材的指定模式，返回 outputUrl、outputKind、report、commands、logs。
+  - 后续可扩展 `POST /api/ai-watermark/batch`，当前节点先在前端逐个素材串行调用。
+- `backend/src/server.js` 挂载 `/api/ai-watermark`。
+- `electron/_post_build.cjs` 增加 `routes/aiWatermark.t8c` 和 `tools/aiWatermark/*.t8c` 校验，确保打包时后端 adapter 不丢；同时检查 `resources/tools/remove-ai-watermarks` runtime slot，源码构建缺少 runtime 只警告，正式用户包设置 `T8_REQUIRE_AI_WATERMARK_RUNTIME=1` 后必须强制失败。
+
+### 4. 前端设计
+
+- 新增 `src/services/aiWatermark.ts`，封装 status/process API 和响应类型。
+- 新增 `src/components/nodes/RemoveAiWatermarkNode.tsx`：
+  - 使用 `useRunTrigger()` 接入单点运行、批量运行、Loop；不接入任务完成提示音，避免扩展工具节点制造额外提示声。
+  - 从上游收集图像 / 视频 / 音频，默认处理第一个，可勾选“处理全部上游素材”。
+  - 显示上游素材摘要、上游 CLI 状态、模式切换、参数分区、运行按钮、结果预览和报告文本。
+  - 框选擦除提供预览图与区域列表；首版至少支持手动矩形输入、默认右下角快速区域和多区域删除，后续再增强拖拽框选。
+  - 视觉必须使用 `t8-*` / CSS 变量，不写死大面积暗色卡片，适配科技、像素、OP、RH、火影、EVA、幽游、灌篮等主题。
+- 更新注册文件：
+  - `src/types/canvas.ts` 增加 `remove-ai-watermark`。
+  - `src/config/nodeRegistry.ts` 放入辅助节点。
+  - `src/config/portTypes.ts` 声明 image/video/audio 输入，image/video/audio/text/metadata 输出。
+  - `src/components/Canvas.tsx` 注册组件、初始数据和可执行节点。
+  - `src/components/NodeActionBar.tsx` 同步可执行节点集合。
+  - `src/utils/nodePlacement.ts` 增加默认尺寸。
+
+### 5. 可维护与上游同步
+
+- 后端能力探测优先动态读取上游 `watermark_registry.mark_keys()`、`remove_ai_watermarks.__version__`、`invisible_engine.is_available()`、`region_eraser.lama_available()`。
+- 前端 mark 下拉从 status 返回值生成；如果 status 不可用，则回退 `auto / gemini / doubao / jimeng`。
+- 保留 `advancedArgs` 或后端透传白名单扩展位，便于上游先新增参数时临时试用；稳定后再做成明确 UI 控件。
+- 上游同步流程：
+  - 更新本地外部克隆：`git -C E:\PenguinPravite\_external\remove-ai-watermarks pull`。
+  - 升级用户环境：`pipx upgrade remove-ai-watermarks` 或 `uv tool upgrade remove-ai-watermarks`；Electron 离线包要同步重建 `tools/remove-ai-watermarks-runtime` sidecar。
+  - 若 CLI 参数变化，只需更新 `runner.js` 的命令计划、节点 UI、features/skill 规范和相关测试。
+  - 若新增 visible mark，只要仍在 `watermark_registry.mark_keys()` 中，T8 UI 自动显示。
+- README/features 后续发布时需要保留 MIT attribution：`remove-ai-watermarks` by `wiltodelta`, MIT License。
+
+### 6. 验证清单
+
+- 单元测试：
+  - `node --test tests/aiWatermarkRunner.test.ts`
+  - `node --test tests/*.test.ts`
+- 语法检查：
+  - `node -c backend/src/routes/aiWatermark.js`
+  - `node -c backend/src/tools/aiWatermark/runner.js`
+  - `node -c backend/src/tools/aiWatermark/media.js`
+- 构建：
+  - `npm run build`
+  - `npm run dist`
+- 运行时依赖：
+  - `python -m pip check`
+  - Torch/CUDA import smoke（需要 GPU 能力时）
+  - `GET /api/ai-watermark/status` 返回 installed=true、markKeys 与 optionalFeatures
+- Electron:
+  - `tools/remove-ai-watermarks-runtime` 为空时 `_post_build.cjs` 只警告；用户离线包设置 `T8_REQUIRE_AI_WATERMARK_RUNTIME=1` 必须能拦截缺失 runtime。
+  - 准备 sidecar runtime 后重新 `npm run dist` 并检查 win-unpacked 启动冒烟。
+- 手动冒烟：
+  - 未安装上游 CLI 时，节点显示安装提示且不崩溃。
+  - 安装上游 CLI 后，`GET /api/ai-watermark/status` 返回版本和 mark 列表。
+  - 图像输入运行智能清理后输出 `/files/output/*` 图片。
+  - 元数据检查模式能输出文本报告，且可接 OutputNode/LLM。

@@ -36,6 +36,7 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   // v1.4.6: 工具箱文本节点也可点击 RUN 直接外挂 OutputNode
   'cinematic', 'video-motion',
   'portrait-master', 'pose-master',
+  'remove-ai-watermark',
 ]);
 
 const BAR_GAP_PX = 8; // 与节点顶部的世界坐标系间距

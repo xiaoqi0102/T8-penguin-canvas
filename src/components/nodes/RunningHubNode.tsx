@@ -9,9 +9,25 @@ import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
 import MentionPromptInput from './MentionPromptInput';
+import LoopingVideo from '../LoopingVideo';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useThemeStore } from '../../stores/theme';
 import { logBus } from '../../stores/logs';
+import {
+  countExcludedMaterials,
+  excludeMaterialId,
+  filterExcludedMaterials,
+  normalizeExcludedMaterialIds,
+} from '../../utils/materialExclusion';
+import {
+  areRhParamValuesEqual,
+  applyRhTextBindings,
+  findMaterialById,
+  findRhTextMaterialForField,
+  normalizeRhNodeId,
+  rhParamKey,
+  type RhParamValue,
+} from '../../utils/rhTextBinding';
 
 /**
  * RunningHubNode - 主工作流节点
@@ -109,7 +125,7 @@ function extractDefaultValue(it: any): string {
 // 上游媒体聚合现在由项目统一的 useUpstreamMaterials hook 处理（详见 ./useUpstreamMaterials.ts），
 // 本文件不再手写 extractUpstreamUrl，避免与项目其他节点的 url 提取逻辑产生不一致。
 
-const paramKey = (nodeId: any, fieldName: any) => `${nodeId}::${fieldName}`;
+const paramKey = rhParamKey;
 
 const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   const update = useUpdateNodeData(id);
@@ -137,8 +153,8 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   const urls: string[] = d?.urls || [];
   const appInfo: any = d?.appInfo;
   // paramValues: 在节点内为每个 nodeInfoList 条目保存的当前编辑值
-  // 结构: { 'nodeId::fieldName': { value: string; sourceFromUpstream?: boolean } }
-  const paramValues: Record<string, { value: string; sourceFromUpstream?: boolean }> = d?.paramValues || {};
+  // 结构: { 'nodeId::fieldName': { value: string; sourceFromUpstream?: boolean; sourceMaterialId?: string; sourceRhNodeId?: string } }
+  const paramValues: Record<string, RhParamValue> = d?.paramValues || {};
   const paramMentions: Record<string, MediaMention[]> =
     d?.paramMentions && typeof d.paramMentions === 'object' ? d.paramMentions : {};
 
@@ -170,18 +186,51 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   // 交给 MaterialPreviewSection 统一呈现（含 dnd-kit 拖拽排序、多图并列、双主题适配）。
   // materialOrder 写入本节点 data，负责序列化限定。
   const upstream = useUpstreamMaterials(id);
+  const excludedMaterialIds = useMemo(
+    () => normalizeExcludedMaterialIds(d?.excludedMaterialIds),
+    [d?.excludedMaterialIds],
+  );
+  const visibleUpstreamImages = useMemo(
+    () => filterExcludedMaterials(upstream.images, excludedMaterialIds),
+    [upstream.images, excludedMaterialIds],
+  );
+  const visibleUpstreamVideos = useMemo(
+    () => filterExcludedMaterials(upstream.videos, excludedMaterialIds),
+    [upstream.videos, excludedMaterialIds],
+  );
+  const visibleUpstreamAudios = useMemo(
+    () => filterExcludedMaterials(upstream.audios, excludedMaterialIds),
+    [upstream.audios, excludedMaterialIds],
+  );
+  const visibleUpstreamTexts = useMemo(
+    () => filterExcludedMaterials(upstream.texts, excludedMaterialIds),
+    [upstream.texts, excludedMaterialIds],
+  );
+  const excludedUpstreamCount = useMemo(
+    () => countExcludedMaterials(excludedMaterialIds, [...upstream.texts, ...upstream.images, ...upstream.videos, ...upstream.audios]),
+    [excludedMaterialIds, upstream.texts, upstream.images, upstream.videos, upstream.audios],
+  );
   const materialOrder: string[] = Array.isArray(d?.materialOrder) ? d.materialOrder : [];
-  const orderedImages = useOrderedMaterials(upstream.images, materialOrder);
-  const orderedVideos = useOrderedMaterials(upstream.videos, materialOrder);
-  const orderedAudios = useOrderedMaterials(upstream.audios, materialOrder);
+  const orderedTexts = useOrderedMaterials(visibleUpstreamTexts, materialOrder);
+  const orderedImages = useOrderedMaterials(visibleUpstreamImages, materialOrder);
+  const orderedVideos = useOrderedMaterials(visibleUpstreamVideos, materialOrder);
+  const orderedAudios = useOrderedMaterials(visibleUpstreamAudios, materialOrder);
   const mentionMaterials = useMemo<Material[]>(
-    () => [...orderedImages, ...orderedVideos, ...orderedAudios],
-    [orderedImages, orderedVideos, orderedAudios],
+    () => [...orderedTexts, ...orderedImages, ...orderedVideos, ...orderedAudios],
+    [orderedTexts, orderedImages, orderedVideos, orderedAudios],
   );
   // 日志来源标识：供 TerminalPanel 面板展示 [src] 前缀。
   // 与 VideoNode/SeedanceNode 保持一致，不同节点类型使用不同前缀 rh / rh-wallet。
   const src = `${type === 'rhWallet' ? 'rh-wallet' : 'rh'}:${id}`;
   const setMaterialOrder = (newOrder: string[]) => update({ materialOrder: newOrder });
+  const handleExcludeUpstreamMaterial = (m: Material) => {
+    if (m.origin !== 'upstream') return;
+    update({
+      excludedMaterialIds: excludeMaterialId(excludedMaterialIds, m.id),
+      materialOrder: materialOrder.filter((itemId) => itemId !== m.id),
+    });
+  };
+  const handleRestoreExcludedMaterials = () => update({ excludedMaterialIds: [] });
   const { style, theme } = useThemeStore();
   const isPixel = style === 'pixel';
   const isDark = theme === 'dark';
@@ -208,7 +257,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   }, [appInfo]);
 
   // ========== 保存某一条 paramValue ==========
-  const setParam = (k: string, patch: Partial<{ value: string; sourceFromUpstream: boolean }>) => {
+  const setParam = (k: string, patch: Partial<RhParamValue>) => {
     const cur = paramValues[k] || { value: '' };
     const next = { ...paramValues, [k]: { ...cur, ...patch } };
     update({ paramValues: next });
@@ -220,7 +269,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   const setTextParam = (k: string, value: string, mentions: MediaMention[]) => {
     const cur = paramValues[k] || { value: '' };
     update({
-      paramValues: { ...paramValues, [k]: { ...cur, value } },
+      paramValues: { ...paramValues, [k]: { ...cur, value, sourceFromUpstream: false, sourceMaterialId: '', sourceRhNodeId: '' } },
       paramMentions: { ...paramMentions, [k]: mentions },
     });
   };
@@ -257,17 +306,20 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
         changed = true;
       }
     }
-    if (changed) update({ paramValues: next });
+    const withTextBindings = applyRhTextBindings(list, orderedTexts, next);
+    if (changed || !areRhParamValuesEqual(paramValues, withTextBindings)) {
+      update({ paramValues: withTextBindings });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderedImages, orderedVideos, orderedAudios, appInfo]);
+  }, [orderedTexts, orderedImages, orderedVideos, orderedAudios, appInfo]);
 
   // ========== 以当前 upstreamNodes + appInfo + paramValues 为输入，同步重算最新 paramValues ==========
   // 用途：handleRun 产业路径上跳过 React state 异步更新陷阱。用户刚连上传视频节点后立刻点
   // 运行， useEffect 同步上游 url 到 paramValues 还未生效；this fn 返回一份实时快照，避免用过期 state。
   const computeFreshValuesNow = (
     list: any[] | undefined,
-  ): Record<string, { value: string; sourceFromUpstream?: boolean }> => {
-    const next: Record<string, { value: string; sourceFromUpstream?: boolean }> = { ...paramValues };
+  ): Record<string, RhParamValue> => {
+    const next: Record<string, RhParamValue> = { ...paramValues };
     if (!Array.isArray(list)) return next;
     const counters: Record<string, number> = { image: 0, video: 0, audio: 0 };
     for (const it of list) {
@@ -282,7 +334,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
       // sourceFromUpstream === true 或 undefined（初次看到上游）都采用上游实时 url
       next[k] = { value: upUrl, sourceFromUpstream: true };
     }
-    return next;
+    return applyRhTextBindings(list, orderedTexts, next);
   };
 
   // ========== 收集上游 RhConfig nodeInfoList（保留向后兼容）==========
@@ -307,7 +359,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   //     剩余素材仅在节点内预览，不会提交到 RH。多图需要 webapp 内部提供多个 image 字段。
   const buildRawNodeInfoList = (
     overrideList?: any[],
-    overrideValues?: Record<string, { value: string; sourceFromUpstream?: boolean }>,
+    overrideValues?: Record<string, RhParamValue>,
   ): any[] => {
     const seen = new Set<string>();
     const out: any[] = [];
@@ -495,7 +547,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
   // （避免 React state 异步更新后 closure 还指向旧值）
   const handleFetchInfo = async (): Promise<{
     list: any[];
-    paramValues: Record<string, { value: string; sourceFromUpstream?: boolean }>;
+    paramValues: Record<string, RhParamValue>;
   } | null> => {
     setError(null);
     if (!webappId) {
@@ -511,7 +563,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
         console.log('[RH/fetchInfo] webappId=', webappId, 'nodeInfoList=', JSON.parse(JSON.stringify(list)));
       } catch {}
       logBus.info(`拉取应用信息 · webappId=${webappId} · ${list.length} 个字段`, src);
-      const next: Record<string, { value: string; sourceFromUpstream?: boolean }> = { ...paramValues };
+      const next: Record<string, RhParamValue> = { ...paramValues };
       for (const it of list) {
         const k = paramKey(it.nodeId, it.fieldName);
         const vt = inferValueType(it?.fieldType);
@@ -527,8 +579,9 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
         // 非媒体字段：如果 fieldValue 是数组（选项集充当默认值），取第 0 个项作为默认选中。
         next[k] = { value: extractDefaultValue(it) };
       }
-      update({ appInfo: info, paramValues: next });
-      return { list, paramValues: next };
+      const withTextBindings = applyRhTextBindings(list, orderedTexts, next);
+      update({ appInfo: info, paramValues: withTextBindings });
+      return { list, paramValues: withTextBindings };
     } catch (e: any) {
       setError(e?.message || '查询失败');
       logBus.error(`拉取应用信息失败: ${e?.message || e}`, src);
@@ -538,7 +591,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
     }
   };
 
-  // 自动拉取：第一次 webappId 有值 且 上游有媒体节点 且 还未拉取过任何 appInfo 时，
+  // 自动拉取：第一次 webappId 有值且上游有可用素材（文本/媒体）且还未拉取过任何 appInfo 时，
   // 静默拉一次，避免用户漏点搜索按钮导致提交空 nodeInfoList 后 RH 用了应用默认参数。
   const autoFetchedRef = useRef(false);
   useEffect(() => {
@@ -546,8 +599,8 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
     if (!webappId) return;
     if (appInfo) return;
     if (fetchingInfo) return;
-    const hasUpstreamMedia = !!(findUpstreamUrl('image') || findUpstreamUrl('video') || findUpstreamUrl('audio'));
-    if (!hasUpstreamMedia) return;
+    const hasUpstreamPayload = orderedTexts.length > 0 || !!(findUpstreamUrl('image') || findUpstreamUrl('video') || findUpstreamUrl('audio'));
+    if (!hasUpstreamPayload) return;
     autoFetchedRef.current = true;
     void handleFetchInfo();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -562,10 +615,10 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
     // 兑底：如果还没拉过 appInfo 且上游接了媒体节点，先同步拉一次，
     // 避免提交空 nodeInfoList 后 RH 黙默用了应用默认参数。
     let freshList: any[] | null = null;
-    let freshValues: Record<string, { value: string; sourceFromUpstream?: boolean }> | null = null;
+    let freshValues: Record<string, RhParamValue> | null = null;
     if (!appInfo?.nodeInfoList?.length) {
-      const hasUpstreamMedia = !!(findUpstreamUrl('image') || findUpstreamUrl('video') || findUpstreamUrl('audio'));
-      if (hasUpstreamMedia) {
+      const hasUpstreamPayload = orderedTexts.length > 0 || !!(findUpstreamUrl('image') || findUpstreamUrl('video') || findUpstreamUrl('audio'));
+      if (hasUpstreamPayload) {
         const r = await handleFetchInfo();
         if (r) {
           freshList = r.list;
@@ -576,7 +629,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
     // 关键：无论 appInfo 是否已存在，进入 handleRun 都以当前 upstreamNodes 为准重算
     // 一次 paramValues，避免 React state 异步更新陷阱（刚连上游立刻运行，state 还没生效）。
     const effectiveList = freshList ?? appInfo?.nodeInfoList ?? [];
-    const effectiveValues = computeFreshValuesNow(effectiveList);
+    const effectiveValues = freshValues ?? computeFreshValuesNow(effectiveList);
     // 同步一份到 state，避免 UI 显示与提交不一致
     if (Object.keys(effectiveValues).length > 0) {
       update({ paramValues: effectiveValues });
@@ -650,18 +703,21 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
       </div>
 
       <div className="p-2.5 space-y-2" onMouseDown={(e) => e.stopPropagation()}>
-        {/* 上游媒体聚合预览区：与 Image/Video/Audio 节点使用同一个 MaterialPreviewSection，
-            支持 image/video/audio 三种素材、多图并列、dnd-kit 拖拽排序，拖拽顺序会联动下方参数表的字段分配。 */}
-        {(orderedImages.length + orderedVideos.length + orderedAudios.length) > 0 && (
+        {/* 上游素材聚合预览区：文本 RH# 会联动下方 RH 参数，媒体仍按类型顺序自动分配。 */}
+        {(orderedTexts.length + orderedImages.length + orderedVideos.length + orderedAudios.length + excludedUpstreamCount) > 0 && (
           <MaterialPreviewSection
+            texts={orderedTexts}
             images={orderedImages}
             videos={orderedVideos}
             audios={orderedAudios}
             order={materialOrder}
             onReorder={setMaterialOrder}
+            onExcludeUpstream={handleExcludeUpstreamMaterial}
+            excludedCount={excludedUpstreamCount}
+            onRestoreExcluded={handleRestoreExcludedMaterials}
             isDark={isDark}
             isPixel={isPixel}
-            groups={['image', 'video', 'audio']}
+            groups={['text', 'image', 'video', 'audio']}
             title="上游素材 · 拖拽可调整顺序"
           />
         )}
@@ -781,16 +837,113 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
                       className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
                     />
                   ) : (
-                    <MentionPromptInput
-                      value={cur.value}
-                      mentions={getParamMentions(k)}
-                      materials={mentionMaterials}
-                      onChange={(value, mentions) => setTextParam(k, value, mentions)}
-                      placeholder={extractDefaultValue(it)}
-                      isDark={isDark}
-                      isPixel={isPixel}
-                      className="w-full min-h-14 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
-                    />
+                    (() => {
+                      const selectedTextMaterial = findMaterialById(orderedTexts, cur.sourceMaterialId);
+                      const autoTextMatch = findRhTextMaterialForField(it, orderedTexts);
+                      const linkedTextMaterial = selectedTextMaterial || (autoTextMatch.status === 'matched' ? autoTextMatch.material || null : null);
+                      const isLinked = !!cur.sourceFromUpstream && !!linkedTextMaterial;
+                      const bindHint =
+                        autoTextMatch.status === 'conflict'
+                          ? `多个上游文本都填写了 RH#${normalizeRhNodeId(it.nodeId)}，请改成唯一 RH# 或手动选择。`
+                          : autoTextMatch.status === 'no-match'
+                            ? `给文本节点填写 RH#${normalizeRhNodeId(it.nodeId)} 后可自动绑定。`
+                            : isLinked
+                              ? `已绑定 ${linkedTextMaterial?.rhNodeId ? `RH#${linkedTextMaterial.rhNodeId}` : '手动选择的文本'}`
+                              : '可按文本节点 RH# 自动绑定，也可手动选择上游文本。';
+                      return (
+                        <>
+                          {orderedTexts.length > 0 && (
+                            <div className="rounded border border-white/10 bg-white/[0.03] px-2 py-1.5 space-y-1">
+                              <div className="flex items-center justify-between gap-2 text-[10px]">
+                                <label className="flex items-center gap-1 text-cyan-200/80 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!cur.sourceFromUpstream}
+                                    onChange={(e) => {
+                                      if (!e.target.checked) {
+                                        setParam(k, { sourceFromUpstream: false, sourceMaterialId: '', sourceRhNodeId: '' });
+                                        return;
+                                      }
+                                      const fallback = linkedTextMaterial || (orderedTexts.length === 1 ? orderedTexts[0] : null);
+                                      if (fallback) {
+                                        setParam(k, {
+                                          value: fallback.url,
+                                          sourceFromUpstream: true,
+                                          sourceMaterialId: fallback.id,
+                                          sourceRhNodeId: normalizeRhNodeId(fallback.rhNodeId),
+                                        });
+                                      } else {
+                                        setParam(k, { sourceFromUpstream: true });
+                                      }
+                                    }}
+                                    className="accent-cyan-400"
+                                  />
+                                  从上游文本获取
+                                </label>
+                                {linkedTextMaterial && (
+                                  <button
+                                    onClick={() => setParam(k, {
+                                      value: linkedTextMaterial.url,
+                                      sourceFromUpstream: true,
+                                      sourceMaterialId: linkedTextMaterial.id,
+                                      sourceRhNodeId: normalizeRhNodeId(linkedTextMaterial.rhNodeId),
+                                    })}
+                                    className="flex items-center gap-1 text-cyan-200/80 hover:text-cyan-100"
+                                    title="重新同步上游文本"
+                                  >
+                                    <RefreshCw size={9} /> 同步
+                                  </button>
+                                )}
+                              </div>
+                              <select
+                                value={cur.sourceMaterialId || ''}
+                                onChange={(e) => {
+                                  const material = findMaterialById(orderedTexts, e.target.value);
+                                  if (!material) {
+                                    setParam(k, { sourceMaterialId: '', sourceRhNodeId: '', sourceFromUpstream: true });
+                                    return;
+                                  }
+                                  setParam(k, {
+                                    value: material.url,
+                                    sourceFromUpstream: true,
+                                    sourceMaterialId: material.id,
+                                    sourceRhNodeId: normalizeRhNodeId(material.rhNodeId),
+                                  });
+                                }}
+                                className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[10px] text-white outline-none focus:border-white/30"
+                              >
+                                <option value="">按 RH# 自动匹配</option>
+                                {orderedTexts.map((material) => (
+                                  <option key={material.id} value={material.id}>
+                                    {material.rhNodeId ? `RH#${material.rhNodeId}` : '未填 RH#'} · {material.label || material.url.slice(0, 24)}
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="text-[9px] text-white/35 leading-tight">{bindHint}</div>
+                            </div>
+                          )}
+                          {isLinked ? (
+                            <textarea
+                              value={cur.value}
+                              readOnly
+                              className="w-full min-h-14 resize-none rounded bg-cyan-500/10 border border-cyan-500/30 px-2 py-1 text-[11px] text-white outline-none cursor-not-allowed"
+                              title="已从上游文本同步；取消勾选后可手动编辑"
+                            />
+                          ) : (
+                            <MentionPromptInput
+                              value={cur.value}
+                              mentions={getParamMentions(k)}
+                              materials={mentionMaterials}
+                              onChange={(value, mentions) => setTextParam(k, value, mentions)}
+                              placeholder={extractDefaultValue(it)}
+                              isDark={isDark}
+                              isPixel={isPixel}
+                              className="w-full min-h-14 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
+                            />
+                          )}
+                        </>
+                      );
+                    })()
                   )}
                 </div>
               );
@@ -846,7 +999,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
         <div className="border-t border-white/10 p-2 space-y-1">
           {urls.map((u, i) => {
             if (/\.(mp4|webm|mov)$/i.test(u)) {
-              return <video key={i} src={u} controls className="w-full rounded" />;
+              return <LoopingVideo key={i} src={u} controls className="w-full rounded" />;
             }
             if (/\.(mp3|wav|ogg)$/i.test(u)) {
               return <audio key={i} src={u} controls className="w-full h-8" />;

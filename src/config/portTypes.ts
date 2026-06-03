@@ -97,6 +97,8 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   bp: { inputs: ['text'], outputs: ['text'] },
   // relay 中继:任意进任意出(透传)
   relay: { inputs: ['any'], outputs: ['any'] },
+  // 去AI水印: 图像支持完整清理/擦除/鉴别；视频/音频支持元数据检查与清理，文本输出用于报告。
+  'remove-ai-watermark': { inputs: ['image', 'video', 'audio'], outputs: ['image', 'video', 'audio', 'text', 'metadata'] },
   'video-output': { inputs: ['video'], outputs: [] },
 
   // ========== Toolbox ==========

@@ -45,6 +45,12 @@ interface Props {
   onReorder: (newOrder: string[]) => void;
   /** 仅 origin='local' 的素材会显示删除按钮, 点击触发本回调 */
   onRemoveLocal?: (m: Material) => void;
+  /** origin='upstream' 的素材可从当前节点排除, 不会断开连线 */
+  onExcludeUpstream?: (m: Material) => void;
+  /** 当前节点已排除但仍存在的上游素材数量 */
+  excludedCount?: number;
+  /** 一键恢复当前节点排除的上游素材 */
+  onRestoreExcluded?: () => void;
   /** 节点是否被 selected (兼容保留, 已不再用于折叠逻辑) */
   selected?: boolean;
   isDark: boolean;
@@ -78,6 +84,9 @@ const MaterialPreviewSection = ({
   order,
   onReorder,
   onRemoveLocal,
+  onExcludeUpstream,
+  excludedCount = 0,
+  onRestoreExcluded,
   isDark,
   isPixel,
   groups = ['text', 'image', 'video', 'audio'],
@@ -180,7 +189,7 @@ const MaterialPreviewSection = ({
   useEffect(() => () => cleanupSortWindowListeners(), []);
 
   // 没有任何素材也没有上传入口 → 不渲染
-  if (total === 0 && !imageUploadAction) return null;
+  if (total === 0 && !imageUploadAction && excludedCount <= 0) return null;
 
   // ============== 主题样式 ==============
   const headerStyle: React.CSSProperties = isPixel
@@ -217,6 +226,25 @@ const MaterialPreviewSection = ({
         padding: '0 5px',
         fontSize: 10,
         lineHeight: '14px',
+      };
+  const restoreStyle: React.CSSProperties = isPixel
+    ? {
+        background: 'var(--px-card, #fefce8)',
+        border: '1.5px solid var(--px-ink, #1a1a1a)',
+        color: 'var(--px-ink, #1a1a1a)',
+        padding: '1px 5px',
+        fontSize: 10,
+        fontWeight: 700,
+        cursor: 'pointer',
+      }
+    : {
+        background: isDark ? 'rgba(255,255,255,.08)' : 'rgba(255,255,255,.7)',
+        border: `1px solid ${isDark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.12)'}`,
+        borderRadius: 4,
+        color: isDark ? 'rgba(255,255,255,.78)' : 'rgba(0,0,0,.7)',
+        padding: '1px 6px',
+        fontSize: 10,
+        cursor: 'pointer',
       };
 
   const groupLabelStyle: React.CSSProperties = isPixel
@@ -263,6 +291,21 @@ const MaterialPreviewSection = ({
       >
         <Layers size={12} />
         <span style={{ flex: 1, textAlign: 'left' }}>{title}</span>
+        {excludedCount > 0 && onRestoreExcluded && (
+          <button
+            type="button"
+            className="nodrag nopan"
+            style={restoreStyle}
+            title="恢复当前节点排除的上游素材"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRestoreExcluded();
+            }}
+          >
+            恢复{excludedCount}
+          </button>
+        )}
         <span className="t8-material-preview-count" style={headerCountStyle}>{total}</span>
       </div>
 
@@ -310,6 +353,8 @@ const MaterialPreviewSection = ({
                       onSortPointerDown={(event) => beginSortDrag(event, m.id)}
                       removable={m.origin === 'local'}
                       onRemove={onRemoveLocal ? () => onRemoveLocal(m) : undefined}
+                      excludeable={m.origin === 'upstream' && !!onExcludeUpstream}
+                      onExclude={onExcludeUpstream ? () => onExcludeUpstream(m) : undefined}
                     />
                   ))}
                   {showUpload && imageUploadAction && (

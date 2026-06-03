@@ -1,9 +1,10 @@
 import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Handle, Position, useUpdateNodeInternals, type NodeProps, type ResizeParams } from '@xyflow/react';
-import { Type } from 'lucide-react';
+import { Hash, Type } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import ResizableCorners from './ResizableCorners';
 import { getCornerResizeBehavior } from '../../utils/nodeResizeBehavior';
+import { normalizeRhNodeId } from '../../utils/rhTextBinding';
 
 /**
  * 文本节点 - 提示词输入
@@ -22,6 +23,8 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const syncRafRef = useRef<{ first?: number; second?: number }>({});
   const text = ((data as any)?.prompt as string) || '';
+  const rhNodeIdRaw = String((data as any)?.rhNodeId ?? '');
+  const rhNodeId = normalizeRhNodeId(rhNodeIdRaw);
   const resizeBehavior = getCornerResizeBehavior('text');
   // 节点本地尺寸 state: 默认 (260, 由内容撑高) → 拖角后由 ResizableCorners onResize 同步具体 px
   const [size, setSize] = useState<{ w: number; h?: number }>({ w: 260 });
@@ -66,6 +69,13 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
       syncNodeInternals();
     },
     [syncNodeInternals],
+  );
+  const handleRhNodeIdChange = useCallback(
+    (value: string) => {
+      const digits = value.replace(/\D+/g, '');
+      update({ rhNodeId: digits });
+    },
+    [update],
   );
 
   return (
@@ -134,9 +144,24 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
           // 阻止 reactflow 拖拽冒泡
           onMouseDown={(e) => e.stopPropagation()}
         />
-        <div className="text-[10px] text-white/30 mt-1 flex justify-between shrink-0">
-          <span>{text.length} 字符</span>
-          <span>→ 输出到下游节点</span>
+        <div className="text-[10px] text-white/30 mt-1 flex items-center gap-2 shrink-0">
+          <span className="shrink-0" title="输出到下游节点">{text.length} 字符</span>
+          <label
+            className="ml-auto flex items-center gap-1 nodrag nowheel"
+            title="可选：填 RH 应用 nodeInfoList 里的节点序号，下游 RH 节点会按这个 RH# 自动绑定文本参数"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <Hash size={9} />
+            <input
+              value={rhNodeIdRaw}
+              onChange={(e) => handleRhNodeIdChange(e.target.value)}
+              placeholder="RH#"
+              inputMode="numeric"
+              aria-label="RH 节点序号"
+              className="h-5 w-12 rounded border border-white/10 bg-white/5 px-1 text-[10px] text-white outline-none placeholder:text-white/20 focus:border-sky-300/60"
+            />
+            {rhNodeId && <span className="text-sky-200/70">#{rhNodeId}</span>}
+          </label>
         </div>
       </div>
     </div>

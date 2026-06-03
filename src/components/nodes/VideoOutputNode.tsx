@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import { MonitorPlay, Download } from 'lucide-react';
+import LoopingVideo from '../LoopingVideo';
 
 /**
  * VideoOutputNode - 视频结果展示
@@ -65,7 +66,7 @@ const VideoOutputNode = (p: NodeProps) => {
           upstreamMedia.map((u, i) => (
             <div key={i} className="space-y-1">
               {isVideoUrl(u) ? (
-                <video src={u} controls className="w-full rounded bg-black" />
+                <LoopingVideo src={u} controls className="w-full rounded bg-black" />
               ) : (
                 <img src={u} alt={`媒体 ${i + 1}`} className="w-full rounded object-contain" />
               )}
