@@ -83,6 +83,72 @@ export async function generateExternalImage(req: GenerateExternalImageRequest): 
   };
 }
 
+/**
+ * 流式扩展平台图像生成（带任务进度推送）：
+ * - task 事件：上游异步任务提交成功，回调 onTask({ taskId, providerId, protocol })
+ * - done 事件：任务完成，返回 imageUrls
+ * - error 事件：失败
+ */
+export async function generateExternalImageStream(
+  req: GenerateExternalImageRequest,
+  opts: { onTask?: (info: { taskId: string; providerId: string; protocol: string }) => void; signal?: AbortSignal } = {},
+): Promise<GenerateExternalImageResult> {
+  const r = await fetch('/api/proxy/external/image/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+    signal: opts.signal,
+  });
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const j = await r.json(); msg = j?.error || msg; } catch { /* noop */ }
+    throw new Error(msg);
+  }
+  if (!r.body) throw new Error('上游未返回可读流');
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: GenerateExternalImageResult | null = null;
+  let lastError: string | null = null;
+  let lastTaskId: string | undefined;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split('\n\n');
+    buffer = blocks.pop() || '';
+    for (const block of blocks) {
+      const lines = block.split('\n');
+      let event = 'message';
+      let dataStr = '';
+      for (const line of lines) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+      }
+      if (!dataStr) continue;
+      try {
+        const payload = JSON.parse(dataStr);
+        if (event === 'task') {
+          lastTaskId = payload.taskId;
+          opts.onTask?.(payload);
+        } else if (event === 'done') {
+          result = {
+            imageUrls: Array.isArray(payload.imageUrls) ? payload.imageUrls : [],
+            remoteImageUrls: Array.isArray(payload.remoteImageUrls) ? payload.remoteImageUrls : undefined,
+            taskId: payload.taskId || lastTaskId,
+            raw: payload.raw,
+          };
+        } else if (event === 'error') {
+          lastError = payload.error || 'unknown error';
+        }
+      } catch { /* skip malformed */ }
+    }
+  }
+  if (lastError) throw new Error(lastError);
+  if (!result) throw new Error('扩展平台流式调用未返回 done 事件');
+  return result;
+}
+
 export interface GenerateExternalVideoRequest {
   providerId: string;
   providerModel?: string;

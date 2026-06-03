@@ -7,6 +7,7 @@ import MaterialPreviewSection from './MaterialPreviewSection';
 import MentionPromptInput from './MentionPromptInput';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import QiniuImageTab from '../../integrations/qiniu/QiniuImageTab';
+import { ratioToQiniuSize } from '../../integrations/qiniu/sizeMap';
 import GrsaiImageTab from '../../integrations/grsai/GrsaiImageTab';
 import {
   IMAGE_MODELS,
@@ -34,6 +35,7 @@ import {
   uploadMjImage,
   buildMjPrompt,
   generateExternalImage,
+  generateExternalImageStream,
   type MjSpeed,
 } from '../../services/generation';
 import { useUpdateNodeData } from './useUpdateNodeData';
@@ -320,11 +322,23 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         const providerModel = externalProviderModel;
         if (!providerModel) throw new Error('扩展平台未配置可用图像模型');
         const size = externalImageSizeFor(aspectRatio, sizeLevel);
+        const protocol = providerSelection.provider.protocol;
+        const sizeDesc = protocol === 'qiniu'
+          ? (() => {
+              const ratio = d?.qiniuSize || 'auto';
+              const res = d?.qiniuResolution || '1K';
+              const isGemini = providerModel === 'gemini-3.1-flash-image-preview';
+              const actualSize = isGemini ? ratio : ratioToQiniuSize(ratio, res);
+              return `size=${actualSize} 质量=${d?.qiniuQuality || 'auto'}`;
+            })()
+          : protocol === 'grsai'
+          ? `比例=${d?.grsaiAspectRatio || 'auto'} 清晰度=${d?.grsaiImageSize || '1K'}`
+          : `size=${size}`;
         logBus.info(
-          `扩展平台提交: ${providerSelection.provider.label || providerSelection.provider.id} · ${providerModel} · size=${size} · 参考图=${allRefs.length}`,
+          `扩展平台提交: ${providerSelection.provider.label || providerSelection.provider.id} · ${providerModel} · ${sizeDesc} · 参考图=${allRefs.length}`,
           src,
         );
-        const res = await generateExternalImage({
+        const reqPayload = {
           providerId: providerSelection.provider.id,
           providerModel,
           model: providerModel,
@@ -332,12 +346,22 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           size,
           images: allRefs,
           n: Math.max(1, Math.min(4, Number(d?.providerParams?.n || 1))),
-          providerParams: providerSelection.provider.protocol === 'qiniu'
+          providerParams: protocol === 'qiniu'
             ? { aspectRatio: d?.qiniuSize || 'auto', resolution: d?.qiniuResolution || '1K', quality: d?.qiniuQuality || 'auto' }
-            : providerSelection.provider.protocol === 'grsai'
+            : protocol === 'grsai'
             ? { aspectRatio: d?.grsaiAspectRatio || 'auto', resolution: d?.grsaiImageSize || '1K' }
             : d?.providerParams || {},
-        });
+        };
+        const useStream = protocol === 'qiniu' || protocol === 'grsai';
+        const res = useStream
+          ? await generateExternalImageStream(reqPayload, {
+              onTask: (info) => {
+                if (info.taskId) {
+                  logBus.info(`任务提交成功 id=${info.taskId} 开始轮询...`, src);
+                }
+              },
+            })
+          : await generateExternalImage(reqPayload);
         const urls = res.imageUrls || [];
         if (!urls.length) throw new Error('扩展平台完成但未返回图片');
         update({

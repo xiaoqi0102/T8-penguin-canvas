@@ -3,6 +3,65 @@ const https = require('https');
 
 const SUBMIT_TIMEOUT_MS = 60 * 60 * 1000;
 
+const QINIU_DOC_PRESETS_BY_RES = {
+  '1K': {
+    '1:1': '1024x1024',
+    '3:2': '1536x1024',
+    '2:3': '1024x1536',
+    '16:9': '2048x1152',
+    '9:16': '1152x2048',
+  },
+  '2K': {
+    '1:1': '2048x2048',
+    '16:9': '2048x1152',
+    '9:16': '1152x2048',
+  },
+  '4K': {
+    '16:9': '3840x2160',
+    '9:16': '2160x3840',
+  },
+};
+
+const QINIU_RES_TO_TARGET_PIXELS = { '1K': 1048576, '2K': 4194304, '4K': 8294400 };
+
+function alignTo16(n) {
+  const v = Math.round(n / 16) * 16;
+  return Math.max(64, v);
+}
+
+function computeQiniuSize(w, h, targetPixels) {
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return 'auto';
+  const target = Math.min(targetPixels, 8294400);
+  const scale = Math.sqrt(target / (w * h));
+  let pw = alignTo16(w * scale);
+  let ph = alignTo16(h * scale);
+  const longest = Math.max(pw, ph);
+  if (longest > 3840) {
+    const s = 3840 / longest;
+    pw = alignTo16(pw * s);
+    ph = alignTo16(ph * s);
+  }
+  if (pw * ph > 8294400) {
+    const s = Math.sqrt(8294400 / (pw * ph));
+    pw = alignTo16(pw * s);
+    ph = alignTo16(ph * s);
+  }
+  return `${pw}x${ph}`;
+}
+
+function ratioToQiniuSize(ratio, resolution = '1K') {
+  if (!ratio) return 'auto';
+  const s = String(ratio).trim();
+  if (!s || s.toLowerCase() === 'auto') return 'auto';
+  if (/^\d+x\d+$/i.test(s)) return s.toLowerCase();
+  const res = ['1K', '2K', '4K'].includes(resolution) ? resolution : '1K';
+  const presets = QINIU_DOC_PRESETS_BY_RES[res];
+  if (presets[s]) return presets[s];
+  const m = /^(\d+):(\d+)$/.exec(s);
+  if (!m) return 'auto';
+  return computeQiniuSize(parseInt(m[1], 10), parseInt(m[2], 10), QINIU_RES_TO_TARGET_PIXELS[res]);
+}
+
 function cleanBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '');
 }
@@ -114,8 +173,10 @@ async function generateImage(provider, input = {}, options = {}) {
     if (params.resolution) cfg.image_size = params.resolution;
     if (Object.keys(cfg).length) body.image_config = cfg;
   } else {
+    // openai/gpt-image-2 子模型：上游需要像素串，前端传比例字符串 + 清晰度档由后端转换
     body.quality = params.quality || 'auto';
-    body.size = params.aspectRatio || input.size || 'auto';
+    const sizeInput = params.aspectRatio || input.size || 'auto';
+    body.size = ratioToQiniuSize(sizeInput, params.resolution || '1K');
   }
 
   if (hasRefs) {
@@ -149,16 +210,22 @@ async function generateImage(provider, input = {}, options = {}) {
     const items = Array.isArray(data?.data) ? data.data : [];
     if (items.length && (items[0]?.url || items[0]?.b64_json)) {
       const urls = items.map((it) => it.url || `data:image/png;base64,${it.b64_json}`).filter(Boolean);
+      console.log(`[qiniu] 同步返回 ${urls.length} 张图 model=${model} size=${body.size || body.image_config?.image_size || '-'}`);
       return { ok: true, kind: 'image', code: 'ok', providerId: provider?.id, protocol: 'qiniu', imageUrls: urls };
     }
 
     // 异步任务
     const taskId = data?.task_id || data?.id || (typeof data?.data === 'string' ? data.data : null);
     if (taskId) {
+      console.log(`[qiniu] 任务提交成功 id=${taskId} model=${model} 开始轮询...`);
+      if (typeof options.onTaskSubmit === 'function') {
+        try { options.onTaskSubmit(taskId); } catch { /* noop */ }
+      }
       const urls = await pollTask(taskId, apiKey, baseUrl);
       if (!urls) {
         return { ok: false, kind: 'image', code: 'poll_timeout', providerId: provider?.id, protocol: 'qiniu', taskId, error: '任务轮询超时/失败' };
       }
+      console.log(`[qiniu] 任务完成 id=${taskId} urls=${urls.length}`);
       return { ok: true, kind: 'image', code: 'ok', providerId: provider?.id, protocol: 'qiniu', imageUrls: urls, taskId };
     }
 

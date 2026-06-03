@@ -229,6 +229,43 @@ router.post('/image', async (req, res) => {
   }
 });
 
+// SSE 进度推送：提交即返回 taskId，完成时返回最终 imageUrls
+router.post('/image/stream', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  try {
+    const settings = settingsRouter.loadSettings({ persistMigrations: false });
+    const currentProviders = normalizeAdvancedProviders(settings.advancedProviders);
+    const resolved = resolveRunnableProvider(req.body || {}, currentProviders);
+    if (!resolved.ok) {
+      send('error', { code: resolved.code, error: resolved.error });
+      return res.end();
+    }
+    const result = await generateImageWithProvider(resolved.provider, req.body || {}, {
+      timeoutMs: Number(req.body?.timeoutMs) || undefined,
+      baseUrl: `http://127.0.0.1:${config.PORT}`,
+      onTaskSubmit: (taskId) => send('task', { taskId, providerId: resolved.provider.id, protocol: resolved.provider.protocol }),
+    });
+    if (!result.ok) {
+      send('error', { code: result.code, error: result.error, taskId: result.taskId });
+      return res.end();
+    }
+    const remoteImageUrls = Array.isArray(result.imageUrls) ? result.imageUrls : [];
+    const imageUrls = await saveImageOutputs(remoteImageUrls);
+    send('done', { imageUrls, remoteImageUrls, taskId: result.taskId, raw: result.raw });
+    res.end();
+  } catch (e) {
+    send('error', { code: 'external_image_stream_failed', error: e?.message || String(e) });
+    res.end();
+  }
+});
+
 router.post('/video', async (req, res) => {
   try {
     const settings = settingsRouter.loadSettings({ persistMigrations: false });

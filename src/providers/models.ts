@@ -3,7 +3,7 @@
  * 后续要新增模型只需在对应数组里追加即可
  */
 
-export type ProviderType = 'zhenzhen' | 'llm-direct' | 'runninghub' | 'qiniu' | 'grsai' | 'geeknow';
+export type ProviderType = 'zhenzhen' | 'llm-direct' | 'runninghub' | 'geeknow';
 
 // ========== 图像 ==========
 // paramKind:决定调用上游时使用哪种参数协议
@@ -11,9 +11,7 @@ export type ProviderType = 'zhenzhen' | 'llm-direct' | 'runninghub' | 'qiniu' | 
 //  - 'banana-ratio': nano-banana 协议,使用 aspect_ratio + image_size(1K/2K/4K) + image[]
 //  - 'grok-image'  : Grok Image 协议,JSON /generations,参考图默认 base64 dataURL
 //  - 'mj'          : Midjourney 协议,走专属 /api/proxy/mj/* 路由(speed_map + sref/oref)
-//  - 'qiniu'       : 七牛云 OpenAI 兼容协议,quality + size,走 /api/proxy/qiniu/image/*
-//  - 'grsai'       : Grsai 自有协议,aspectRatio + imageSize,走 /api/proxy/grsai/image/*
-export type ImageParamKind = 'gpt-size' | 'banana-ratio' | 'grok-image' | 'mj' | 'qiniu' | 'grsai';
+export type ImageParamKind = 'gpt-size' | 'banana-ratio' | 'grok-image' | 'mj';
 
 export interface ImageModelDef {
   id: string;             // 节点内部 id(如 'gpt-image-2')
@@ -156,77 +154,6 @@ export const IMAGE_MODELS: ImageModelDef[] = [
     maxReferenceImages: 4, // sref + oref(各 2 张)
     description: 'Midjourney v8.1 / niji 7 等',
   },
-  // ========================================================================
-  // 七牛云 AI 大模型推理服务（v1.5.6）— OpenAI 兼容协议
-  //   * 独立 provider，与贞贞工坊完全解耦
-  //   * 仅 quality + size 两个调参（API 文档原生支持）
-  //   * 文生图走 /v1/images/generations，图生图走 /v1/images/edits
-  //   * 后端代理 /api/proxy/qiniu/image[/submit|/status/:tid]
-  //   * size 在 UI 只显示比例（auto + 14 个），运行时由 ratioToQiniuSize 转为像素串
-  // ========================================================================
-  {
-    id: 'qiniu',
-    apiModel: 'gemini-3.1-flash-image-preview',
-    label: '七牛云图像',
-    tabLabel: '七牛',
-    provider: 'qiniu',
-    paramKind: 'qiniu',
-    capabilities: ['t2i', 'i2i', 'edit'],
-    apiModelOptions: [
-      { value: 'gemini-3.1-flash-image-preview', label: 'gemini-3.1-flash-image-preview' },
-      { value: 'openai/gpt-image-2', label: 'openai/gpt-image-2' },
-    ],
-    // 七牛云 size 在 UI 只显示比例，API 调用时由 integrations/qiniu/sizeMap.ts 转换为像素串
-    // 比例集合 = GPT_RATIOS 同款 14 个 + auto，保证与其他图像模型的视觉一致性
-    aspectRatios: [],
-    defaultAspectRatio: '',
-    sizes: ['auto', '1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '21:9', '1:4', '4:1', '1:8', '8:1'],
-    defaultSize: 'auto',
-    supportsReference: true,
-    maxReferenceImages: 4,
-    description: 'Qiniu OpenAI 兼容 · 文生图 + 图生图',
-  },
-  // >>> CUSTOM-PROVIDER-INTEGRATIONS-START (与上游同步时本块整体保留即可)
-  // ========================================================================
-  // Grsai 中转站（v1.5.6）— 自有协议（非 OpenAI 兼容）
-  //   * 独立 provider，与贞贞工坊 / 七牛云完全解耦
-  //   * 11 个模型：9 个 nano-banana 系列 + 2 个 gpt-image-2 系列
-  //   * aspectRatio + imageSize（仅 nano-banana 系列读 imageSize）
-  //   * gpt-image-2-vip 必须传像素串
-  //   * 后端代理 /api/proxy/grsai/image[/submit|/status/:tid]
-  // ========================================================================
-  {
-    id: 'grsai',
-    apiModel: 'gpt-image-2',
-    label: 'Grsai 图像',
-    tabLabel: 'Grsai',
-    provider: 'grsai',
-    paramKind: 'grsai',
-    capabilities: ['t2i', 'i2i', 'edit'],
-    apiModelOptions: [
-      { value: 'nano-banana', label: 'nano-banana' },
-      { value: 'nano-banana-fast', label: 'nano-banana-fast' },
-      { value: 'nano-banana-2', label: 'nano-banana-2' },
-      { value: 'nano-banana-2-cl', label: 'nano-banana-2-cl' },
-      { value: 'nano-banana-2-4k-cl', label: 'nano-banana-2-4k-cl' },
-      { value: 'nano-banana-pro', label: 'nano-banana-pro' },
-      { value: 'nano-banana-pro-cl', label: 'nano-banana-pro-cl' },
-      { value: 'nano-banana-pro-vip', label: 'nano-banana-pro-vip' },
-      { value: 'nano-banana-pro-4k-vip', label: 'nano-banana-pro-4k-vip' },
-      { value: 'gpt-image-2', label: 'gpt-image-2 (默认)' },
-      { value: 'gpt-image-2-vip', label: 'gpt-image-2-vip' },
-    ],
-    // UI 不直接读取本字段，比例集合按 apiModel 由 integrations/grsai/sizeMap.ts 决定；
-    // 该字段仅保留作为 switchModel 的兜底校验（值需覆盖所有子模型支持的最大集合）
-    aspectRatios: ['auto', '1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '21:9', '1:4', '4:1', '1:8', '8:1'],
-    defaultAspectRatio: 'auto',
-    sizes: ['1K', '2K', '4K'],
-    defaultSize: '1K',
-    supportsReference: true,
-    maxReferenceImages: 4,
-    description: 'Grsai · nano-banana / gpt-image-2 自有协议',
-  },
-  // <<< CUSTOM-PROVIDER-INTEGRATIONS-END
 ];
 
 // ========================================================================

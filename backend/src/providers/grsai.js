@@ -1,21 +1,23 @@
 const DOC_PRESETS_BY_RES = {
   '1K': {
-    '1:1': '1024x1024', '4:3': '1152x896', '3:4': '896x1152',
-    '16:9': '1344x768', '9:16': '768x1344', '3:2': '1216x832',
-    '2:3': '832x1216', '21:9': '1536x640', '9:21': '640x1536',
-    '4:7': '768x1344', '7:4': '1344x768',
+    '1:1': '1024x1024', '16:9': '1280x720', '9:16': '720x1280',
+    '4:3': '1152x864', '3:4': '864x1152', '3:2': '1536x1024',
+    '2:3': '1024x1536', '5:4': '1120x896', '4:5': '896x1120',
+    '21:9': '1456x624', '1:3': '688x2048', '3:1': '2048x688',
+    '2:1': '1536x768', '1:2': '768x1536',
   },
   '2K': {
-    '1:1': '2048x2048', '4:3': '2304x1792', '3:4': '1792x2304',
-    '16:9': '2688x1536', '9:16': '1536x2688', '3:2': '2432x1664',
-    '2:3': '1664x2432', '21:9': '3072x1280', '9:21': '1280x3072',
-    '4:7': '1280x2240', '7:4': '2240x1280',
+    '1:1': '2048x2048', '16:9': '2048x1152', '9:16': '1152x2048',
+    '4:3': '2304x1728', '3:4': '1728x2304', '3:2': '2048x1360',
+    '2:3': '1360x2048', '5:4': '2240x1792', '4:5': '1792x2240',
+    '21:9': '2912x1248', '2:1': '3072x1536', '1:2': '1536x3072',
   },
   '4K': {
-    '1:1': '3840x3840', '4:3': '3840x2880', '3:4': '2880x3840',
-    '16:9': '3840x2160', '9:16': '2160x3840', '3:2': '3840x2560',
-    '2:3': '2560x3840', '21:9': '3840x1646', '9:21': '1646x3840',
-    '4:7': '2194x3840', '7:4': '3840x2194',
+    '1:1': '2880x2880', '16:9': '3840x2160', '9:16': '2160x3840',
+    '4:3': '3264x2448', '3:4': '2448x3264', '3:2': '3504x2336',
+    '2:3': '2336x3504', '5:4': '3200x2560', '4:5': '2560x3200',
+    '21:9': '3840x1648', '1:3': '1280x3840', '3:1': '3840x1280',
+    '2:1': '3840x1920', '1:2': '1920x3840',
   },
 };
 
@@ -34,16 +36,23 @@ function computeVipSize(ratio, targetPixels = 4000000) {
   return `${pw}x${ph}`;
 }
 
+function isGptImage2VipModel(model) {
+  return /^gpt-image-2.*vip$/i.test(String(model || ''));
+}
+
 function resolveAspectRatio(ratio, model, resolution) {
   if (!ratio || ratio === 'auto') return undefined;
-  const isVip = model && (model.includes('vip') || model.includes('4k'));
-  if (!isVip) return ratio;
+  // 仅 gpt-image-2-vip 走像素串转换；nano-banana 系列直接透传比例 + 走 imageSize 字段
+  if (!isGptImage2VipModel(model)) return ratio;
+  // 已经是像素串的旧画布数据，原样返回
+  if (/^\d+x\d+$/i.test(ratio)) return ratio.toLowerCase();
   const res = resolution || '1K';
   const preset = DOC_PRESETS_BY_RES[res];
   if (preset && preset[ratio]) return preset[ratio];
-  if (res === '2K') return computeVipSize(ratio, 4000000);
-  if (res === '4K') return computeVipSize(ratio, 14745600);
-  return computeVipSize(ratio, 1048576);
+  const m = /^(\d+):(\d+)$/.exec(ratio);
+  if (!m) return '1024x1024';
+  const targets = { '1K': 1048576, '2K': 4194304, '4K': 8294400 };
+  return computeVipSize(ratio, targets[res] || 1048576);
 }
 
 function cleanBaseUrl(value) {
@@ -167,10 +176,15 @@ async function generateImage(provider, input = {}, options = {}) {
 
     const taskId = data?.id;
     if (taskId) {
+      console.log(`[grsai] 任务提交成功 id=${taskId} model=${model} 开始轮询...`);
+      if (typeof options.onTaskSubmit === 'function') {
+        try { options.onTaskSubmit(taskId); } catch { /* noop */ }
+      }
       const urls = await pollTask(taskId, apiKey, baseUrl);
       if (!urls) {
         return { ok: false, kind: 'image', code: 'poll_timeout', providerId: provider?.id, protocol: 'grsai', taskId, error: '任务轮询超时/失败' };
       }
+      console.log(`[grsai] 任务完成 id=${taskId} urls=${urls.length}`);
       return { ok: true, kind: 'image', code: 'ok', providerId: provider?.id, protocol: 'grsai', imageUrls: urls, taskId };
     }
 
