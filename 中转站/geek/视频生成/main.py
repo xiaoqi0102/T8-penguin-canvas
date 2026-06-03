@@ -13,7 +13,6 @@ import os
 import re
 import shutil
 import sqlite3
-import subprocess
 import sys
 import tempfile
 import threading
@@ -22,7 +21,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import requests
 
@@ -327,6 +326,8 @@ def _infer_resolution_from_size(size_value):
         return '720P'
     if '540' in size_text:
         return '540P'
+    if '480' in size_text:
+        return '480P'
     return ''
 
 
@@ -357,13 +358,60 @@ def _normalize_base_url(url):
     return url.rstrip('/')
 
 
+def _is_seedance_2_model(model_name):
+    """
+    Seedance 2.0 中转模型使用 JSON 提交，参考图通过公开 URL 传递。
+    """
+    raw = str(model_name or '').strip().lower().replace('_', '-')
+    return raw.startswith('seedance-2.0') or raw == 'sd2'
+
+
+_SEEDANCE_2_API_MODEL = 'sd2_manxue_720p'
+_SEEDANCE_2_MODEL_MAP = {
+    'seedance-2.0': _SEEDANCE_2_API_MODEL,
+    'seedance-2.0-lite': _SEEDANCE_2_API_MODEL,
+    'seedance-2.0-pro': _SEEDANCE_2_API_MODEL,
+    'seedance-2.0-fast': _SEEDANCE_2_API_MODEL,
+    'sd2': _SEEDANCE_2_API_MODEL,
+}
+_SEEDANCE_2_MAX_IMAGES = 9
+_SEEDANCE_2_IMAGE_FORMATS = {'.jpeg', '.jpg', '.png', '.webp', '.bmp', '.tiff', '.gif', '.heic', '.heif'}
+_SEEDANCE_2_MAX_IMAGE_BYTES = 30 * 1024 * 1024
+
+
+def _seedance_2_api_model_name(model_name):
+    """
+    将 UI 展示模型归一到 GeekNow Seedance 2.0 中转模型 ID。
+    """
+    raw = str(model_name or 'seedance-2.0').strip().lower().replace('_', '-')
+    return _SEEDANCE_2_MODEL_MAP.get(raw, _SEEDANCE_2_API_MODEL)
+
+
+def _normalize_seedance_2_resolution(value):
+    """
+    Seedance 2.0 中转协议目前只整理为 480p/720p。
+    """
+    text = str(value or '').strip().lower()
+    if '480' in text:
+        return '480p'
+    return '720p'
+
+
+def _is_url_like(value):
+    text = str(value or '').strip().lower()
+    return text.startswith(('http://', 'https://', 'data:'))
+
+
 def _is_json_submission_model(model_name):
     """
     判断模型是否使用 JSON 格式提交
     """
     model_text = str(model_name or '')
     return (
-            model_text.startswith('wan2.6')
+            model_text.startswith('sora')
+            or model_text.startswith('veo')
+            or model_text.startswith('wan2.6')
+            or model_text.startswith('omni-fast')
             or model_text.startswith('Vidu-')
             or model_text.startswith('Kling-')
             or model_text.startswith('Hailuo-')
@@ -373,6 +421,7 @@ def _is_json_submission_model(model_name):
             or model_text.startswith('GV-')
             or model_text.startswith('SV-')
             or model_text.startswith('JV-')
+            or _is_seedance_2_model(model_text)
     )
 
 
@@ -463,6 +512,196 @@ def _parse_seconds_from_model_name(model_name: str):
         return int(m.group(1))
     except Exception:
         return None
+
+
+def _normalize_reference_image_type(reference_image_type):
+    if isinstance(reference_image_type, str):
+        return [reference_image_type]
+    if isinstance(reference_image_type, list):
+        return reference_image_type
+    return []
+
+
+def _resolve_selected_reference_image(reference_images, reference_image_type, default_type="首帧图片"):
+    type_list = _normalize_reference_image_type(reference_image_type)
+    ref_type = type_list[0] if type_list else default_type
+    img_path = None
+    if ref_type == "首帧图片":
+        img_path = reference_images.get("首帧")
+    elif ref_type == "尾帧图片":
+        img_path = reference_images.get("尾帧")
+    elif str(ref_type).startswith("参考图"):
+        try:
+            idx = int(str(ref_type).replace("参考图", "")) - 1
+            img_path = reference_images.get("参考图片MAP", {}).get(idx)
+        except Exception:
+            img_path = None
+    return img_path, ref_type
+
+
+def _upload_reference_images(image_paths, max_images, log_prefix):
+    urls = []
+    seen_paths = set()
+    for img_path in image_paths:
+        if len(urls) >= max_images:
+            break
+        if not img_path:
+            continue
+        path_key = str(img_path)
+        if path_key in seen_paths:
+            continue
+        seen_paths.add(path_key)
+        image_url = _upload_image_to_host(img_path)
+        if image_url:
+            urls.append(image_url)
+    if urls:
+        _log(f"[{log_prefix}] 已上传参考图 URL {len(urls)} 张")
+    return urls
+
+
+def _normalize_seedance_2_local_path(value):
+    if not value:
+        return ''
+    text = str(value).strip().strip('"').strip("'")
+    if not text:
+        return ''
+    if _is_url_like(text):
+        return text
+    if text.startswith(('file://', 'local-file://')):
+        try:
+            parsed = urlparse(text)
+            text = unquote(parsed.path or '')
+            if text.startswith('/') and len(text) >= 3 and text[2] == ':':
+                text = text[1:]
+        except Exception:
+            text = text.split('://', 1)[-1]
+    return text.split('?', 1)[0].replace('\\', os.sep).replace('/', os.sep)
+
+
+def _seedance_2_image_is_valid(image_path):
+    if _is_url_like(image_path):
+        return True
+    clean_path = _normalize_seedance_2_local_path(image_path)
+    if not clean_path or not os.path.exists(clean_path):
+        _log(f"[Seedance 2.0] 参考图不存在: {clean_path or image_path}")
+        return False
+    ext = os.path.splitext(clean_path)[1].lower()
+    if ext not in _SEEDANCE_2_IMAGE_FORMATS:
+        _log(f"[Seedance 2.0] 不支持的参考图格式 {ext}: {clean_path}")
+        return False
+    try:
+        size = os.path.getsize(clean_path)
+        if size > _SEEDANCE_2_MAX_IMAGE_BYTES:
+            _log(f"[Seedance 2.0] 参考图超过 30MB: {clean_path} ({size / 1024 / 1024:.1f}MB)")
+            return False
+    except OSError:
+        return False
+    return True
+
+
+def _seedance_2_mime_type(file_path):
+    ext = os.path.splitext(str(file_path))[1].lower()
+    mime_map = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.bmp': 'image/bmp',
+        '.gif': 'image/gif',
+        '.tiff': 'image/tiff',
+        '.heic': 'image/heic',
+        '.heif': 'image/heif',
+    }
+    return mime_map.get(ext, 'application/octet-stream')
+
+
+def _upload_seedance_2_asset(file_path, *, api_key='', base_url='', asset_type='image', raise_on_error=False):
+    """
+    参考 example 的 Seedance 2.0 素材链路：presign -> OSS -> createMedia -> asset URL。
+    raise_on_error=True 时上传失败抛异常（首尾帧用）；默认返回 None（普通参考图降级用）。
+    """
+    clean_path = _normalize_seedance_2_local_path(file_path)
+    if _is_url_like(clean_path):
+        return clean_path
+    if not clean_path or not os.path.exists(clean_path):
+        _log(f"[Seedance 2.0] 素材不存在: {clean_path or file_path}")
+        return None
+
+    base = _normalize_base_url(base_url) or _normalize_base_url(_DEFAULT_BASE_URL)
+    filename = os.path.basename(clean_path)
+    content_type = _seedance_2_mime_type(clean_path)
+    auth_headers = {
+        'Authorization': f'Bearer {api_key}',
+        'Content-Type': 'application/json',
+    }
+
+    try:
+        _log(f"[Seedance 2.0] 获取上传地址: {filename} ({content_type})")
+        presign_resp = requests.post(
+            f"{base}/api/upload/presign",
+            headers=auth_headers,
+            json={'file_name': filename, 'content_type': content_type},
+            timeout=30,
+        )
+        if presign_resp.status_code not in range(200, 300):
+            _log(f"[Seedance 2.0] 获取上传地址失败: HTTP {presign_resp.status_code} {presign_resp.text[:200]}")
+            return None
+        presign_payload = presign_resp.json()
+        data_block = presign_payload.get('data') or {}
+        upload_url = data_block.get('upload_url') or ''
+        public_url = data_block.get('public_url') or ''
+        if not upload_url or not public_url:
+            _log(f"[Seedance 2.0] 上传地址返回不完整: {json.dumps(presign_payload, ensure_ascii=False)[:300]}")
+            return None
+
+        with open(clean_path, 'rb') as file_obj:
+            put_resp = requests.put(
+                upload_url,
+                data=file_obj,
+                headers={'Content-Type': content_type},
+                timeout=300,
+            )
+        if put_resp.status_code not in range(200, 300):
+            _log(f"[Seedance 2.0] OSS 上传失败: HTTP {put_resp.status_code} {put_resp.text[:200]}")
+            return None
+
+        create_resp = requests.post(
+            'https://api.geeknow.top/api/asset/createMedia',
+            headers=auth_headers,
+            json={'url': public_url, 'name': os.path.splitext(filename)[0], 'assetType': asset_type},
+            timeout=60,
+        )
+        if create_resp.status_code not in range(200, 300):
+            _log(f"[Seedance 2.0] 素材注册失败: HTTP {create_resp.status_code} {create_resp.text[:200]}")
+            return public_url
+
+        create_payload = create_resp.json()
+        result = create_payload.get('Result') or create_payload.get('result') or {}
+        asset_url = result.get('URL') or result.get('url') or ''
+        if not asset_url:
+            urls = create_payload.get(f'{asset_type}Urls')
+            if isinstance(urls, list) and urls:
+                asset_url = urls[0]
+        asset_url = asset_url or create_payload.get('url') or create_payload.get('URL') or public_url
+        _log(f"[Seedance 2.0] 素材就绪: {asset_url[:120]}")
+        return asset_url
+    except Exception as e:
+        if raise_on_error:
+            raise Exception(f"PLUGIN_ERROR:::Seedance 2.0 素材上传失败: {e}")
+        _log(f"[Seedance 2.0] 素材上传异常: {e}")
+        return None
+
+
+def _resolve_seedance_2_reference_url(image_path, *, api_key='', base_url='', raise_on_error=False):
+    if not image_path:
+        return None
+    normalized = _normalize_seedance_2_local_path(image_path)
+    if _is_url_like(normalized):
+        return normalized
+    if not _seedance_2_image_is_valid(normalized):
+        return None
+    return _upload_seedance_2_asset(normalized, api_key=api_key, base_url=base_url, asset_type='image',
+                                    raise_on_error=raise_on_error)
 
 
 def _serialize_reference_images(ref_images):
@@ -924,6 +1163,11 @@ def download_videos_from_logs(task_ids=None, status_filter=None, output_dir=None
                 'Accept': '*/*',
                 'Referer': 'https://www.geeknow.top/',
             }
+            # /content 端点需要鉴权
+            if '/v1/videos/' in video_url and video_url.endswith('/content'):
+                api_key = get_params().get('api_key', '')
+                if api_key:
+                    download_headers['Authorization'] = f'Bearer {api_key}'
             resp = requests.get(video_url, headers=download_headers,
                                 timeout=download_timeout, stream=True)
             if resp.status_code != 200:
@@ -978,14 +1222,9 @@ def _preprocess_params(plugin_params, context):
     except ValueError:
         duration_int = 15
 
-    # Veo 模型特殊逻辑: 根据模式追加后缀
+    # Veo 模型特殊逻辑: 保持原始模型名，仅在参考生视频模式下限制宽高比
     if model.startswith('veo'):
-        if generation_mode == '首尾帧' and not model.endswith('-fl'):
-            model += '-fl'
-        elif generation_mode == '参考生视频':  # 转换版本号格式并追加 components
-            model = model.replace('veo_3_1', 'veo3.1').replace('-fast', '-fast')
-            if not model.endswith('-components'):
-                model += '-components'
+        if generation_mode == '参考生视频':
             # Veo 参考生视频强制横屏
             if aspect_ratio != '16:9':
                 _log("警告: Veo 参考生视频模式仅支持 16:9, 已自动调整")
@@ -998,7 +1237,26 @@ def _preprocess_params(plugin_params, context):
         model = parts[0]
         size = parts[1]
     elif model.startswith('grok'):
-        size = _infer_resolution_from_size(plugin_params.get('size', '')) or '1080P'
+        # 优先使用前端传入的 size 参数，如果是标准格式（如 480P/720P/1080P）则直接使用
+        # 否则通过 _infer_resolution_from_size 推断，最后默认 1080P
+        size_param = plugin_params.get('size', '')
+        if size_param and size_param.upper() in ['480P', '720P', '1080P', '540P']:
+            size = size_param.upper()
+        else:
+            size = _infer_resolution_from_size(size_param) or '1080P'
+    elif _is_seedance_2_model(model):
+        size = _normalize_seedance_2_resolution(
+            plugin_params.get('video_resolution')
+            or plugin_params.get('resolution')
+            or plugin_params.get('size')
+            or '720p'
+        )
+        if duration_int < 5:
+            _log(f"警告: Seedance 2.0 模型时长最小建议为 5s，已从 {duration_int}s 自动调整为 5s")
+            duration_int = 5
+        elif duration_int > 15:
+            _log(f"警告: Seedance 2.0 模型时长最大建议为 15s，已从 {duration_int}s 自动调整为 15s")
+            duration_int = 15
     elif model.startswith('doubao'):
         # 豆包 size 字段直接传宽高比字符串，如 "16:9" / "9:16" / "4:3" 等
         # 支持的值: 16:9 / 4:3 / 1:1 / 3:4 / 9:16 / 21:9 / keep_ratio / adaptive
@@ -1024,15 +1282,27 @@ def _preprocess_params(plugin_params, context):
 
 
 def _build_request_payload(model, prompt, size, duration, aspect_ratio, audio_generation, generation_mode,
-                           reference_images, reference_image_type):
+                           reference_images, reference_image_type, *, api_key='', base_url=''):
     """
     请求构建：根据不同模型和生成模式，构建 payload 和 files_list
     返回: (payload, files_list)
     """
+    if model.startswith('omni-fast'):
+        return _build_omni_fast_payload(
+            model, prompt, aspect_ratio, duration, generation_mode,
+            reference_images, reference_image_type
+        )
+
     if model.startswith('doubao'):
         return _build_doubao_payload(
             model, prompt, size, duration, generation_mode,
             reference_images, reference_image_type
+        )
+
+    if _is_seedance_2_model(model):
+        return _build_seedance_2_payload(
+            model, prompt, size, aspect_ratio, duration, audio_generation, generation_mode,
+            reference_images, reference_image_type, api_key=api_key, base_url=base_url
         )
 
     if model.startswith('Hailuo-'):
@@ -1053,7 +1323,13 @@ def _build_request_payload(model, prompt, size, duration, aspect_ratio, audio_ge
             reference_images, reference_image_type
         )
 
-    is_kling = model.startswith('Kling-')
+    if model.startswith('Kling-'):
+        return _build_kling_payload(
+            model, prompt, aspect_ratio, duration, audio_generation, generation_mode,
+            reference_images, reference_image_type
+        )
+
+    is_kling = False
 
     payload = {
         "model": model,
@@ -1064,7 +1340,6 @@ def _build_request_payload(model, prompt, size, duration, aspect_ratio, audio_ge
     output_config = {"aspect_ratio": aspect_ratio, "audio_generation": audio_generation}
     resolution = _infer_resolution_from_size(size)
     if resolution: output_config["resolution"] = resolution
-    if is_kling: output_config["duration"] = duration
     payload["metadata"] = {"output_config": output_config}
 
     # 2. 准备添加文件的方法
@@ -1187,6 +1462,101 @@ def _upload_image_to_host(image_path, timeout=60):
     except Exception as e:
         _log(f"[图床] 上传异常: {e}")
         return None
+
+
+def _build_seedance_2_payload(model, prompt, resolution, aspect_ratio, duration, audio_generation, generation_mode,
+                              reference_images, reference_image_type, *, api_key='', base_url=''):
+    """
+    Seedance 2.0 专用请求构建。
+    对齐 example/main.py 的 GeekNow 中转协议：/v1/videos JSON、素材 URL、reference_image_urls、
+    first_frame_url / last_frame_url。
+    """
+    files_list = []
+    first_frame = None
+    last_frame = None
+    reference_paths = []
+    seen_paths = set()
+
+    def _add_reference(path):
+        if not path or len(reference_paths) >= _SEEDANCE_2_MAX_IMAGES:
+            return
+        key = str(path)
+        if key in seen_paths:
+            return
+        seen_paths.add(key)
+        reference_paths.append(path)
+
+    if generation_mode == '文生视频':
+        pass
+    elif generation_mode == '首帧生视频':
+        first_frame, ref_type = _resolve_selected_reference_image(reference_images, reference_image_type)
+        if not first_frame:
+            _log(f"警告: Seedance 2.0 首帧生视频未找到参考图片({ref_type})，将按文生视频提交")
+    elif generation_mode == '首尾帧':
+        first_frame = reference_images.get("首帧")
+        last_frame = reference_images.get("尾帧")
+        if not first_frame:
+            _log("警告: Seedance 2.0 首尾帧模式未找到首帧图片")
+        if not last_frame:
+            _log("警告: Seedance 2.0 首尾帧模式未找到尾帧图片")
+    elif generation_mode in ('参考生视频', '首帧生视频+参考图'):
+        if generation_mode == '首帧生视频+参考图':
+            first_frame, ref_type = _resolve_selected_reference_image(reference_images, reference_image_type)
+            if not first_frame:
+                _log(f"警告: Seedance 2.0 未找到首帧图片({ref_type})")
+
+        ref_map = reference_images.get("参考图片MAP", {})
+        for key in sorted(ref_map.keys()):
+            _add_reference(ref_map[key])
+
+        if not reference_paths and not first_frame:
+            _log("警告: Seedance 2.0 参考生视频模式未找到参考图，将按文生视频提交")
+    else:
+        _log(f"警告: Seedance 2.0 暂不识别生成模式 {generation_mode}，将按文生视频提交")
+
+    first_frame_url = _resolve_seedance_2_reference_url(first_frame, api_key=api_key, base_url=base_url,
+                                                         raise_on_error=bool(first_frame))
+    last_frame_url = _resolve_seedance_2_reference_url(last_frame, api_key=api_key, base_url=base_url,
+                                                        raise_on_error=bool(last_frame))
+
+    reference_urls = []
+    for path in reference_paths:
+        if path in (first_frame, last_frame):
+            continue
+        url = _resolve_seedance_2_reference_url(path, api_key=api_key, base_url=base_url)
+        if url and url not in reference_urls:
+            reference_urls.append(url)
+
+    if first_frame and not first_frame_url:
+        raise Exception("PLUGIN_ERROR:::Seedance 2.0 首帧素材上传失败，请检查文件格式或网络")
+    if last_frame and not last_frame_url:
+        raise Exception("PLUGIN_ERROR:::Seedance 2.0 尾帧素材上传失败，请检查文件格式或网络")
+    if reference_paths and not reference_urls:
+        raise Exception("PLUGIN_ERROR:::Seedance 2.0 参考图上传失败，请检查网络或文件格式")
+
+    prompt_prefix = ''
+    if reference_urls:
+        mentions = [f"@图片{i + 1} 这是参考图{i + 1}" for i in range(len(reference_urls))]
+        prompt_prefix = '；'.join(mentions) + '；'
+
+    payload = {
+        "model": _seedance_2_api_model_name(model),
+        "prompt": f"{prompt_prefix}{prompt or ''}",
+        "resolution": _normalize_seedance_2_resolution(resolution),
+        "ratio": aspect_ratio,
+        "duration": int(duration),
+        "generate_audio": audio_generation == 'Enabled',
+        "watermark": False,
+    }
+
+    if first_frame_url:
+        payload["first_frame_url"] = first_frame_url
+    if last_frame_url:
+        payload["last_frame_url"] = last_frame_url
+    if reference_urls:
+        payload["reference_image_urls"] = reference_urls
+
+    return payload, files_list
 
 
 def _build_doubao_payload(model, prompt, size, duration, generation_mode,
@@ -1315,6 +1685,57 @@ def _build_hailuo_payload(model, prompt, aspect_ratio, duration, generation_mode
 
     elif generation_mode == '参考生视频':
         _log("警告: Hailuo 模型暂不支持参考生视频模式，将退化为文生视频")
+
+    return payload, files_list
+
+
+def _build_kling_payload(model, prompt, aspect_ratio, duration, audio_generation, generation_mode,
+                         reference_images, reference_image_type):
+    """
+    Kling 模型专用请求构建
+    走 JSON 格式，图片通过图床上传获取 URL（腾讯 VOD 不支持 data URI）
+    """
+    output_config = {
+        "aspect_ratio": aspect_ratio,
+        "audio_generation": audio_generation,
+        "duration": duration,
+    }
+    resolution = _infer_resolution_from_size(None)
+    if resolution:
+        output_config["resolution"] = resolution
+
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "seconds": str(duration),
+        "metadata": {"output_config": output_config}
+    }
+
+    files_list = []
+
+    if generation_mode != '文生视频':
+        ref_type = reference_image_type[0] if isinstance(reference_image_type, list) else reference_image_type
+        img_path = None
+        if ref_type == "首帧图片":
+            img_path = reference_images.get("首帧")
+        elif ref_type == "尾帧图片":
+            img_path = reference_images.get("尾帧")
+        elif str(ref_type).startswith("参考图"):
+            try:
+                idx = int(str(ref_type).replace("参考图", "")) - 1
+                img_path = reference_images.get("参考图片MAP", {}).get(idx)
+            except:
+                pass
+
+        if img_path:
+            image_url = _upload_image_to_host(img_path)
+            if image_url:
+                payload["image"] = image_url
+                _log(f"[Kling] 图片已上传图床: {image_url}")
+            else:
+                _log("警告: Kling 图片上传图床失败，将退化为文生视频")
+        else:
+            _log("警告: Kling 未找到参考图片，将退化为文生视频")
 
     return payload, files_list
 
@@ -1503,6 +1924,114 @@ def _build_grok_payload(model, prompt, size, aspect_ratio, duration, generation_
     return payload, files_list
 
 
+def _build_omni_fast_payload(model, prompt, aspect_ratio, duration, generation_mode,
+                              reference_images, reference_image_type):
+    """
+    omni-fast / omni-fast-v2v 专用请求构建
+    走 JSON 格式，图片通过 data URI (base64) 或公开 URL 传递
+    支持: 文生视频 / 首帧生视频 / 首尾帧 / 参考生视频 (最多5张)
+    时长: 4~30s
+    """
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "seconds": str(duration),
+        "resolution": "720p",
+    }
+    if aspect_ratio:
+        payload["aspect_ratio"] = aspect_ratio
+
+    files_list = []
+
+    def _get_image_value(img_path):
+        if not img_path:
+            return None
+        if _is_url_like(img_path):
+            return img_path
+        return _read_image_as_base64_data_url(img_path)
+
+    if generation_mode == '文生视频':
+        pass
+
+    elif generation_mode == '首帧生视频':
+        ref_type = reference_image_type[0] if isinstance(reference_image_type, list) else reference_image_type
+        img_path = None
+        if ref_type == "首帧图片":
+            img_path = reference_images.get("首帧")
+        elif ref_type == "尾帧图片":
+            img_path = reference_images.get("尾帧")
+        elif str(ref_type).startswith("参考图"):
+            try:
+                idx = int(str(ref_type).replace("参考图", "")) - 1
+                img_path = reference_images.get("参考图片MAP", {}).get(idx)
+            except Exception:
+                pass
+        image_val = _get_image_value(img_path)
+        if image_val:
+            payload["first_image_url"] = image_val
+        else:
+            _log("警告: omni-fast 首帧生视频模式未能读取到有效图片，将退化为文生视频")
+
+    elif generation_mode == '首尾帧':
+        first_val = _get_image_value(reference_images.get("首帧"))
+        last_val = _get_image_value(reference_images.get("尾帧"))
+        if first_val:
+            payload["first_image_url"] = first_val
+        else:
+            _log("警告: omni-fast 首尾帧模式未能读取到首帧图片")
+        if last_val:
+            payload["last_image_url"] = last_val
+        else:
+            _log("警告: omni-fast 首尾帧模式未能读取到尾帧图片")
+
+    elif generation_mode == '参考生视频':
+        ref_map = reference_images.get("参考图片MAP", {})
+        images = []
+        for key in sorted(ref_map.keys()):
+            if len(images) >= 5:
+                break
+            val = _get_image_value(ref_map[key])
+            if val:
+                images.append(val)
+        if images:
+            payload["images"] = images
+        else:
+            _log("警告: omni-fast 参考生视频模式未能读取到任何图片，将退化为文生视频")
+
+    elif generation_mode == '首帧生视频+参考图':
+        ref_type = reference_image_type[0] if isinstance(reference_image_type, list) else reference_image_type
+        img_path = None
+        if ref_type == "首帧图片":
+            img_path = reference_images.get("首帧")
+        elif ref_type == "尾帧图片":
+            img_path = reference_images.get("尾帧")
+        elif str(ref_type).startswith("参考图"):
+            try:
+                idx = int(str(ref_type).replace("参考图", "")) - 1
+                img_path = reference_images.get("参考图片MAP", {}).get(idx)
+            except Exception:
+                pass
+        first_val = _get_image_value(img_path)
+        if first_val:
+            payload["first_image_url"] = first_val
+        else:
+            _log("警告: omni-fast 首帧生视频+参考图模式未能读取到首帧图片")
+        ref_map = reference_images.get("参考图片MAP", {})
+        images = []
+        for key in sorted(ref_map.keys()):
+            if len(images) >= 5:
+                break
+            val = _get_image_value(ref_map[key])
+            if val:
+                images.append(val)
+        if images:
+            payload["images"] = images
+        else:
+            _log("警告: omni-fast 首帧生视频+参考图模式未能读取到任何参考图片")
+
+    return payload, files_list
+
+
 def _poll_video_status(base_url, task_id, headers, max_poll_attempts, poll_interval, progress_callback):
     """
     轮询视频生成状态
@@ -1545,7 +2074,7 @@ def _poll_video_status(base_url, task_id, headers, max_poll_attempts, poll_inter
         # 请求成功，重置异常计数
         error_count = 0
 
-        status = status_data.get("status") or {}
+        status = str(status_data.get("status") or '').strip().lower()
         _log(f"data: {status_data}")
 
         # 解析进度
@@ -1569,29 +2098,38 @@ def _poll_video_status(base_url, task_id, headers, max_poll_attempts, poll_inter
                 progress_callback("生成中", progress_percent)
             elif status in ["pending", "queued"]:
                 progress_callback("排队中")
-            elif status in ["processing", "in_progress"]:
+            elif status in ["processing", "in_progress", "running", "generating"]:
                 progress_callback("生成中")
-            elif status == "completed":
+            elif status in ["completed", "succeeded", "success"]:
                 progress_callback("生成中", 100)
 
         video_url: Optional[str] = None
-        if status == "completed":
+        if status in {"completed", "succeeded", "success"}:
+            content = status_data.get("content")
+            if content and isinstance(content, dict):
+                video_url = content.get("video_url") or content.get("url")
             output = status_data.get("output")
-            if output and isinstance(output, dict):
+            if not video_url and output and isinstance(output, dict):
                 video_url = output.get("url")
             if not video_url:
                 video_url = status_data.get("video_url") or status_data.get("url")
             if not video_url and detail:
                 video_url = detail.get("url")
+            # 兼容 data[0].url 格式（omni-fast 等接口）
+            if not video_url:
+                data_list = status_data.get("data")
+                if isinstance(data_list, list) and data_list:
+                    video_url = data_list[0].get("url") if isinstance(data_list[0], dict) else None
 
             if video_url:
                 _log(f"视频生成成功: {video_url}")
                 return video_url
             else:
-                _log(f"API 响应: {status_data}")
-                raise Exception("PLUGIN_ERROR:::API 报告 'completed' 但未返回 video_url")
+                # 接口未返回 URL，但任务已完成，降级到 /content 端点下载
+                _log(f"API 未返回 video_url，将通过 /content 端点下载 (task_id={task_id})")
+                return f"__content_endpoint__{task_id}"
 
-        elif status == "failed":
+        elif status in {"failed", "fail", "error", "cancelled", "canceled", "expired", "deleted"}:
             fail_reason = None
             if detail and isinstance(detail, dict):
                 pending_info = detail.get("pending_info")
@@ -1600,7 +2138,15 @@ def _poll_video_status(base_url, task_id, headers, max_poll_attempts, poll_inter
                 if not fail_reason:
                     fail_reason = detail.get("failure_reason")
             if not fail_reason:
-                fail_reason = status_data.get("error", "任务失败，但未提供原因。")
+                for key in ("fail_reason", "message", "msg", "reason", "error"):
+                    value = status_data.get(key)
+                    if value:
+                        fail_reason = value
+                        break
+            if isinstance(fail_reason, dict):
+                fail_reason = fail_reason.get("message") or fail_reason.get("code") or str(fail_reason)
+            if not fail_reason:
+                fail_reason = "任务失败，但未提供原因。"
             _log(f" 视频生成失败 (来自 API): {fail_reason}")
             raise Exception(f"PLUGIN_ERROR:::{fail_reason}")
 
@@ -1617,26 +2163,30 @@ def _download_video(video_url, output_path, base_url, task_id, headers):
         'Referer': 'https://www.geeknow.top/',
     }
 
+    # 接口未返回 URL 时，跳过方式1，直接走 /content 端点
+    skip_direct = (video_url or '').startswith('__content_endpoint__')
+
     # 方式1: 直接下载 video_url
-    try:
-        _log(f"正在下载视频: {video_url}")
-        video_response = requests.get(video_url, headers=download_headers, stream=True, timeout=9000)
+    if not skip_direct:
+        try:
+            _log(f"正在下载视频: {video_url}")
+            video_response = requests.get(video_url, headers=download_headers, stream=True, timeout=9000)
 
-        if video_response.status_code == 200:
-            total_size = 0
-            with open(output_path, 'wb') as f:
-                for chunk in video_response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        total_size += len(chunk)
-                        if total_size % (10 * 1024 * 1024) < 8192:
-                            _log(f"  已下载: {total_size / (1024 * 1024):.2f} MB")
+            if video_response.status_code == 200:
+                total_size = 0
+                with open(output_path, 'wb') as f:
+                    for chunk in video_response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            total_size += len(chunk)
+                            if total_size % (10 * 1024 * 1024) < 8192:
+                                _log(f"  已下载: {total_size / (1024 * 1024):.2f} MB")
 
-            _log(f"视频已保存: {output_path}")
-            _log(f"文件大小: {total_size / (1024 * 1024):.2f} MB")
-            return True
-    except Exception as e:
-        _log(f"URL下载失败: {str(e)}")
+                _log(f"视频已保存: {output_path}")
+                _log(f"文件大小: {total_size / (1024 * 1024):.2f} MB")
+                return True
+        except Exception as e:
+            _log(f"URL下载失败: {str(e)}")
 
     # 方式2: 备用 content API
     try:
@@ -1663,178 +2213,6 @@ def _download_video(video_url, output_path, base_url, task_id, headers):
 
     return False
 
-
-def _generate_seedance_local(context):
-    """
-    使用本地 Seedance 服务生成视频（doubao-seedance2.0-fast）。
-    POST /api/v1/generate  →  轮询 GET /api/v1/jobs/:jobId  →  下载
-    """
-
-    prompt = context.get('prompt', '')
-    reference_images = context.get('reference_images', {}) or {}
-    output_dir = context.get('output_dir', context.get('project_path', '.'))
-    plugin_params = context.get('plugin_params', _global_params)
-    progress_callback = context.get('progress_callback')
-
-    # 标准化 reference_images（与 generate() 保持一致）
-    if reference_images and "参考图片MAP" not in reference_images:
-        if all(isinstance(k, int) or (isinstance(k, str) and k.isdigit()) for k in reference_images.keys()):
-            reference_images = {"参考图片MAP": reference_images.copy()}
-    ref_map_raw = reference_images.get("参考图片MAP")
-    if isinstance(ref_map_raw, dict):
-        reference_images["参考图片MAP"] = {
-            (int(k) if isinstance(k, str) and k.isdigit() else k): v
-            for k, v in ref_map_raw.items()
-        }
-    if context.get('first_frame_path'):
-        reference_images['首帧'] = context['first_frame_path']
-    if context.get('end_frame_path'):
-        reference_images['尾帧'] = context['end_frame_path']
-
-    aspect_ratio = plugin_params.get('aspect_ratio', '16:9')
-    try:
-        duration = max(4, min(15, int(plugin_params.get('duration', 5))))
-    except (ValueError, TypeError):
-        duration = 5
-
-    # 收集图片路径（最多 5 张，优先 参考图片MAP，其次 首帧）
-    image_paths = []
-    ref_map = reference_images.get("参考图片MAP", {})
-    for key in sorted(ref_map.keys()):
-        if len(image_paths) >= 5:
-            break
-        p = str(ref_map[key]).split('?')[0] if ref_map[key] else ''
-        if p and os.path.exists(p):
-            image_paths.append(p)
-    first_frame = reference_images.get("首帧")
-    if first_frame and len(image_paths) < 5:
-        p = str(first_frame).split('?')[0]
-        if p and os.path.exists(p) and p not in image_paths:
-            image_paths.append(p)
-
-    if not image_paths:
-        raise Exception("PLUGIN_ERROR:::Seedance 模型需要至少 1 张参考图片")
-
-    task_log_context = {
-        'model_display': '豆包seedance-fast',
-        'model_name': 'doubao-seedance2.0-fast',
-        'prompt': prompt,
-        'aspect_ratio': aspect_ratio,
-        'duration': str(duration),
-        'reference_images': _serialize_reference_images(reference_images),
-        'base_url': _seedance_base_url or '',
-        'endpoint': f"{_seedance_base_url}/api/v1/generate",
-        'generation_mode': '参考生视频',
-        'metadata': '{}',
-    }
-    task_log_id = _log_task_result(task_log_context, 'running', completed=False)
-
-    if progress_callback:
-        progress_callback("准备中")
-
-    try:
-        # 构造 multipart 文件列表
-        _mime = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
-        files = []
-        for p in image_paths:
-            mime = _mime.get(os.path.splitext(p)[1].lower(), 'image/png')
-            with open(p, 'rb') as f:
-                files.append(('images', (os.path.basename(p), f.read(), mime)))
-
-        data = {
-            'prompt': prompt,
-            'model': 'seedance-2.0-fast',
-            'ratio': aspect_ratio,
-            'duration': str(duration),
-        }
-
-        _log(
-            f"[Seedance] 提交任务: prompt={prompt!r}, ratio={aspect_ratio}, duration={duration}s, images={len(files)}张")
-        resp = requests.post(
-            f"{_seedance_base_url}/api/v1/generate",
-            data=data, files=files, headers={}, timeout=60,
-        )
-        if resp.status_code != 200:
-            raise Exception(f"PLUGIN_ERROR:::提交失败 {resp.status_code}: {resp.text}")
-
-        result = resp.json()
-        job_id = result.get('jobId')
-        if not job_id:
-            raise Exception(f"PLUGIN_ERROR:::响应中无 jobId: {result}")
-
-        _log(f"[Seedance] 任务已提交 jobId={job_id}")
-        _update_task_log_entry(task_log_id, {'api_task_id': job_id})
-
-        if progress_callback:
-            progress_callback("生成中", 0)
-
-        # 轮询状态
-        for attempt in range(300):
-            time.sleep(4)
-
-            if _seedance_process and _seedance_process.poll() is not None:
-                _log(
-                    f"[Seedance] 本地服务进程已退出，exit={_seedance_process.returncode}，请查看 seedance-fast/seedance_node.log")
-                raise Exception("PLUGIN_ERROR:::Seedance 本地服务已崩溃，请查看 seedance_node.log 排查原因")
-
-            try:
-                status_resp = requests.get(
-                    f"{_seedance_base_url}/api/v1/jobs/{job_id}", timeout=30
-                )
-            except Exception as e:
-                _log(f'seedance 轮询请求: {e}')
-                continue
-            if status_resp.status_code == 404:
-                raise Exception("PLUGIN_ERROR:::任务不存在或已过期")
-            if status_resp.status_code != 200:
-                _log(f"[Seedance] 状态查询异常: {status_resp.status_code}")
-                continue
-
-            sd = status_resp.json()
-            status = sd.get('status')
-            _log(f"[Seedance] [{attempt + 1}/300] status={status} {sd.get('progress', '')}")
-
-            if status == 'processing':
-                if progress_callback:
-                    progress_callback("生成中")
-            elif status == 'done':
-                if progress_callback:
-                    progress_callback("生成中", 100)
-                video_info = sd.get('video', {})
-                video_url = video_info.get('url') or video_info.get('proxyUrl')
-                if not video_url:
-                    raise Exception("PLUGIN_ERROR:::生成完成但无视频 URL")
-                if video_url.startswith('/'):
-                    video_url = f"{_seedance_base_url}{video_url}"
-
-                viewer_index = context.get('viewer_index', 0)
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                output_path = os.path.join(output_dir, f"{viewer_index:04d}_video_{timestamp}.mp4")
-
-                if not _download_video(video_url, output_path, _seedance_base_url, job_id, {}):
-                    _log_task_result(task_log_context, 'download_failed', video_url=video_url,
-                                     error='下载失败', log_id=task_log_id, api_task_id=job_id)
-                    raise Exception("PLUGIN_ERROR:::视频下载失败")
-
-                _log_task_result(task_log_context, 'success', video_url=video_url,
-                                 local_path=output_path, log_id=task_log_id, api_task_id=job_id)
-                return [output_path]
-
-            elif status == 'error':
-                raise Exception(f"PLUGIN_ERROR:::{sd.get('error', '生成失败')}")
-
-        raise Exception("PLUGIN_ERROR:::超过最大轮询次数 (300)")
-
-    except Exception as e:
-        error_msg = str(e)
-        _log(f"[Seedance] 生成失败: {error_msg}")
-        if '下载失败' not in error_msg:
-            _log_task_result(task_log_context, 'failed', error=error_msg, log_id=task_log_id)
-        if error_msg.startswith("PLUGIN_ERROR:::"):
-            raise
-        raise Exception(f"PLUGIN_ERROR:::{error_msg}")
-
-
 # 核心生成函数
 def generate(context):
     """
@@ -1856,10 +2234,6 @@ def generate(context):
 
     _log(f"--------------------------------------{plugin_params.get('model', '')}")
     _log(f"--------------------------------------{_MODEL_DISPLAY_MAP.get(plugin_params.get('model', ''), '')}")
-
-    # 本地 Seedance 模型，走独立流程
-    if 'doubao-seedance2.0-fast' in str(_MODEL_DISPLAY_MAP.get(plugin_params.get('model', ''), '')):
-        return _generate_seedance_local(context)
 
     # 标准化 reference_images 结构
     if reference_images and "参考图片MAP" not in reference_images:
@@ -1929,7 +2303,8 @@ def generate(context):
         # 构建请求
         payload, files_list = _build_request_payload(
             model, prompt, size, duration, aspect_ratio, audio_generation,
-            generation_mode, reference_images, reference_image_type
+            generation_mode, reference_images, reference_image_type,
+            api_key=api_key, base_url=base_url
         )
 
         headers = {"Authorization": f"Bearer {api_key}"}
@@ -1942,34 +2317,59 @@ def generate(context):
         _log(f"正在发送请求到: {endpoint}")
         is_json_model = _is_json_submission_model(model)
 
-        if is_json_model:
-            _log(f"[Geeknow] 使用 JSON 格式发送请求 (模型: {model})")
-            _inject_files_into_json_payload(payload, files_list)
-            headers["Content-Type"] = "application/json"
-            _log_final_request(endpoint, headers, payload, timeout, request_format='json')
-            response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
-        else:
-            request_kwargs = {
-                "headers": headers,
-                "data": payload,
-                "timeout": 9000
-            }
-            if files_list:
-                request_kwargs["files"] = files_list
-            _log_final_request(endpoint, headers, payload, timeout, request_format='multipart/form-data',
-                               files_list=files_list)
-            response = requests.post(endpoint, **request_kwargs, proxies={"http": None, "https": None})
+        try:
+            if is_json_model:
+                _log(f"[Geeknow] 使用 JSON 格式发送请求 (模型: {model})")
+                _inject_files_into_json_payload(payload, files_list)
+                headers["Content-Type"] = "application/json"
+                _log_final_request(endpoint, headers, payload, timeout, request_format='json')
+                response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
+            else:
+                request_kwargs = {
+                    "headers": headers,
+                    "data": payload,
+                    "timeout": 9000
+                }
+                if files_list:
+                    request_kwargs["files"] = files_list
+                _log_final_request(endpoint, headers, payload, timeout, request_format='multipart/form-data',
+                                   files_list=files_list)
+                response = requests.post(endpoint, **request_kwargs, proxies={"http": None, "https": None})
+        except requests.exceptions.ConnectionError as e:
+            _log(f"[Geeknow] 连接异常详情: type={type(e).__name__}, args={e.args}")
+            if e.args and hasattr(e.args[0], 'reason'):
+                _log(f"[Geeknow] 底层原因: {type(e.args[0].reason).__name__}: {e.args[0].reason}")
+            raise Exception(
+                f"PLUGIN_ERROR:::连接失败（服务端未响应即断开）\n"
+                f"目标地址: {endpoint}\n"
+                f"请求格式: {'JSON' if is_json_model else 'multipart/form-data'}\n"
+                f"原始错误: {e}\n"
+                f"建议: 1.检查网络连接 2.尝试切换线路(base_url) 3.如上传图片过大请压缩后重试"
+            )
+        except requests.exceptions.Timeout as e:
+            raise Exception(
+                f"PLUGIN_ERROR:::请求超时\n"
+                f"目标地址: {endpoint}\n"
+                f"超时设置: {timeout if is_json_model else 9000}s\n"
+                f"建议: 1.检查网络连接 2.尝试切换线路(base_url)"
+            )
+        except requests.exceptions.RequestException as e:
+            raise Exception(
+                f"PLUGIN_ERROR:::请求异常: {type(e).__name__}\n"
+                f"目标地址: {endpoint}\n"
+                f"详情: {e}"
+            )
 
-        if response.status_code != 200:
+        if response.status_code not in range(200, 300):
             raise Exception(f"PLUGIN_ERROR:::API 错误: {response.status_code} - {response.text}")
 
         result = response.json()
         _log(f"API 响应: {result}")
 
-        if "id" not in result:
-            raise Exception("PLUGIN_ERROR:::API 响应中没有 'id' (task_id)。请检查 API 响应或联系中转站。")
+        if "id" not in result and "task_id" not in result:
+            raise Exception("PLUGIN_ERROR:::API 响应中没有 'id' 或 'task_id'。请检查 API 响应或联系中转站。")
 
-        task_id = result["id"]
+        task_id = result.get("id") or result.get("task_id")
         _log(f"任务ID: {task_id}")
         _update_task_log_entry(task_log_id, {'api_task_id': task_id})
         _log("等待视频生成...")
@@ -1987,13 +2387,19 @@ def generate(context):
 
         download_success = _download_video(video_url, output_path, base_url, task_id, headers)
 
+        # sentinel 表示接口未返回公开 URL，改用 /content 端点地址记入日志，方便后续手动重下
+        if (video_url or '').startswith('__content_endpoint__'):
+            log_video_url = f"{base_url}/v1/videos/{task_id}/content"
+        else:
+            log_video_url = video_url
+
         if not download_success:
-            _log_task_result(task_log_context, 'download_failed', video_url=video_url, error='所有下载方式均失败',
+            _log_task_result(task_log_context, 'download_failed', video_url=log_video_url, error='所有下载方式均失败',
                              log_id=task_log_id, api_task_id=task_id)
             raise Exception("PLUGIN_ERROR:::视频下载失败，请通过插件任务日志下载重新拉取")
 
         _log("=" * 60)
-        _log_task_result(task_log_context, 'success', video_url=video_url, local_path=output_path, log_id=task_log_id,
+        _log_task_result(task_log_context, 'success', video_url=log_video_url, local_path=output_path, log_id=task_log_id,
                          api_task_id=task_id)
 
         return [output_path]
@@ -2012,89 +2418,6 @@ def generate(context):
             raise e
         else:
             raise Exception(f"PLUGIN_ERROR:::{error_msg}")
-
-
-# --------------------- generate ---------------------
-
-# --------------------- Seedance 本地服务 ---------------------
-
-def _init_seedance():
-    """
-    检查同级 seedance/ 目录，存在则以方式一启动 node 进程并等待健康检查通过。
-    全局唯一：多次调用只启动一次。
-    启动成功后 _seedance_session 可直接用于访问本地 API。
-    """
-    global _seedance_process, _seedance_base_url
-
-    seedance_dir = plugin_dir / "seedance-fast"
-    if not seedance_dir.is_dir():
-        _log("[Geeknow Plugin] 未找到 seedance 目录，跳过本地服务启动")
-        return
-
-    with _seedance_init_lock:
-        base_url = f"http://localhost:{_SEEDANCE_PORT}"
-        try:
-            import urllib.request
-            with urllib.request.urlopen(f"{base_url}/api/health", timeout=2) as resp:
-                if resp.status < 500:
-                    _seedance_base_url = base_url
-                    _log(f"[Geeknow Plugin] Seedance 服务已在运行，直接复用: {base_url}")
-                    return
-        except Exception:
-            pass
-        node_exe = str(seedance_dir / "node.exe")
-        server_js = str(seedance_dir / "server" / "index.js")
-        base_url = f"http://localhost:{_SEEDANCE_PORT}"
-
-        env = os.environ.copy()
-        env["NODE_ENV"] = "production"
-        env["PORT"] = str(_SEEDANCE_PORT)
-        env["PLAYWRIGHT_BROWSERS_PATH"] = str(seedance_dir / "browsers")
-
-        try:
-            _seedance_log_file = open(str(seedance_dir / "seedance_node.log"), "w", encoding="utf-8")
-            proc = subprocess.Popen(
-                [node_exe, server_js],
-                cwd=str(seedance_dir),
-                env=env,
-                stdout=_seedance_log_file,
-                stderr=subprocess.STDOUT,
-                creationflags=(subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0),
-            )
-        except Exception as exc:
-            _log(f"[Geeknow Plugin] Seedance 进程启动失败: {exc}")
-            return
-
-        # 等待 /api/health 就绪
-        import urllib.error
-        deadline = time.time() + _SEEDANCE_STARTUP_TIMEOUT
-        last_err = None
-        ready = False
-        while time.time() < deadline:
-            if proc.poll() is not None:
-                _log(f"[Geeknow Plugin] Seedance 进程提前退出，exit={proc.returncode}")
-                return
-            try:
-                with urllib.request.urlopen(f"{base_url}/api/health", timeout=2) as resp:
-                    if resp.status < 500:
-                        ready = True
-                        break
-            except Exception as exc:
-                last_err = exc
-            time.sleep(1)
-
-        if not ready:
-            proc.kill()
-            _log(f"[Geeknow Plugin] Seedance 启动超时（{_SEEDANCE_STARTUP_TIMEOUT}s），最后错误: {last_err}")
-            return
-
-        _seedance_process = proc
-        _seedance_base_url = base_url
-        _log(f"[Geeknow Plugin] Seedance 服务已就绪: {base_url}")
-
-
-# --------------------- Seedance 本地服务 ---------------------
-
 
 # --------------------- 插件必要 ---------------------
 def get_info():
@@ -2188,12 +2511,11 @@ def handle_action(action, data=None):
 # 保存插件文件路径
 _PLUGIN_FILE = __file__
 _PLUGIN_ID = 'video'
-_PLUGIN_VERSION = '3.1.8'
+_PLUGIN_VERSION = '3.1.16'
 
 _BASE_URL_OPTIONS = [
-    ("海外CN2服务", "https://www.geeknow.top"),
-    ("CDN服务", "https://api.geeknow.top"),
-    ("国内服务器", "https://geek.closeai.icu")
+    ("主节点", "https://geeknow.ai"),
+    ("副节点", "https://api.geeknow.ai"),
 ]
 _DEFAULT_BASE_URL = _BASE_URL_OPTIONS[1][1]
 
@@ -2212,7 +2534,7 @@ _default_params = {  # 默认参数
     'base_url': _DEFAULT_BASE_URL,
     'model': 'sora-2',
     'aspect_ratio': '16:9',
-    'duration': '15',
+    'duration': '4',
     'audio_generation': 'Disabled',
     'timeout': 900,
     'max_poll_attempts': 300,
@@ -2222,12 +2544,13 @@ _default_params = {  # 默认参数
     'reference_image_type': '首帧图片',  # Sora首帧生视频时使用的参考图片
     'retry_error_keywords': '',
     'no_retry_error_keywords': '',
-    'update_manifest_url': ''
+    'update_manifest_url': '',
+    'size': '720P'  # 清晰度参数，用于支持 size 的模型（如 Grok）
 }
 
 _MODEL_DISPLAY_MAP = {  # 模型显示名称映射 (显示名: 实际模型名)
     'sora-2': 'sora-2',
-    'sora-2[vip]': 'sora-2[vip]',
+    # 'sora-2[vip]': 'sora-2[vip]',
     # Sora2 Pro 变体（参数字段与 sora-2 保持一致: prompt/size/seconds）
     'sora2-pro-landscape-25s（Pro横屏/25s，参数同sora-2）': 'sora2-pro-landscape-25s',
     'sora2-pro-landscape-hd-10s（Pro横屏高清/10s，参数同sora-2）': 'sora2-pro-landscape-hd-10s',
@@ -2248,6 +2571,9 @@ _MODEL_DISPLAY_MAP = {  # 模型显示名称映射 (显示名: 实际模型名)
     '豆包Seedance1.5Pro-480p': 'doubao-seedance-1-5-pro_480p',
     '豆包Seedance1.5Pro-720p': 'doubao-seedance-1-5-pro_720p',
     '豆包Seedance1.5Pro-1080p': 'doubao-seedance-1-5-pro_1080p',
+    '豆包Seedance2.0 Lite': 'seedance-2.0-lite',
+    '豆包Seedance2.0 Pro': 'seedance-2.0-pro',
+    '豆包Seedance2.0 Fast': 'seedance-2.0-fast',
 
     'wan2.6-t2v-1280*720（阿里文生视频，价格较低）': 'wan2.6-t2v:1280*720',
     'wan2.6-t2v-1920*1080（阿里文生视频，价格较高）': 'wan2.6-t2v:1920*1080',
@@ -2262,15 +2588,15 @@ _MODEL_DISPLAY_MAP = {  # 模型显示名称映射 (显示名: 实际模型名)
 
     'Hailuo-2.3': 'Hailuo-2.3',
     'Hailuo-2.3-fast': 'Hailuo-2.3-fast',
-
-    'doubao-seedance2.0-fast': 'doubao-seedance2.0-fast',
-
     'dance2-fast-15s': 'dance2-fast-15s',
+
+    'omni-fast': 'omni-fast',
+    'omni-fast-v2v': 'omni-fast-v2v',
 }
 
 _MODEL_INFO = {  # 模型说明(用于 UI 展示/tooltip) 说明尽量写"能力/推荐参数"
-    'sora-2': 'Sora2：文生视频/首帧生视频；参数：prompt/size/seconds；宽高比：16:9/9:16；时长：5/10/15s。',
-    'sora-2[vip]': 'Sora2 VIP：与 sora-2 参数一致；具体额度/优先级以中转平台为准。',
+    'sora-2': 'Sora2 VIP：文生视频/首帧生视频；参数：prompt/size/seconds；宽高比：16:9/9:16；时长：4/8/12s。',
+    # 'sora-2[vip]': 'Sora2 VIP：与 sora-2 参数一致；具体额度/优先级以中转平台为准。',
     'sora3': '按秒计费',
     'sora2-pro-landscape-25s': 'Sora2 Pro 横屏 25s：参数与 sora-2 一致（prompt/size/seconds）；推荐 16:9；推荐 25s。',
     'sora2-pro-landscape-hd-10s': 'Sora2 Pro 横屏高清 10s：参数与 sora-2 一致（prompt/size/seconds）；推荐 16:9；推荐 10s。',
@@ -2286,6 +2612,9 @@ _MODEL_INFO = {  # 模型说明(用于 UI 展示/tooltip) 说明尽量写"能力
     'doubao-seedance-1-5-pro_480p': '豆包 Seedance 1.5 Pro 480p：时长 4-11s；宽高比选项更多；支持首帧/首尾帧。',
     'doubao-seedance-1-5-pro_720p': '豆包 Seedance 1.5 Pro 720p：同上，分辨率不同。',
     'doubao-seedance-1-5-pro_1080p': '豆包 Seedance 1.5 Pro 1080p：同上，分辨率不同。',
+    'seedance-2.0-lite': '豆包 Seedance 2.0 Lite：走 GeekNow /v1/videos JSON 中转协议；本地参考图先上传素材库，再通过 reference_image_urls / first_frame_url / last_frame_url 发送；最多 9 张参考图。',
+    'seedance-2.0-pro': '豆包 Seedance 2.0 Pro：走 GeekNow /v1/videos JSON 中转协议；本地参考图先上传素材库，再通过 reference_image_urls / first_frame_url / last_frame_url 发送；最多 9 张参考图。',
+    'seedance-2.0-fast': '豆包 Seedance 2.0 Fast：走 GeekNow /v1/videos JSON 中转协议；本地参考图先上传素材库，再通过 reference_image_urls / first_frame_url / last_frame_url 发送；最多 9 张参考图。',
     'wan2.6-t2v:1280*720': '阿里万象 wan2.6 文生视频：参数同 sora-2（prompt/size/seconds）；分辨率 1280*720（价格较低）或 1920*1080（价格较高）。',
     'wan2.6-t2v:1920*1080': '阿里万象 wan2.6 文生视频：参数同 sora-2（prompt/size/seconds）；分辨率 1280*720（价格较低）或 1920*1080（价格较高）。',
     'wan2.6-i2v:1280*720': '阿里万象 wan2.6 图生视频：参数同 sora-2（prompt/size/seconds）；分辨率 1280*720（价格较低）或 1920*1080（价格较高）；支持首帧生视频。',
@@ -2297,8 +2626,9 @@ _MODEL_INFO = {  # 模型说明(用于 UI 展示/tooltip) 说明尽量写"能力
     'Kling-3.0-Omni': '可灵 3.0 Omni（基础模型）。',
     'Hailuo-2.3': '海螺 2.3（基础模型）。',
     'Hailuo-2.3-fast': '海螺 2.3 fast（基础模型）。',
-    'doubao-seedance2.0-fast': '豆包 Seedance 2.0 Fast（本地服务）：需本地 seedance 目录就绪；支持参考图生视频（1~5张）；宽高比 16:9/9:16/1:1 等；时长 4~15s，默认 5s。',
     'dance2-fast-15s': 'dance2-fast-15s：请求方式与 Sora 一致（prompt/size/seconds）；固定 15s。',
+    'omni-fast': 'omni-fast：文生视频/首帧生视频/首尾帧/参考生视频；JSON格式；图片支持本地文件(自动转base64)或URL；参考图最多5张；时长4~30s。',
+    'omni-fast-v2v': 'omni-fast-v2v：在 omni-fast 基础上额外支持参考视频编辑(V2V)，需上传不超过15MB的MP4。',
 }
 
 _MODEL_FIXED_PARAMS = {  # 某些模型名/产品形态是"固定参数"的: 这里统一做默认值/自动纠正
@@ -2311,7 +2641,9 @@ _MODEL_FIXED_PARAMS = {  # 某些模型名/产品形态是"固定参数"的: 这
     'sora2-pro-portrait-25s': {'seconds': 25, 'aspect_ratio': '9:16'},
     'sora2-pro-portrait-hd-10s': {'seconds': 10, 'aspect_ratio': '9:16'},
     'sora2-pro-portrait-hd-15s': {'seconds': 15, 'aspect_ratio': '9:16'},
-    'doubao-seedance2.0-fast': {'seconds': 5, 'aspect_ratio': '16:9'},
+    'seedance-2.0-lite': {'seconds': 5, 'aspect_ratio': '16:9'},
+    'seedance-2.0-pro': {'seconds': 5, 'aspect_ratio': '16:9'},
+    'seedance-2.0-fast': {'seconds': 5, 'aspect_ratio': '16:9'},
     'dance2-fast-15s': {'seconds': 15},
 }
 
@@ -2324,19 +2656,3 @@ _global_params['base_url'] = _get_valid_base_url(_global_params.get('base_url', 
 
 print(
     f"[Geeknow Plugin] 插件初始化完成，API Key: {'已设置(' + str(len(_global_params.get('api_key', ''))) + '字符)' if _global_params.get('api_key') else '未设置'}")
-
-_seedance_process = None  # subprocess.Popen 实例
-# _seedance_session = None  # requests.Session，可直接调用本地 API
-_seedance_base_url = None  # http://localhost:<port>
-_seedance_init_lock = threading.Lock()
-_SEEDANCE_PORT = 3001
-_SEEDANCE_STARTUP_TIMEOUT = 30
-
-# _init_seedance()
-
-seedance_dir = plugin_dir / "seedance-fast"
-if seedance_dir.is_dir():
-    shutil.rmtree(seedance_dir)
-    _log(f"已删除文件夹: {seedance_dir}")
-else:
-    _log(f"文件夹不存在: {seedance_dir}")
