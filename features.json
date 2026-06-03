@@ -1,6 +1,6 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
-  "version": "1.10.0",
+  "version": "2.0.0",
   "lastUpdated": "2026-06-03-merge-upstream-v1.9.1-provider-migration",
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
@@ -16,9 +16,9 @@
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
       "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
     },
-    "version": "1.10.0",
-    "semverVersion": "1.10.0",
-    "versionNote": "v1.10.0 fork 合并 upstream v1.9.1：吸收 upstream 高级 Provider 真实生成链路（5 协议适配器 + 统一 externalProviders 路由）+ AI 水印 runtime + 图片悬浮预览 + 上游素材排除 + NodeID 徽章锚点 + 画板增强 + 可自定义画布快捷键。fork 三家中转站（七牛/Grsai/Geeknow）迁移至高级 Provider 架构，新增 3 个专属适配器，保留独立 UI Tab 控件。按 fork 版本策略递增至 1.10.0（领先 upstream v1.9.1 一个次版本号）。",
+    "version": "2.0.0",
+    "semverVersion": "2.0.0",
+    "versionNote": "v2.0.0 fork 合并 upstream v1.9.1：吸收 upstream 高级 Provider 真实生成链路（5 协议适配器 + 统一 externalProviders 路由）+ AI 水印 runtime + 图片悬浮预览 + 上游素材排除 + NodeID 徽章锚点 + 画板增强 + 可自定义画布快捷键。fork 三家中转站（七牛/Grsai/Geeknow）迁移至高级 Provider 架构，新增 3 个专属适配器，保留独立 UI Tab 控件。按 fork 版本策略递增至 2.0.0（领先 upstream v1.9.1 一个次版本号）。",
     "installer": "本次为源码合并发布，未重新打包 Electron。如需离线安装包，执行 npm run dist 并遵循 fork-maintenance-guide.md 验收清单。",
     "checklist": [
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
@@ -1846,14 +1846,29 @@
       ]
     },
     "phase126": {
-      "label": "合并 upstream v1.9.1 + 三家中转站迁移至高级 Provider 系统 (v1.10.0)",
+      "label": "合并 upstream v1.9.1 + 三家中转站迁移至高级 Provider 系统",
       "status": "complete",
       "items": [
         "merge upstream/main v1.8.4→v1.9.1：吸收扩展 API 平台真实生成链路（5 协议适配器 + externalProviders 统一路由）、去AI水印 runtime、图片悬浮预览、上游素材排除、NodeID 锚点、画板放大编辑、RH 文本绑定、可自定义快捷键。",
         "fork 三家中转站（七牛/Grsai/Geeknow）迁移至高级 Provider 架构：新增 backend/src/providers/{qiniu,grsai,geeknow}.js 三个适配器，注册到 registry + adapters，走统一 /api/proxy/external/{image,llm} 路由。",
         "新增 /api/proxy/external/llm/stream SSE 端点支持 Geeknow 流式推理；前端 ImageNode/LLMNode 通过 providerSource/providerId 选择中转站，保留 QiniuImageTab/GrsaiImageTab 独立 UI 控件。",
-        "后端 settings.js 自动迁移旧 qiniuApiKey/grsaiApiKey/geeknowApiKey 到 advancedProviders 数组；老画布数据兼容迁移（model:'qiniu'/'grsai' → providerSource patch）。",
-        "fork 版本递增到 1.10.0（领先 upstream v1.9.1 一个次版本号），8 处版本号同步。"
+        "后端 settings.js 自动迁移旧 qiniuApiKey/grsaiApiKey/geeknowApiKey 到 advancedProviders 数组；老画布数据兼容迁移（model:'qiniu'/'grsai' → providerSource patch）。"
+      ]
+    },
+    "phase127": {
+      "label": "v2.0.0：Geeknow 图像生成 + SSE 进度推送 + 尺寸修正",
+      "status": "complete",
+      "items": [
+        "Geeknow 适配器新增 generateImage：支持 Gemini 原生协议（/v1beta/models/{model}:generateContent）和 OpenAI 兼容协议（/v1/images/generations），中文模型名自动映射。",
+        "新增 /api/proxy/external/image/stream SSE 端点：异步任务提交后立即推送 task 事件（含 taskId），完成后推送 done 事件；前端 generateExternalImageStream 解析 SSE 流。",
+        "修正 Grsai 后端 DOC_PRESETS_BY_RES 像素表（对齐前端 sizeMap.ts）、computeVipSize 目标像素（2K=4194304/4K=8294400）、isVip 判断精确为 /^gpt-image-2.*vip$/i。",
+        "修正七牛后端 ratioToQiniuSize：openai/gpt-image-2 子模型比例字符串→像素串转换（之前直接传 '16:9' 导致上游报 Invalid size）。",
+        "移除 IMAGE_MODELS 中的旧 qiniu/grsai TAB 入口（统一从扩展 API 平台下拉进入）。",
+        "normalizeProvider 自动填充默认模型列表：当 imageModels/chatModels 为空时从 DEFAULT_ADVANCED_PROVIDERS 按 protocol 匹配。",
+        "Geeknow/七牛图像请求超时改为 60 分钟（fetchWithLongTimeout），对齐七牛云长耗时任务。",
+        "前端日志增强：七牛显示实际像素尺寸、Grsai 提交后立即显示 taskId、Geeknow 走 SSE 流式。",
+        "新增 docs/advanced-provider-guide.md 高级 Provider 接入指南。",
+        "版本升级到 v2.0.0。"
       ]
     }
   },

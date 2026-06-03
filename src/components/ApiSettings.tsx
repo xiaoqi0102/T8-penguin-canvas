@@ -148,12 +148,12 @@ const ADVANCED_PROVIDER_GUIDES: Record<AdvancedProviderProtocol, {
     keyLabel: 'Grsai API Key',
   },
   geeknow: {
-    subtitle: '接入 Geeknow LLM 中转站',
-    description: '兼容 OpenAI Chat Completions 协议的 LLM 推理中转站，支持流式与非流式。',
-    nodeScopes: ['LLM 节点'],
-    connectionHint: 'Base URL 默认 https://www.geeknow.top；填写 Geeknow API Key。',
-    modelHint: '可用模型：gpt-5.5、gemini-3-pro-preview、gemini-3.1-pro-preview、gemini-3.5-flash、deepseek-v4-pro。',
-    baseUrlPlaceholder: 'https://www.geeknow.top',
+    subtitle: '接入 Geeknow LLM + 图像中转站',
+    description: 'LLM 兼容 OpenAI Chat Completions 协议（支持流式与非流式）；图像支持 Gemini 原生协议与 OpenAI 兼容协议（gpt-image-2 / 豆包即梦 / Grok）。',
+    nodeScopes: ['LLM 节点', '图像节点'],
+    connectionHint: 'Base URL 默认 https://api.geeknow.ai；填写 Geeknow API Key。',
+    modelHint: 'LLM 模型：gpt-5.5、gemini-3-pro-preview 等；图像模型：gemini-3-pro-image-preview、gpt-image-2、豆包即梦4.5/5.0、Grok 4.2 Image 等。',
+    baseUrlPlaceholder: 'https://api.geeknow.ai',
     keyLabel: 'Geeknow API Key',
   },
 };

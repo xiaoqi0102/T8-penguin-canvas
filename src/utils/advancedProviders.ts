@@ -56,7 +56,7 @@ export interface AdvancedProviderSelection {
   available: boolean;
 }
 
-const IMAGE_PROTOCOLS = new Set(['openai-compatible', 'modelscope', 'volcengine', 'comfyui', 'jimeng-cli', 'qiniu', 'grsai']);
+const IMAGE_PROTOCOLS = new Set(['openai-compatible', 'modelscope', 'volcengine', 'comfyui', 'jimeng-cli', 'qiniu', 'grsai', 'geeknow']);
 const VIDEO_PROTOCOLS = new Set(['openai-compatible', 'volcengine', 'jimeng-cli']);
 const LLM_PROTOCOLS = new Set(['openai-compatible', 'modelscope', 'volcengine', 'geeknow']);
 

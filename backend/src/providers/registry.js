@@ -2,7 +2,7 @@ const DEFAULT_MODELSCOPE_BASE_URL = 'https://api-inference.modelscope.cn/v1';
 const DEFAULT_VOLCENGINE_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const DEFAULT_QINIU_BASE_URL = 'https://openai.qiniu.com';
 const DEFAULT_GRSAI_BASE_URL = 'https://grsai.dakka.com.cn';
-const DEFAULT_GEEKNOW_BASE_URL = 'https://www.geeknow.top';
+const DEFAULT_GEEKNOW_BASE_URL = 'https://api.geeknow.ai';
 
 const SUPPORTED_PROTOCOLS = new Set([
   'openai-compatible',
@@ -116,7 +116,7 @@ const DEFAULT_ADVANCED_PROVIDERS = [
     protocol: 'geeknow',
     baseUrl: DEFAULT_GEEKNOW_BASE_URL,
     enabled: false,
-    imageModels: [],
+    imageModels: ['gemini-3-pro-image-preview', 'gemini-2.5-flash-image-preview', 'gemini-3.1-flash-image-preview', '豆包即梦4.5', '豆包即梦5.0', 'Grok 4.2 Image', 'gpt-image-2', 'gpt-image-2-pro'],
     videoModels: [],
     chatModels: ['gpt-5.5', 'gemini-3-pro-preview', 'gemini-3.1-pro-preview', 'gemini-3.5-flash', 'deepseek-v4-pro'],
     defaults: {},
@@ -332,6 +332,21 @@ function normalizeProvider(raw, previous = null) {
     chatModels: normalizeModelList(raw.chatModels || raw.chat_models),
     defaults: normalizePlainObject(raw.defaults),
   };
+
+  // 模型列表为空时，从 DEFAULT_ADVANCED_PROVIDERS 取默认值（按 protocol 匹配）
+  // 这样新用户/旧 settings 升级时不需要手动填写图像/LLM 模型列表
+  const defaultPreset = DEFAULT_ADVANCED_PROVIDERS.find((p) => p.protocol === protocol);
+  if (defaultPreset) {
+    if (!provider.imageModels.length && Array.isArray(defaultPreset.imageModels) && defaultPreset.imageModels.length) {
+      provider.imageModels = [...defaultPreset.imageModels];
+    }
+    if (!provider.videoModels.length && Array.isArray(defaultPreset.videoModels) && defaultPreset.videoModels.length) {
+      provider.videoModels = [...defaultPreset.videoModels];
+    }
+    if (!provider.chatModels.length && Array.isArray(defaultPreset.chatModels) && defaultPreset.chatModels.length) {
+      provider.chatModels = [...defaultPreset.chatModels];
+    }
+  }
 
   if (protocol === 'volcengine') {
     provider.volcengineConfig = normalizeVolcengineConfig(raw.volcengineConfig || raw.volcengine_config, previousConfig.volcengineConfig);

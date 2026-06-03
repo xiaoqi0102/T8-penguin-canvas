@@ -350,9 +350,11 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             ? { aspectRatio: d?.qiniuSize || 'auto', resolution: d?.qiniuResolution || '1K', quality: d?.qiniuQuality || 'auto' }
             : protocol === 'grsai'
             ? { aspectRatio: d?.grsaiAspectRatio || 'auto', resolution: d?.grsaiImageSize || '1K' }
+            : protocol === 'geeknow'
+            ? { aspectRatio: aspectRatio || '16:9', resolution: sizeLevel || '2K' }
             : d?.providerParams || {},
         };
-        const useStream = protocol === 'qiniu' || protocol === 'grsai';
+        const useStream = protocol === 'qiniu' || protocol === 'grsai' || protocol === 'geeknow';
         const res = useStream
           ? await generateExternalImageStream(reqPayload, {
               onTask: (info) => {
