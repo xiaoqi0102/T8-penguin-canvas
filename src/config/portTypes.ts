@@ -34,6 +34,11 @@ export interface NodePorts {
   outputs: PortType[];
 }
 
+const DEV_NODE_PORTS: Record<string, NodePorts> = import.meta.env?.DEV ? {
+  // RH 工具箱制作器: 维护者开发态节点，只输出生成好的 manifest JSON 文本。
+  'rh-toolbox-maker': { inputs: [], outputs: ['text'] },
+} : {};
+
 /**
  * 节点端口注册表
  * 与 features.json 节点清单严格对齐
@@ -42,7 +47,9 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   // ========== Core ==========
   text: { inputs: [], outputs: ['text'] },
   image: { inputs: ['text', 'image'], outputs: ['image'] },
-  video: { inputs: ['text', 'image'], outputs: ['video'] },
+  // 视频节点默认模型仍只使用 text/image；选择即梦 CLI Seedance 时会消费 video/audio 参考。
+  // 端口表是静态的，需提前允许四类输入，避免用户切到即梦 CLI 后无法连线。
+  video: { inputs: ['text', 'image', 'video', 'audio'], outputs: ['video'] },
   // SD2.0 (Seedance 2.0) 同时支持:
   //   text  → prompt
   //   image → reference_image / first_frame / last_frame
@@ -50,7 +57,7 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   //   audio → reference_audio
   seedance: { inputs: ['text', 'image', 'video', 'audio'], outputs: ['video'] },
   audio: { inputs: ['text', 'audio'], outputs: ['audio'] },
-  llm: { inputs: ['text', 'image'], outputs: ['text'] },
+  llm: { inputs: ['text', 'image', 'video'], outputs: ['text'] },
 
   // ========== RH ==========
   runninghub: { inputs: ['text', 'image', 'video', 'audio', 'config'], outputs: ['image', 'video'] },
@@ -63,6 +70,15 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   // v1.2.10.1: 与 RunningHubNode 一致，左侧可接 text/image/video/audio 上游，
   // 右侧输出 image/video/audio（按扩展名分流到 imageUrl/videoUrl/audioUrl）。
   'rh-tools': { inputs: ['text', 'image', 'video', 'audio'], outputs: ['image', 'video', 'audio'] },
+  // RH 工具箱: 维护者精选工具，可处理/输出四类素材，后续供其他节点按 capability 快捷调用。
+  'rh-toolbox': { inputs: ['text', 'image', 'video', 'audio'], outputs: ['text', 'image', 'video', 'audio'] },
+  ...DEV_NODE_PORTS,
+
+  // ========== ComfyUI ==========
+  // ComfyUI超市：本地 workflow 应用运行器，可按 manifest 消费/输出四类素材。
+  'comfyui-store': { inputs: ['text', 'image', 'video', 'audio'], outputs: ['text', 'image', 'video', 'audio'] },
+  // ComfyUI应用制作工具：把 API Workflow JSON 转成应用 manifest，输出 JSON 文本。
+  'comfyui-app-maker': { inputs: [], outputs: ['text'] },
 
   // ========== Special ==========
   'multi-angle-3d': { inputs: ['text', 'image'], outputs: ['image'] },
@@ -90,6 +106,7 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   'remove-bg': { inputs: ['image'], outputs: ['image'] },
   upscale: { inputs: ['image'], outputs: ['image'] },
   'grid-crop': { inputs: ['image'], outputs: ['image'] },
+  'grid-editor': { inputs: ['image'], outputs: ['image'] },
 
   // ========== Auxiliary ==========
   edit: { inputs: ['text', 'image'], outputs: ['image'] },

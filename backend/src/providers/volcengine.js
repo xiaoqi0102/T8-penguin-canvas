@@ -1,8 +1,15 @@
 const openaiCompatible = require('./openaiCompatible');
 const { resolveMediaRef } = require('./mediaResolver');
 
+const GENERATION_TIMEOUT_MS = 60 * 60 * 1000;
 const SUCCESS_STATUSES = new Set(['SUCCESS', 'SUCCEED', 'SUCCEEDED', 'COMPLETED', 'COMPLETE', 'DONE', 'FINISHED', 'OK', 'READY']);
 const FAILURE_STATUSES = new Set(['FAILURE', 'FAILED', 'FAIL', 'ERROR', 'ERRORED', 'CANCELED', 'CANCELLED', 'TIMEOUT', 'REJECTED', 'EXPIRED']);
+
+function generationTimeoutMs(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return GENERATION_TIMEOUT_MS;
+  return Math.max(GENERATION_TIMEOUT_MS, Math.round(n));
+}
 
 function cleanBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '') || 'https://ark.cn-beijing.volces.com/api/v3';
@@ -117,7 +124,7 @@ async function generateImage(provider, input = {}, options = {}) {
       method: 'POST',
       headers: bearerHeaders(provider),
       body: JSON.stringify(body),
-      timeoutMs: options.timeoutMs || 1800000,
+      timeoutMs: generationTimeoutMs(options.timeoutMs),
       fetchImpl: options.fetchImpl,
     });
     const raw = await responseJson(res);
@@ -136,15 +143,17 @@ async function generateImage(provider, input = {}, options = {}) {
 
 async function pollVideoTask(provider, taskId, options = {}) {
   const pollUrl = endpointUrl(provider, `/contents/generations/tasks/${encodeURIComponent(taskId)}`, ['videoTaskEndpoint', 'video_task_endpoint']).replace(/\/tasks\/[^/]+\/contents\/generations\/tasks\//, '/contents/generations/tasks/');
-  const maxPoll = Number(options.maxPoll || 600);
   const interval = Number(options.pollIntervalMs || 5000);
+  const requestedMaxPoll = Math.max(1, Number(options.maxPoll || 600));
+  const minMaxPoll = Math.ceil(GENERATION_TIMEOUT_MS / Math.max(1, interval));
+  const maxPoll = Math.max(requestedMaxPoll, minMaxPoll);
   let lastRaw = null;
   for (let i = 0; i < maxPoll; i += 1) {
     if (i > 0 && interval > 0) await new Promise((resolve) => setTimeout(resolve, interval));
     const res = await openaiCompatible.fetchWithTimeout(pollUrl, {
       method: 'GET',
       headers: bearerHeaders(provider),
-      timeoutMs: options.timeoutMs,
+      timeoutMs: generationTimeoutMs(options.timeoutMs),
       fetchImpl: options.fetchImpl,
     });
     const raw = await responseJson(res);
@@ -199,7 +208,7 @@ async function generateVideo(provider, input = {}, options = {}) {
       method: 'POST',
       headers: bearerHeaders(provider),
       body: JSON.stringify(body),
-      timeoutMs: options.timeoutMs,
+      timeoutMs: generationTimeoutMs(options.timeoutMs),
       fetchImpl: options.fetchImpl,
     });
     const raw = await responseJson(res);

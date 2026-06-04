@@ -20,6 +20,7 @@ import {
   rhHiddenThemeMusicUrl,
   rhThemeMusicUrl,
   slamdunkThemeMusicUrl,
+  soccerThemeMusicUrl,
 } from '../theme/defaultTemplates';
 import { getThemeContrastWarnings } from '../theme/validateTheme';
 import type {
@@ -88,6 +89,7 @@ const VISUAL_STYLE_OPTIONS = [
   { value: 'eva', label: 'EVA 指挥' },
   { value: 'yyh', label: '幽游白书' },
   { value: 'slamdunk', label: '灌篮高手' },
+  { value: 'soccer-hero', label: '足球小将' },
 ] as const;
 
 const VISUAL_INTENSITY_OPTIONS = [
@@ -105,6 +107,7 @@ const MUSIC_PRESET_OPTIONS: Array<{ value: ThemeMusicPreset; label: string }> = 
   { value: 'eva-sync', label: 'EVA 同步' },
   { value: 'spirit-gun', label: '灵丸脉冲' },
   { value: 'buzzer-beater', label: '压哨热血' },
+  { value: 'golden-goal', label: '黄金进球' },
 ];
 
 const MAX_THEME_AUDIO_SIZE = 20 * 1024 * 1024;
@@ -185,6 +188,17 @@ function visualDefaultsFor(style: ThemeVisuals['style'], legacyStyle: LegacyThem
       canvasPattern: 'court',
       nodeFrame: 'scoreboard-card',
       headerMark: prev?.headerMark || 'BUZZER BEATER',
+    };
+  }
+  if (style === 'soccer-hero') {
+    return {
+      ...fallbackVisuals(legacyStyle),
+      ...(prev || {}),
+      style,
+      iconPack: 'soccer',
+      canvasPattern: 'pitch',
+      nodeFrame: 'match-card',
+      headerMark: prev?.headerMark || 'GOLDEN GOAL',
     };
   }
   if (style === 'tech') {
@@ -274,6 +288,17 @@ function fallbackMusic(legacyStyle: LegacyThemeStyle, visuals?: ThemeVisuals): T
       volume: 0.18,
       bpm: 142,
       copyrightNote: '灌篮高手风格默认音乐文件，可在主题模板中上传替换。公开分发前请确认音乐授权边界。',
+    };
+  }
+  if (visualStyle === 'soccer-hero') {
+    return {
+      title: '足球小将主题歌（燃烧英雄）',
+      preset: 'golden-goal',
+      source: 'url',
+      url: soccerThemeMusicUrl,
+      volume: 0.18,
+      bpm: 150,
+      copyrightNote: '足球小将风格默认 MIDI 音乐文件；若公开分发请确认音乐授权边界，golden-goal 仅作为兜底 preset。',
     };
   }
   if (legacyStyle === 'tech' || visualStyle === 'tech') {

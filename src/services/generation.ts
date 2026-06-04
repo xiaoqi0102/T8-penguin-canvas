@@ -2,6 +2,7 @@
  * 生成服务 - 封装代理调用
  * 所有请求走 /api/proxy/* (后端会注入对应 Key 并转存结果)
  */
+import type { AdvancedProviderConfig } from '../types/canvas';
 
 export interface GenerateImageRequest {
   model: string;          // 节点 id (gpt-image-2 / nano-banana-2 / nano-banana-pro / grok-image)
@@ -44,6 +45,7 @@ export async function generateImage(req: GenerateImageRequest): Promise<Generate
 
 export interface GenerateExternalImageRequest {
   providerId: string;
+  provider?: AdvancedProviderConfig;
   providerModel?: string;
   model?: string;
   prompt: string;
@@ -52,12 +54,20 @@ export interface GenerateExternalImageRequest {
   height?: number;
   n?: number;
   images?: string[];
+  videos?: string[];
+  audios?: string[];
+  negativePrompt?: string;
+  negative?: string;
+  seed?: number;
   providerParams?: Record<string, any>;
 }
 
 export interface GenerateExternalImageResult {
   imageUrls: string[];
   remoteImageUrls?: string[];
+  videoUrls?: string[];
+  audioUrls?: string[];
+  text?: string;
   taskId?: string;
   raw?: any;
   provider?: any;
@@ -77,6 +87,9 @@ export async function generateExternalImage(req: GenerateExternalImageRequest): 
   return {
     imageUrls: Array.isArray(payload.imageUrls) ? payload.imageUrls : [],
     remoteImageUrls: Array.isArray(payload.remoteImageUrls) ? payload.remoteImageUrls : undefined,
+    videoUrls: Array.isArray(payload.videoUrls) ? payload.videoUrls : undefined,
+    audioUrls: Array.isArray(payload.audioUrls) ? payload.audioUrls : undefined,
+    text: typeof payload.text === 'string' ? payload.text : undefined,
     taskId: payload.taskId,
     raw: payload.raw,
     provider: payload.provider,
@@ -493,11 +506,12 @@ export async function uploadMjImage(file: File, speed: MjSpeed = 'fast'): Promis
 }
 
 // LLM
-// content 支持多模态:字符串 或 [{type:'text',text} | {type:'image_url',image_url:{url}}]
+// content 支持多模态:字符串 或 [{type:'text',text} | {type:'image_url',image_url:{url}} | {type:'video_url',video_url:{url}}]
 // (对齐 gpt-image-2-web _doSendChat 多模态格式, index.html L8106~L8123)
 export type LlmContentPart =
   | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string } };
+  | { type: 'image_url'; image_url: { url: string } }
+  | { type: 'video_url'; video_url: { url: string } };
 
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant';
@@ -509,6 +523,14 @@ export interface GenerateLlmRequest {
   messages: LlmMessage[];
   temperature?: number;
   max_tokens?: number;
+  /** 视频传入方式：frames 默认用内置 ffmpeg 抽关键帧；native-base64 发送压缩原视频；url 转绝对 URL。 */
+  llmVideoMode?: 'frames' | 'native-base64' | 'compressed-base64' | 'url';
+  videoMaxWidth?: number;
+  videoMaxHeight?: number;
+  videoMaxBase64Mb?: number;
+  videoCrf?: number;
+  /** 关键帧模式下抽取的帧数，后端会按视频时长均匀抽取。 */
+  videoFrameCount?: number;
   /** 流式开关;默认 false(非流式) */
   stream?: boolean;
 }

@@ -36,6 +36,10 @@ const MODES: Array<{ id: AudioMode; label: string }> = [
   { id: 'extend', label: '续写(Extend)' },
 ];
 
+const SUNO_POLL_INTERVAL_MS = 3000;
+const SUNO_POLL_TIMEOUT_SECONDS = 3600;
+const SUNO_MAX_POLL = Math.ceil((SUNO_POLL_TIMEOUT_SECONDS * 1000) / SUNO_POLL_INTERVAL_MS);
+
 const AudioNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const hasAutoOutput = useHasAutoOutput(id);
@@ -182,7 +186,7 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
 
   const clearUpload = () => update({ uploadedClipId: '', uploadedFilename: '' });
 
-  // 轮询: 3000ms × 60 次 (3 分钟) — 对齐主项目默认 maxPoll/pollInt
+  // 轮询: 3000ms × 1200 次 = 3600s，避免 Suno 长任务 3 分钟提前超时。
   // v1.2.9.11: 返回 Promise，调用方 await 直到任务成功/失败/超时才 resolve/reject。
   //   原设计中 startPolling 启动 setInterval 后立即返回 → handleGenerate 提交成功后也立即返回→
   //   useRunTrigger 认为 runFn 完成 markDone(true)。 但实际任务 audioUrl 还未赋值 → LoopNode awaitNode
@@ -192,16 +196,16 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
     stopPoll();
     return new Promise<void>((resolve, reject) => {
       let elapsed = 0;
-      const POLL_INT = 3000;
-      const MAX = 60;
+      const POLL_INT = SUNO_POLL_INTERVAL_MS;
+      const MAX = SUNO_MAX_POLL;
       pollTimer.current = window.setInterval(async () => {
         elapsed += 1;
         if (elapsed > MAX) {
           stopPoll();
-          update({ status: 'error', error: '轮询超时 (3min)' });
-          setError('轮询超时 (3min)');
+          update({ status: 'error', error: '轮询超时 (60min)' });
+          setError('轮询超时 (60min)');
           logBus.error('轮询超时', src);
-          reject(new Error('轮询超时 (3min)'));
+          reject(new Error('轮询超时 (60min)'));
           return;
         }
         try {

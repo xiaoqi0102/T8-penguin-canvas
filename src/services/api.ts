@@ -2,7 +2,7 @@
  * T8-penguin-canvas 后端 API 封装
  * 所有请求走 Vite proxy → http://127.0.0.1:18766
  */
-import type { AdvancedProviderConfig, ApiSettings, CanvasData, CanvasListItem } from '../types/canvas';
+import type { AdvancedProviderConfig, ApiSettings, CanvasData, CanvasListItem, CloudUploadSummary, CloudUploadTargetConfig } from '../types/canvas';
 import type { ThemeTemplate } from '../theme/types';
 import type { MediaKind } from '../utils/mediaCollection';
 
@@ -152,6 +152,62 @@ export async function testAdvancedProvider(payload: {
     protocol: payload.provider?.protocol || '',
     error: '测试接口没有返回结果',
   };
+}
+
+export interface CloudUploadStatus {
+  targets: CloudUploadTargetConfig[];
+  summary: CloudUploadSummary;
+}
+
+export interface CloudUploadTestResult {
+  ok: boolean;
+  supported?: boolean;
+  message?: string;
+  error?: string;
+  target?: CloudUploadTargetConfig;
+}
+
+export interface CloudUploadAssetResult {
+  provider: string;
+  targetId: string;
+  label: string;
+  objectKey?: string;
+  path?: string;
+  url?: string;
+  filename?: string;
+  size?: number;
+  mime?: string;
+  kind?: string;
+  uploadedAt?: string;
+}
+
+export function getCloudUploadStatus() {
+  return safeRequest<CloudUploadStatus>(`${BASE}/cloud-uploads/status`);
+}
+
+export function testCloudUploadTarget(payload: {
+  targetId?: string;
+  target?: CloudUploadTargetConfig;
+}) {
+  return safeRequest<CloudUploadTestResult>(`${BASE}/cloud-uploads/test`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function uploadCloudAsset(payload: {
+  targetId: string;
+  url: string;
+  kind?: ResourceMediaKind | string;
+  filename?: string;
+  title?: string;
+  sourceNodeId?: string;
+  sourceCanvasId?: string;
+}) {
+  return safeRequest<CloudUploadAssetResult>(`${BASE}/cloud-uploads/upload`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 // ========== 文件自动保存到本地路径 (v1.2.10.2) ==========
@@ -577,115 +633,4 @@ export function deleteThemeTemplate(id: string) {
   return safeRequest<void>(`${BASE}/themes/templates/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
-}
-
-// ========== 算力充值 ==========
-
-export interface RechargeConfig {
-  website_url: string;
-  agent_base_url: string;
-  configured: boolean;
-  device_id: string;
-}
-
-export interface RechargeBinding {
-  bound: boolean;
-  website_user_id?: number;
-  bind_time?: string;
-}
-
-export interface RechargePlan {
-  id: string;
-  power: number;
-  price: number;
-  quota: number;
-  name: string;
-  test?: boolean;
-}
-
-export type RechargeOrderStatus = 'pending' | 'transferring' | 'success' | 'transfer_failed';
-
-export interface RechargeOrder {
-  order_id: string;
-  website_user_id: number;
-  plan_id: string;
-  plan_name: string;
-  power: number;
-  amount: number;
-  quota: number;
-  pay_type: 'alipay' | 'wxpay';
-  status: RechargeOrderStatus;
-  pay_url?: string;
-  trade_no?: string;
-  create_time?: string;
-  pay_time?: string;
-  transfer_message?: string;
-}
-
-export interface RechargeOrderCreateResponse {
-  success: boolean;
-  order_id: string;
-  pay_url: string;
-  amount: number;
-  power: number;
-  quota: number;
-  plan_name: string;
-  pay_type: 'alipay' | 'wxpay';
-}
-
-export interface RechargeOrderCheckResponse {
-  success: boolean;
-  status: RechargeOrderStatus;
-  order_id: string;
-  plan_name: string;
-  amount: number;
-  quota: number;
-  power?: number;
-  pay_url?: string;
-  pay_time?: string;
-  transfer_message?: string;
-}
-
-export function getRechargeConfig() {
-  return request<RechargeConfig>(`${BASE}/recharge/config`);
-}
-
-export function getRechargeBinding() {
-  return request<RechargeBinding>(`${BASE}/recharge/binding`);
-}
-
-export function bindRechargeUser(websiteUserId: number) {
-  return request<{ success: boolean; website_user_id: number }>(`${BASE}/recharge/binding`, {
-    method: 'POST',
-    body: JSON.stringify({ website_user_id: websiteUserId }),
-  });
-}
-
-export function unbindRechargeUser() {
-  return request<{ success: boolean }>(`${BASE}/recharge/binding`, { method: 'DELETE' });
-}
-
-export function getRechargePlans() {
-  return request<RechargePlan[]>(`${BASE}/recharge/plans`);
-}
-
-export function createRechargeOrder(planId: string, payType: 'alipay' | 'wxpay') {
-  return request<RechargeOrderCreateResponse>(`${BASE}/recharge/order/create`, {
-    method: 'POST',
-    body: JSON.stringify({ plan_id: planId, pay_type: payType }),
-  });
-}
-
-export function checkRechargeOrder(orderId: string) {
-  return request<RechargeOrderCheckResponse>(`${BASE}/recharge/order/${encodeURIComponent(orderId)}/check`);
-}
-
-export function retryRechargeOrder(orderId: string) {
-  return request<RechargeOrderCheckResponse>(`${BASE}/recharge/order/${encodeURIComponent(orderId)}/retry`, {
-    method: 'POST',
-  });
-}
-
-export function getRechargeOrders(limit = 20) {
-  return request<RechargeOrder[]>(`${BASE}/recharge/orders?limit=${encodeURIComponent(String(limit))}`);
 }

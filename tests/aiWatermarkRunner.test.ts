@@ -11,8 +11,10 @@ const {
   assertModeSupportsKind,
   buildAiWatermarkPlan,
   commandCandidates,
+  invisibleArgs,
   normalizeMode,
   normalizeRegions,
+  redactCommandArgs,
   visibleArgs,
 } = require('../backend/src/tools/aiWatermark/runner.js');
 
@@ -108,10 +110,32 @@ test('invisible keeps enough steps and strength for at least one diffusion times
   assert.equal(args[strengthIndex + 1], 0.25);
 });
 
+test('invisible protection flags use 0.8.7 opt-in CLI arguments', () => {
+  const defaultArgs = invisibleArgs('source.png', 'final.png', {});
+  assert.equal(defaultArgs.includes('--no-protect-text'), false);
+  assert.equal(defaultArgs.includes('--no-protect-faces'), false);
+  assert.equal(defaultArgs.includes('--protect-text'), false);
+  assert.equal(defaultArgs.includes('--protect-faces'), false);
+
+  const protectedArgs = invisibleArgs('source.png', 'final.png', {
+    protectText: true,
+    protectFaces: true,
+  });
+  assert.ok(protectedArgs.includes('--protect-text'));
+  assert.ok(protectedArgs.includes('--protect-faces'));
+});
+
 test('non-image media is limited to metadata operations', () => {
   assert.doesNotThrow(() => assertModeSupportsKind('metadata-check', 'audio'));
   assert.doesNotThrow(() => assertModeSupportsKind('metadata-remove', 'video'));
   assert.throws(() => assertModeSupportsKind('visible', 'video'), /视频 \/ 音频当前仅支持元数据/);
+});
+
+test('redactCommandArgs hides sensitive invisible watermark tokens in logs', () => {
+  assert.deepEqual(
+    redactCommandArgs(['invisible', 'source.png', '--hf-token', 'hf_secret_123', '--steps', '50']),
+    ['invisible', 'source.png', '--hf-token', '***', '--steps', '50'],
+  );
 });
 
 test('commandCandidates prefers explicit packaged sidecar runtime before generic PATH', () => {
@@ -126,8 +150,13 @@ test('commandCandidates prefers explicit packaged sidecar runtime before generic
   try {
     const labels = commandCandidates().map((item: any) => item.label);
     const runtimeIndex = labels.findIndex((label: string) => label.includes('T8_REMOVE_AI_WATERMARKS_RUNTIME'));
+    const runtimePythonIndex = labels.findIndex((label: string) => label.includes('T8_REMOVE_AI_WATERMARKS_RUNTIME python'));
+    const runtimeCliIndex = labels.findIndex((label: string) => label.includes('T8_REMOVE_AI_WATERMARKS_RUNTIME CLI'));
     const pathIndex = labels.findIndex((label: string) => label.includes('PATH remove-ai-watermarks'));
     assert.ok(runtimeIndex >= 0);
+    assert.ok(runtimePythonIndex >= 0);
+    assert.ok(runtimeCliIndex >= 0);
+    assert.ok(runtimePythonIndex < runtimeCliIndex);
     assert.ok(pathIndex < 0 || runtimeIndex < pathIndex);
   } finally {
     if (previous === undefined) delete process.env.T8_REMOVE_AI_WATERMARKS_RUNTIME;

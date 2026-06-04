@@ -10,11 +10,68 @@ const {
   outputUrlFromPath,
 } = require('./media');
 
-const STATUS_TIMEOUT_MS = 12_000;
+const STATUS_TIMEOUT_MS = 45_000;
 const PROCESS_TIMEOUT_MS = 15 * 60_000;
 const INVISIBLE_TIMEOUT_MS = 2 * 60 * 60_000;
+const RESOLUTION_CACHE_TTL_MS = 5 * 60_000;
+const NEGATIVE_RESOLUTION_CACHE_TTL_MS = 10_000;
+const CAPABILITY_CACHE_TTL_MS = 60_000;
 const FALLBACK_MARKS = ['gemini', 'doubao', 'jimeng'];
 const PYTHON_MODULE = 'remove_ai_watermarks.cli';
+
+let commandResolutionCache = null;
+let capabilityCache = null;
+
+function shortRunId() {
+  return Math.random().toString(36).slice(2, 8);
+}
+
+function redactCommandArgs(args = []) {
+  const out = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const value = String(args[i]);
+    out.push(value);
+    if (value === '--hf-token' && i + 1 < args.length) {
+      out.push('***');
+      i += 1;
+    }
+  }
+  return out;
+}
+
+function aiWatermarkLog(runId, message) {
+  const tag = runId ? `[ai-watermark ${runId}]` : '[ai-watermark]';
+  console.log(`${tag} ${message}`);
+}
+
+function createStreamLogger(runId, label, streamName) {
+  let pending = '';
+  const prefix = runId
+    ? `[ai-watermark ${runId}][${label}][${streamName}]`
+    : `[ai-watermark][${label}][${streamName}]`;
+
+  const emitLine = (line) => {
+    const text = String(line || '').trimEnd();
+    if (!text.trim()) return;
+    console.log(`${prefix} ${text}`);
+  };
+
+  const emit = (chunk) => {
+    const text = String(chunk || '').replace(/\r/g, '\n');
+    const lines = `${pending}${text}`.split('\n');
+    pending = lines.pop() || '';
+    for (const line of lines) emitLine(line);
+  };
+
+  emit.flush = () => {
+    if (pending) {
+      emitLine(pending);
+      pending = '';
+    }
+  };
+
+  return emit;
+}
 
 function bool(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -107,16 +164,6 @@ function pushRuntimeRootCandidates(candidates, runtimeRoot, label, env = process
   const root = path.resolve(runtimeRoot);
   if (!fs.existsSync(root)) return;
 
-  for (const cli of [
-    path.join(root, 'remove-ai-watermarks.exe'),
-    path.join(root, 'remove-ai-watermarks.cmd'),
-    path.join(root, 'remove-ai-watermarks'),
-    path.join(root, 'Scripts', 'remove-ai-watermarks.exe'),
-    path.join(root, 'bin', 'remove-ai-watermarks'),
-  ]) {
-    pushCliCandidate(candidates, cli, `${label} CLI`, env);
-  }
-
   const pythonPath = sourcePythonPath(root);
   for (const py of [
     path.join(root, 'python.exe'),
@@ -126,6 +173,16 @@ function pushRuntimeRootCandidates(candidates, runtimeRoot, label, env = process
     path.join(root, 'bin', 'python'),
   ]) {
     pushPythonModuleCandidate(candidates, py, `${label} python`, env, { pythonPath });
+  }
+
+  for (const cli of [
+    path.join(root, 'remove-ai-watermarks.exe'),
+    path.join(root, 'remove-ai-watermarks.cmd'),
+    path.join(root, 'remove-ai-watermarks'),
+    path.join(root, 'Scripts', 'remove-ai-watermarks.exe'),
+    path.join(root, 'bin', 'remove-ai-watermarks'),
+  ]) {
+    pushCliCandidate(candidates, cli, `${label} CLI`, env);
   }
 }
 
@@ -192,6 +249,27 @@ function commandCandidates() {
     });
   }
 
+  candidates.push({
+    id: 'python-module',
+    command: 'python',
+    baseArgs: ['-m', PYTHON_MODULE],
+    label: 'python -m remove_ai_watermarks.cli',
+    kind: 'python-module',
+    env: { ...env },
+    pythonCommand: 'python',
+    pythonPrefix: [],
+  });
+  candidates.push({
+    id: 'py-module',
+    command: 'py',
+    baseArgs: ['-3', '-m', PYTHON_MODULE],
+    label: 'py -3 -m remove_ai_watermarks.cli',
+    kind: 'python-module',
+    env: { ...env },
+    pythonCommand: 'py',
+    pythonPrefix: ['-3'],
+  });
+
   if (process.platform === 'win32') {
     candidates.push({
       id: 'path-cli-exe',
@@ -227,26 +305,6 @@ function commandCandidates() {
       env: { ...env },
     });
   }
-  candidates.push({
-    id: 'python-module',
-    command: 'python',
-    baseArgs: ['-m', PYTHON_MODULE],
-    label: 'python -m remove_ai_watermarks.cli',
-    kind: 'python-module',
-    env: { ...env },
-    pythonCommand: 'python',
-    pythonPrefix: [],
-  });
-  candidates.push({
-    id: 'py-module',
-    command: 'py',
-    baseArgs: ['-3', '-m', PYTHON_MODULE],
-    label: 'py -3 -m remove_ai_watermarks.cli',
-    kind: 'python-module',
-    env: { ...env },
-    pythonCommand: 'py',
-    pythonPrefix: ['-3'],
-  });
 
   return candidates;
 }
@@ -254,6 +312,12 @@ function commandCandidates() {
 function runCommand(candidate, args, options = {}) {
   const timeoutMs = options.timeoutMs || PROCESS_TIMEOUT_MS;
   const mergedArgs = [...(candidate.baseArgs || []), ...args.map((arg) => String(arg))];
+  const stdoutLogger = options.streamLogs
+    ? createStreamLogger(options.runId || '', options.streamLabel || candidate.label, 'stdout')
+    : null;
+  const stderrLogger = options.streamLogs
+    ? createStreamLogger(options.runId || '', options.streamLabel || candidate.label, 'stderr')
+    : null;
   return new Promise((resolve) => {
     let child;
     try {
@@ -285,6 +349,8 @@ function runCommand(candidate, args, options = {}) {
       } catch {
         // ignore
       }
+      stdoutLogger?.flush();
+      stderrLogger?.flush();
       resolve({
         ok: false,
         code: -1,
@@ -297,17 +363,23 @@ function runCommand(candidate, args, options = {}) {
     }, timeoutMs);
 
     child.stdout.on('data', (chunk) => {
-      stdout += chunk.toString();
+      const text = chunk.toString();
+      stdout += text;
       if (stdout.length > 40_000) stdout = stdout.slice(-40_000);
+      stdoutLogger?.(text);
     });
     child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString();
+      const text = chunk.toString();
+      stderr += text;
       if (stderr.length > 40_000) stderr = stderr.slice(-40_000);
+      stderrLogger?.(text);
     });
     child.on('error', (error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      stdoutLogger?.flush();
+      stderrLogger?.flush();
       resolve({
         ok: false,
         code: -1,
@@ -321,6 +393,8 @@ function runCommand(candidate, args, options = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      stdoutLogger?.flush();
+      stderrLogger?.flush();
       resolve({
         ok: code === 0,
         code,
@@ -334,29 +408,140 @@ function runCommand(candidate, args, options = {}) {
   });
 }
 
+function aiWatermarkEnvFingerprint() {
+  return [
+    process.env.T8_REMOVE_AI_WATERMARKS_BIN || '',
+    process.env.T8_REMOVE_AI_WATERMARKS_RUNTIME || '',
+    process.env.T8_REMOVE_AI_WATERMARKS_SRC || '',
+    process.env.T8PC_RES || '',
+    process.env.PATH || '',
+  ].join('\u0000');
+}
+
+function commandCandidatesFingerprint(candidates) {
+  return JSON.stringify(candidates.map((candidate) => ({
+    id: candidate.id,
+    command: candidate.command,
+    baseArgs: candidate.baseArgs || [],
+    label: candidate.label,
+    kind: candidate.kind,
+    pythonCommand: candidate.pythonCommand || '',
+    pythonPrefix: candidate.pythonPrefix || [],
+    pythonPath: candidate.pythonPath || '',
+  }))) + aiWatermarkEnvFingerprint();
+}
+
+function getCachedResolution(fingerprint) {
+  if (!commandResolutionCache) return null;
+  if (commandResolutionCache.fingerprint !== fingerprint) return null;
+  if (Date.now() > commandResolutionCache.expiresAt) return null;
+  return commandResolutionCache.value;
+}
+
+function setCachedResolution(fingerprint, value) {
+  const ttl = value?.installed ? RESOLUTION_CACHE_TTL_MS : NEGATIVE_RESOLUTION_CACHE_TTL_MS;
+  commandResolutionCache = {
+    fingerprint,
+    value,
+    expiresAt: Date.now() + ttl,
+  };
+}
+
+function parseJsonProbeOutput(text) {
+  const lines = String(text || '').trim().split(/\r?\n/).reverse();
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) continue;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // keep looking
+    }
+  }
+  return null;
+}
+
+async function probePythonModuleCandidate(candidate) {
+  const code = `
+import importlib.metadata, importlib.util, json, sys
+data = {"ok": False, "version": "", "message": ""}
+try:
+    spec = importlib.util.find_spec("${PYTHON_MODULE}")
+    if spec is None:
+        data["message"] = "module not found"
+        print(json.dumps(data, ensure_ascii=False))
+        sys.exit(3)
+    data["ok"] = True
+    try:
+        import remove_ai_watermarks
+        data["version"] = getattr(remove_ai_watermarks, "__version__", "")
+    except Exception:
+        try:
+            data["version"] = importlib.metadata.version("remove-ai-watermarks")
+        except Exception:
+            data["version"] = ""
+    print(json.dumps(data, ensure_ascii=False))
+except Exception as exc:
+    data["message"] = str(exc)
+    print(json.dumps(data, ensure_ascii=False))
+    sys.exit(2)
+`.trim();
+  const result = await runPythonProbe({
+    command: candidate.pythonCommand || candidate.command,
+    argsPrefix: candidate.pythonPrefix || [],
+    env: candidate.env || process.env,
+    label: `${candidate.label} import probe`,
+  }, code);
+  if (!result.ok) return result;
+  const data = parseJsonProbeOutput(result.stdout);
+  if (!data?.ok) {
+    return {
+      ...result,
+      ok: false,
+      stderr: data?.message || result.stderr || 'module not available',
+    };
+  }
+  return {
+    ...result,
+    version: String(data.version || ''),
+    stdout: data.version ? `remove-ai-watermarks ${data.version}` : result.stdout,
+  };
+}
+
 async function resolveAiWatermarkCommand() {
+  const candidates = commandCandidates();
+  const fingerprint = commandCandidatesFingerprint(candidates);
+  const cached = getCachedResolution(fingerprint);
+  if (cached) return cached;
+
   const errors = [];
-  for (const candidate of commandCandidates()) {
-    const result = await runCommand(candidate, ['--version'], { timeoutMs: STATUS_TIMEOUT_MS });
+  for (const candidate of candidates) {
+    const result = candidate.kind === 'python-module'
+      ? await probePythonModuleCandidate(candidate)
+      : await runCommand(candidate, ['--version'], { timeoutMs: STATUS_TIMEOUT_MS });
     if (result.ok) {
-      const version = parseVersion(result.stdout || result.stderr);
-      return {
+      const version = result.version || parseVersion(result.stdout || result.stderr);
+      const resolved = {
         installed: true,
         candidate,
         version,
         resolver: candidate.label,
         versionOutput: (result.stdout || result.stderr || '').trim(),
       };
+      setCachedResolution(fingerprint, resolved);
+      return resolved;
     }
     errors.push(`${candidate.label}: ${result.stderr || result.stdout || 'not available'}`.slice(0, 240));
   }
-  return {
+  const resolved = {
     installed: false,
     candidate: null,
     version: '',
     resolver: '',
     errors,
   };
+  setCachedResolution(fingerprint, resolved);
+  return resolved;
 }
 
 function parseVersion(text) {
@@ -422,13 +607,36 @@ print(json.dumps(data, ensure_ascii=False))
   for (const probe of pythonProbeCandidates(resolved)) {
     const result = await runPythonProbe(probe, code);
     if (!result.ok) continue;
-    try {
-      return JSON.parse(result.stdout.trim());
-    } catch {
-      // keep trying
-    }
+    const parsed = parseJsonProbeOutput(result.stdout);
+    if (parsed) return parsed;
   }
   return null;
+}
+
+function capabilitiesFingerprint(resolved) {
+  return [
+    resolved?.candidate?.id || '',
+    resolved?.candidate?.command || '',
+    resolved?.candidate?.pythonPath || '',
+    resolved?.version || '',
+    resolved?.resolver || '',
+    aiWatermarkEnvFingerprint(),
+  ].join('\u0000');
+}
+
+function getCachedCapabilities(fingerprint) {
+  if (!capabilityCache) return null;
+  if (capabilityCache.fingerprint !== fingerprint) return null;
+  if (Date.now() > capabilityCache.expiresAt) return null;
+  return capabilityCache.value;
+}
+
+function setCachedCapabilities(fingerprint, value) {
+  capabilityCache = {
+    fingerprint,
+    value,
+    expiresAt: Date.now() + CAPABILITY_CACHE_TTL_MS,
+  };
 }
 
 async function detectCapabilities() {
@@ -449,8 +657,12 @@ async function detectCapabilities() {
       errors: resolved.errors || [],
     };
   }
+  const fingerprint = capabilitiesFingerprint(resolved);
+  const cached = getCachedCapabilities(fingerprint);
+  if (cached) return cached;
+
   const dynamic = await detectDynamicCapabilities(resolved);
-  return {
+  const data = {
     installed: true,
     version: dynamic?.version || resolved.version || '',
     resolver: resolved.resolver,
@@ -466,6 +678,8 @@ async function detectCapabilities() {
     setupHints: setupHints(),
     errors: [],
   };
+  setCachedCapabilities(fingerprint, data);
+  return data;
 }
 
 function setupHints() {
@@ -533,8 +747,8 @@ function invisibleArgs(sourcePath, outputPath, options = {}) {
     args.push('--seed', integer(options.seed, 0, -2147483648, 2147483647));
   }
   if (options.hfToken) args.push('--hf-token', String(options.hfToken));
-  if (options.protectText === false) args.push('--no-protect-text');
-  if (options.protectFaces === false) args.push('--no-protect-faces');
+  if (options.protectText === true) args.push('--protect-text');
+  if (options.protectFaces === true) args.push('--protect-faces');
   return args;
 }
 
@@ -626,15 +840,30 @@ function ensureStepInput(step) {
   throw new Error(`步骤 ${step.label} 的输入文件不存在`);
 }
 
-async function executePlan(candidate, plan) {
+async function executePlan(candidate, plan, context = {}) {
   const logs = [];
   let report = null;
-  for (const step of plan.steps) {
+  const runId = context.runId || '';
+  aiWatermarkLog(runId, `plan start mode=${plan.mode} steps=${plan.steps.length} runner="${candidate.label}"`);
+  for (const [index, step] of plan.steps.entries()) {
+    const stepNo = `${index + 1}/${plan.steps.length}`;
+    const logLabel = `${plan.mode}:${step.label}`;
     ensureStepInput(step);
     if (step.outputPath && fs.existsSync(step.outputPath)) {
       try { fs.unlinkSync(step.outputPath); } catch (_) {}
     }
-    const result = await runCommand(candidate, step.args, { timeoutMs: stepTimeout(step) });
+    const startedAt = Date.now();
+    aiWatermarkLog(
+      runId,
+      `step ${stepNo} "${step.label}" start command="${candidate.label}" args=${JSON.stringify(redactCommandArgs(step.args))}`,
+    );
+    const result = await runCommand(candidate, step.args, {
+      timeoutMs: stepTimeout(step),
+      streamLogs: true,
+      streamLabel: logLabel,
+      runId,
+    });
+    const elapsedMs = Date.now() - startedAt;
     logs.push({
       step: step.label,
       ok: result.ok,
@@ -642,7 +871,9 @@ async function executePlan(candidate, plan) {
       stdout: result.stdout.trim().slice(-6000),
       stderr: result.stderr.trim().slice(-6000),
     });
+    aiWatermarkLog(runId, `step ${stepNo} "${step.label}" done ok=${result.ok} code=${result.code} elapsedMs=${elapsedMs}`);
     if (!result.ok) {
+      aiWatermarkLog(runId, `step ${stepNo} "${step.label}" failed`);
       throw new Error(result.stderr.trim() || result.stdout.trim() || `${step.label} 执行失败`);
     }
     if (step.label === 'identify') {
@@ -656,30 +887,37 @@ async function executePlan(candidate, plan) {
     }
     if (step.outputPath && !fs.existsSync(step.outputPath)) {
       if (step.allowNoOutput && fs.existsSync(step.inputPath)) {
+        aiWatermarkLog(runId, `step ${stepNo} "${step.label}" produced no file; copied input as fallback`);
         fs.copyFileSync(step.inputPath, step.outputPath);
       } else {
         throw new Error(`${step.label} 未生成输出文件`);
       }
     }
   }
+  aiWatermarkLog(runId, `plan complete mode=${plan.mode}`);
   return { logs, report };
 }
 
 async function runAiWatermarkProcess({ sourcePath, mediaKind, mode, options = {} }) {
   const normalizedMode = normalizeMode(mode);
+  const runId = shortRunId();
+  aiWatermarkLog(runId, `request start mode=${normalizedMode} source="${path.basename(String(sourcePath || ''))}" mediaKind=${mediaKind || kindFromPath(sourcePath) || 'unknown'}`);
   const resolved = await resolveAiWatermarkCommand();
   if (!resolved.installed) {
+    aiWatermarkLog(runId, `runtime missing errors=${JSON.stringify((resolved.errors || []).slice(0, 3))}`);
     throw new Error(`未安装 remove-ai-watermarks。${setupHints().slice(0, 2).join('；')}`);
   }
+  aiWatermarkLog(runId, `runtime resolved resolver="${resolved.resolver}" version="${resolved.version || '?'}"`);
   const plan = buildAiWatermarkPlan({
     mode: normalizedMode,
     sourcePath,
     mediaKind: mediaKind || kindFromPath(sourcePath),
     options,
   });
-  const executed = await executePlan(resolved.candidate, plan);
+  const executed = await executePlan(resolved.candidate, plan, { runId });
   if (plan.reportOnly) {
     const text = executed.report?.text || JSON.stringify(executed.report || {}, null, 2);
+    aiWatermarkLog(runId, `request complete outputKind=text`);
     return {
       mode: plan.mode,
       outputKind: 'text',
@@ -688,6 +926,7 @@ async function runAiWatermarkProcess({ sourcePath, mediaKind, mode, options = {}
       logs: executed.logs,
     };
   }
+  aiWatermarkLog(runId, `request complete outputKind=${kindFromPath(plan.outputPath) || mediaKind || 'image'} output="${path.basename(plan.outputPath)}"`);
   return {
     mode: plan.mode,
     outputKind: kindFromPath(plan.outputPath) || mediaKind || 'image',
@@ -705,8 +944,10 @@ module.exports = {
   detectCapabilities,
   normalizeMode,
   normalizeRegions,
+  redactCommandArgs,
   resolveAiWatermarkCommand,
   runAiWatermarkProcess,
   setupHints,
+  invisibleArgs,
   visibleArgs,
 };

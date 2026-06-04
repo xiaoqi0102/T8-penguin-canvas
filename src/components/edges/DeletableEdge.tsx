@@ -9,6 +9,7 @@ import {
 } from '@xyflow/react';
 
 const SLAMDUNK_BASKETBALL_URL = new URL('../../assets/slamdunk-basketball-v2.png', import.meta.url).href;
+const SOCCER_BALL_URL = new URL('../../assets/soccer-ball-v2.png', import.meta.url).href;
 
 function edgeDelay(id: string) {
   let hash = 0;
@@ -113,6 +114,25 @@ export default function DeletableEdge(props: EdgeProps) {
           <image
             className="t8-edge-pass-ball__image"
             href={SLAMDUNK_BASKETBALL_URL}
+            x={-11}
+            y={-11}
+            width={22}
+            height={22}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </g>
+      </g>
+      <g className="t8-edge-soccer-ball" aria-hidden="true">
+        <g className="t8-edge-soccer-ball__sprite">
+          <animateMotion
+            dur="2.05s"
+            repeatCount="indefinite"
+            path={edgePath}
+            begin={passBallDelay}
+          />
+          <image
+            className="t8-edge-soccer-ball__image"
+            href={SOCCER_BALL_URL}
             x={-11}
             y={-11}
             width={22}

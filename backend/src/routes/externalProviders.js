@@ -13,9 +13,19 @@ const {
 } = require('../providers/adapters');
 
 const router = express.Router();
+const EXTERNAL_GENERATION_TIMEOUT_MS = 60 * 60 * 1000;
+
+function generationTimeoutMs(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return EXTERNAL_GENERATION_TIMEOUT_MS;
+  return Math.max(EXTERNAL_GENERATION_TIMEOUT_MS, Math.round(n));
+}
 
 function safeProviderForResponse(provider) {
-  return maskAdvancedProviders([provider])[0] || null;
+  const masked = maskAdvancedProviders([provider]);
+  const id = String(provider?.id || '').trim();
+  const protocol = String(provider?.protocol || '').trim();
+  return masked.find((item) => item.id === id && item.protocol === protocol) || masked[0] || null;
 }
 
 function resolveProvider(body, currentProviders) {
@@ -185,6 +195,7 @@ router.post('/llm', async (req, res) => {
     }
     const result = await generateChatWithProvider(resolved.provider, req.body || {}, {
       timeoutMs: Number(req.body?.timeoutMs) || undefined,
+      baseUrl: `http://127.0.0.1:${config.PORT}`,
     });
     return resultResponse(res, result, resolved.provider);
   } catch (e) {
@@ -210,7 +221,7 @@ router.post('/image', async (req, res) => {
       });
     }
     const result = await generateImageWithProvider(resolved.provider, req.body || {}, {
-      timeoutMs: Number(req.body?.timeoutMs) || undefined,
+      timeoutMs: generationTimeoutMs(req.body?.timeoutMs),
       baseUrl: `http://127.0.0.1:${config.PORT}`,
     });
     if (!result.ok) return resultResponse(res, result, resolved.provider);
@@ -280,7 +291,7 @@ router.post('/video', async (req, res) => {
       });
     }
     const result = await generateVideoWithProvider(resolved.provider, req.body || {}, {
-      timeoutMs: Number(req.body?.timeoutMs) || undefined,
+      timeoutMs: generationTimeoutMs(req.body?.timeoutMs),
       baseUrl: `http://127.0.0.1:${config.PORT}`,
     });
     if (!result.ok) return resultResponse(res, result, resolved.provider);

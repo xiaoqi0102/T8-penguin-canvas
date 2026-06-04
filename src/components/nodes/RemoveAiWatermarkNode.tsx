@@ -44,8 +44,8 @@ const DEFAULT_OPTIONS: AiWatermarkOptions = {
   steps: 50,
   humanize: 0,
   maxResolution: 0,
-  protectText: true,
-  protectFaces: true,
+  protectText: false,
+  protectFaces: false,
   keepStandardMetadata: true,
   noVisible: false,
 };
@@ -480,6 +480,7 @@ function RemoveAiWatermarkNode({ id, data, selected }: { id: string; data: any; 
               <div>
                 <FieldLabel>强度</FieldLabel>
                 <NumberInput value={options.strength === undefined ? '' : Number(options.strength)} min={0} max={1} step={0.05} onChange={(value) => patchOptions({ strength: value === '' ? undefined : value })} />
+                <SmallHint>留空使用 0.8.7 的来源自适应强度；有残留再手动调高。</SmallHint>
               </div>
               <div>
                 <FieldLabel>长边上限</FieldLabel>
@@ -490,8 +491,9 @@ function RemoveAiWatermarkNode({ id, data, selected }: { id: string; data: any; 
                 <FieldLabel>胶片颗粒</FieldLabel>
                 <NumberInput value={Number(options.humanize ?? 0)} min={0} max={20} step={0.5} onChange={(value) => patchOptions({ humanize: value === '' ? 0 : value })} />
               </div>
-              <ToggleRow label="保护文字" checked={options.protectText !== false} onChange={(value) => patchOptions({ protectText: value })} />
-              <ToggleRow label="保护人脸" checked={options.protectFaces !== false} onChange={(value) => patchOptions({ protectFaces: value })} />
+              <ToggleRow label="保护文字（实验）" checked={options.protectText === true} onChange={(value) => patchOptions({ protectText: value })} />
+              <ToggleRow label="保护人脸（实验）" checked={options.protectFaces === true} onChange={(value) => patchOptions({ protectFaces: value })} />
+              <SmallHint>0.8.7 起两项默认关闭；开启后更保真，但可能让 SynthID 残留。</SmallHint>
             </div>
           </div>
         )}

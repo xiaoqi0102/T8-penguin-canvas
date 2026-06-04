@@ -458,6 +458,7 @@ const UploadNode = ({ id, data, selected }: NodeProps) => {
 
   return (
     <div
+      data-upload-node-id={id}
       data-rh-duck-mode={rhDuckMode ? 'true' : undefined}
       data-yyh-portrait-hidden-upload={yyhPortraitUploadMode ? 'true' : undefined}
       className="relative rounded-xl border-2 transition-colors flex flex-col"

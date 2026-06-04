@@ -10,13 +10,13 @@ https://www.runninghub.cn/?inviteCode=rh-v1121
 My favorite girl Go YounJung
 # 🐧 贞贞的无限画布（企鹅共创版） · T8-penguin-canvas
 
-> AI 节点画布工作流工具 · Web + Electron 桌面端｜v2.0.0
+> AI 节点画布工作流工具 · Web + Electron 桌面端｜v2.1.0
 >
 > GitHub：<https://github.com/T8mars/T8-penguin-canvas>
 
 一个面向 AI 创作的 **节点式画布**：拖拽节点、连线编排、生成图像 / 视频 / 音频、调用 LLM、串接 RunningHub 工作流，叠加批量执行、智能对齐、打组、主题模板与终端日志。Web 浏览器即可使用，亦可一键打包为 Windows 桌面端（NSIS 安装包）。
 
-![status](https://img.shields.io/badge/version-v2.0.0-brightgreen) ![node](https://img.shields.io/badge/node-%E2%89%A518-blue) ![react](https://img.shields.io/badge/react-19-61dafb) ![electron](https://img.shields.io/badge/electron-33-47848f) ![license](https://img.shields.io/badge/license-MIT-yellow)
+![status](https://img.shields.io/badge/version-v2.1.0-brightgreen) ![node](https://img.shields.io/badge/node-%E2%89%A518-blue) ![react](https://img.shields.io/badge/react-19-61dafb) ![electron](https://img.shields.io/badge/electron-33-47848f) ![license](https://img.shields.io/badge/license-MIT-yellow)
 
 ---
 
@@ -35,7 +35,7 @@ My favorite girl Go YounJung
 
 ## ✨ 功能亮点
 
-- 🎨 **41 个节点**，覆盖文本 / 图像 / 视频 / 音频 / LLM / RunningHub / 工具 / 辅助 / 工具箱 / 输出预览 / 上传素材 / 素材集
+- 🎨 **42 个节点**，覆盖文本 / 图像 / 视频 / 音频 / LLM / RunningHub / 工具 / 辅助 / 工具箱 / 输出预览 / 上传素材 / 素材集
 - 🧺 **画布级批量导入 + 素材合集打散**：上传节点支持一次选择多张图 / 多个视频 / 多段音频；也可直接把剪贴板或文件拖到画布，同类型多素材自动形成合集，上传和输出合集都可一键打散为多个独立素材节点
 - 👁️ **上传 / 输出图像原图悬停预览**（v1.8.7）：上传素材与输出素材的图像卡片在 hover 时显示小眼睛按钮，鼠标停在按钮上可按 100% 原尺寸预览，超出视口时自动等比收进可见区域，输出素材入口位于图像对比按钮下方
 - 🧹 **生成节点上游素材单项排除**（v1.8.8）：图像 / 视频 / SD2.0 / 音频 / LLM / RunningHub / RH 工具节点的上游素材缩略图右下角可点 X，从当前节点排除单个传入素材但不切断连线，并可用“恢复N”一键恢复
@@ -49,26 +49,28 @@ My favorite girl Go YounJung
 - 📝 **文本节点自由缩放**：文本节点四角拖拽可独立调整宽高，输出端口固定贴合右侧中点，并在尺寸变化后刷新 ReactFlow internals，避免连线和端口脱离
 - 🔗 **RH 文本 NodeID 绑定**（v1.9.0）：文本节点可填写 RH 节点序号，RunningHub / RH 钱包应用 / RH 超市会按应用参数里的 RH nodeId 自动匹配上游文本；节点内也能手动选择绑定文本，冲突和错误序号会保留清晰状态提示
 - 🧩 **xyflow 12** 画布引擎：缩放、平移、连线、迷你地图、控制条、SPA 兜底
+- 📐 **对齐 / 整理防堆叠**（v1.9.6）：框选多个节点后使用左 / 中 / 右 / 上 / 中 / 下对齐时，会在节点原本同排或同列重叠严重的情况下自动沿垂直或水平轴排开；等距分布在空间不足时会扩展排布，混选组框时只整理普通节点，避免节点直接叠成一摞
 - 🔑 **四套独立 API Key 隔离**：贞贞工坊 / RunningHub / RH 钱包应用 / LLM —— 全部经后端代理脱敏，前端永远拿不到明文
 - 📈 **一键批量运行**：Kahn 拓扑排序串行触发可执行节点，进度可视化，支持中断
 - 🖼️ **图像编辑模态·五模式**：裁剪 / 蒙版 / 笔刷 / 网格 / 组合；非组合模式会按弹窗舞台真实可视尺寸完整显示原图，避免双击上传 / 输出素材编辑时上下被工具栏遮住；组合模式支持多图层拖拽 / 4 角同比缩放 + Shift 自由比例 + Alt 中心缩放 + 旋转 15° 吸附 + 50 深独立撤销栈
 - ✂️ **宫格剪裁去缝预览**：独立宫格剪裁节点支持 gap 去缝、常用宫格预设、指定序号导出、输出顺序和上游合集批量拆分；批量拆分兼容上传多图与资源库素材集，并在节点内直接预览切线与被裁掉的缝隙区域
+- 🧱 **宫格编辑拼版节点**（v1.9.2）：工具节点新增宫格编辑，可接收上游图像或本地上传，按 2×2 / 3×3 / 3×4 / 4×3 / 1×4 / 4×1 与自定义宽高生成分镜拼版图；支持 adaptive 完整显示、拖拽排序、单格删除、序号叠加、拆分输出和 `/api/image/grid-compose` 生成 PNG
 - 🎬 **电影感组合器**：电影感节点支持成片风格、镜头、光影、调色、质感各 50 项，带中英文 prompt、强度控制、收藏复用、JSON 导入/导出和一键运行输出
 - 🎥 **视频运镜组合器**：视频运镜节点支持成片场景、运镜动作、路径、节奏、稳定和主体约束各 50 项，带可响应 50 项动作 / 50 项路径的路线示意、中英文 prompt、收藏复用、JSON 导入/导出和一键运行输出
 - 🧍 **肖像大师**：工具箱新增捏人 Prompt 设计器，内置 9 大类词库，每个小参数 100 个可选词条，支持不选、锁定、权重、自定义补充、Avatar 分层方向预览、角色库收藏、JSON 导入导出、资源库角色分类、跨画布发送配置 / Prompt、高级随机、风格随机包、种子复现和批量输出文本节点 / 文本素材集
 - 🧍‍♂️ **姿势大师**：支持 100 种常用姿势、多人骨架、MediaPipe 识别、手部控制、A/B 关键帧、姿势库、批量分镜，并可在节点内切换线稿 / OpenPose / COCO 预览与运行输出；OpenPose/COCO keypoints JSON 可单独导出给 ComfyUI / ControlNet 复用
-- 🧪 **Grok Image / Sora2 FAL / Grok Video FAL**：图像节点新增 Grok Image TAB；视频节点模型类型默认 `Grok Video → Veo 3.1 → Sora2`，Grok Video TAB 默认 `Grok Video 1.5 (FAL)`，图像传入默认 base64，最多 1 张参考图且不发送比例参数；旧版 Grok FAL / Sora2 FAL 仍保留兼容入口
+- 🧪 **Grok Image / Sora2 FAL / Grok Video FAL / 即梦 CLI Seedance**：图像节点新增 Grok Image TAB；视频节点模型类型默认 `Grok Video → Veo 3.1 → Sora2`，Grok Video TAB 默认 `Grok Video 1.5 (FAL)`，图像传入默认 base64，最多 1 张参考图且不发送比例参数；选择即梦 CLI Seedance 时支持 9 张图像、3 个视频、3 段音频参考，旧版 Grok FAL / Sora2 FAL 仍保留兼容入口
 - 🧾 **文本分割二版**：文本分割节点支持段落 / 行 / 自定义分隔 / Markdown / 序号 / 智能分镜 / 正则高级 / 字数切块；按段落严格以至少一个空行切段，按行才逐行切分，内置模式说明、中文输入稳定编辑、双列预览布局、分段收藏、JSON 导入导出，并一键创建前置文本循环器链路；循环器执行完成后可自动打散为多个文本节点
 - 🖌️ **图层画板节点**（v1.9.0 增强）：工具分类开放画板节点，支持 16:9 / 9:16 等画布比例、空白图层、图层组折叠、可见 / 锁定状态、载入上游或本地图片、手绘 / 文字 / 图形 / 箭头、缩放旋转、套索 / 钢笔非破坏式抠图、放大编辑窗口、导入导出画板 JSON 与运行输出 PNG；放大窗口复用完整图层面板并按设备像素比重绘，避免图片被低清预览二次放大
 - 🔑 **分类独立 API Key 可选 · 默认折叠**（v1.2.6）：gpt-image / nano-banana / mj / veo / grok / seedance / suno 七个分类 Key 未填自动 fallback 贞贞通用 Key，新手默认折叠不被干扰
-- 🧭 **扩展 API 平台高级入口**（v1.8.5）：API 设置页默认折叠的「扩展 API 平台【高级/可选】」可配置 OpenAI 兼容、ModelScope、火山引擎、本地 ComfyUI、即梦 CLI；面板已按平台用途、适用节点、连接配置、模型列表和高级项分区说明，启用后图像 / 视频 / SD2.0 / LLM 节点可选择高级来源，默认不改变主流程
-- 🧽 **去AI水印辅助节点**（v1.8.6）：桥接 `wiltodelta/remove-ai-watermarks`，支持可见水印识别去除、框选擦除（cv2 / LaMA）、隐形水印、AI 元数据检查 / 清理和来源鉴别；开发环境可使用本地 Python 包，用户 Electron 完整包可通过 `tools/remove-ai-watermarks-runtime` sidecar runtime 随包分发
+- 🧭 **扩展 API 平台高级入口**（v1.9.5 强化）：API 设置页默认折叠的「扩展 API 平台【高级/可选】」可配置 OpenAI 兼容、ModelScope、火山引擎、本地 ComfyUI、即梦 CLI；ModelScope 图像生成新增 LoRA 管理与节点内多选，默认带 Infinite-Canvas 同步的 LoRA 列表，LLM 继续走稳定 `/v1/chat/completions`，火山 / ModelScope 会自动合并默认模型列表，即梦 CLI 支持只返回 submit_id 后继续查询下载图像 / 视频；ComfyUI 字段映射会清理非 fixed 的旧 value，保证 Prompt、上游图片、宽高等运行时输入真正生效
+- 🧽 **去AI水印辅助节点**（v1.8.6，v1.9.4 已适配上游 0.8.7）：桥接 `wiltodelta/remove-ai-watermarks`，支持 Gemini / 豆包 / 即梦等可见水印识别去除、框选擦除（cv2 / LaMA）、来源自适应隐形水印、AI 元数据检查 / 清理和来源鉴别；开发环境可使用本地 Python 包，用户 Electron 完整包可通过 `tools/remove-ai-watermarks-runtime` sidecar runtime 随包分发
 - 🧲 **智能对齐辅助线 + snap-to-grid**：拖动时检测同列 / 同行 / 居中对齐并弱吸附
 - 📦 **GroupBox 打组**：框选 ≥2 节点一键套色框容器，可拖拽联动、整体执行、12 色调色板
 - 🖱️ **右键画布快速添加节点**：菜单列出 7 个高频节点（upload / text / image / video / seedance / audio / llm）
 - 🎯 **框选自动菜单**：≥2 节点框选后自动弹出操作面板（组执行 / 复制 / 快复制 / 删除 / 打组）
 - ⏪ **Undo / Redo / 复制粘贴 / 导入导出 / 工作流模板** 完整画布交互
-- 🌗 **主题模板系统**：科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格 / EVA 风格 / 幽游白书风格 / 灌篮高手风格八套内置模板，支持浅色 / 深色、导入导出、编辑保存、自定义路径与默认静音主题音乐；灌篮高手风格提供木地板球场、计分牌节点、传球弧线和战术板 MiniMap，幽游白书肖像大师隐藏模式会自动切换专用隐藏音乐
+- 🌗 **主题模板系统**：科技风 / 像素糖果风 / OP 风格 / RH 风格 / 火影忍者风格 / EVA 风格 / 幽游白书风格 / 灌篮高手风格 / 足球小将风格九套内置模板，支持浅色 / 深色、导入导出、编辑保存、自定义路径与默认静音主题音乐；灌篮高手风格提供木地板球场、计分牌节点、传球弧线和战术板 MiniMap，足球小将风格提供绿茵球场与传球连线，幽游白书肖像大师隐藏模式会自动切换专用隐藏音乐
 - 🧭 **主题悬浮控件统一**：小图标按钮使用固定语义类，避免 OP / 像素等强风格按钮膨胀；火影小地图、控制条和音乐按钮对齐到与 RH 一致的底部悬浮体验
 - 🎭 **公开主题设计规范**：见 [`docs/theme-design-guide.md`](docs/theme-design-guide.md)，用户可按规范制作、导入和分享更好看的主题画布
 - 🖥️ **终端日志面板**：底部抽屉式实时日志，对齐主项目 logBus 协议
@@ -135,7 +137,7 @@ npm run dist
 
 打包链路：`vite build` → `bytenode + T8ENC1` 加密后端为 `.t8c` 字节码 → `electron-builder --win --x64` 出 NSIS 安装包 → `_post_build.cjs` 自动校验后端加密路由、前端 dist、主题音乐资源和去AI水印 runtime slot 完整性。
 
-去AI水印完整能力依赖 Python / Torch / 上游 `remove-ai-watermarks`。源码默认不提交这类大体积运行时；如果要做可离线使用的用户 Electron 包，请先把准备好的 sidecar runtime 放入 `tools/remove-ai-watermarks-runtime/`，打包时会复制为 `resources/tools/remove-ai-watermarks/`。正式分发包建议设置 `T8_REQUIRE_AI_WATERMARK_RUNTIME=1` 后再执行 `npm run dist`，这样缺少 runtime 会直接失败，避免用户装包后节点不可用。
+去AI水印完整能力依赖 Python / Torch / 上游 `remove-ai-watermarks`。源码默认不提交这类大体积运行时；如果要做可离线使用的用户 Electron 包，请先把准备好的 sidecar runtime 放入 `tools/remove-ai-watermarks-runtime/`，打包时会复制为 `resources/tools/remove-ai-watermarks/`。正式分发包建议设置 `T8_REQUIRE_AI_WATERMARK_RUNTIME=1` 后再执行 `npm run dist`，这样缺少 runtime 会直接失败，避免用户装包后节点不可用。当前桥接已按上游 0.8.7 调整：隐形水印强度留空时由上游按来源自适应，文字 / 人脸保护为实验开关且默认关闭；重新打包离线用户包时必须同步升级 sidecar runtime。
 
 详细 SOP 与历史踩坑修复记录维护在本地私有 `skill.md`，该文件不随公开仓库发布。
 

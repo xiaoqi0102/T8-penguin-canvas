@@ -17,6 +17,16 @@ import {
   BellOff,
   Search,
   Terminal as TerminalIcon,
+  LayoutGrid,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
+  AlignStartHorizontal,
+  AlignCenterHorizontal,
+  AlignEndHorizontal,
+  AlignHorizontalSpaceBetween,
+  AlignVerticalSpaceBetween,
+  Grid3x3,
 } from 'lucide-react';
 import { useThemeStore } from '../stores/theme';
 import { useLogStore } from '../stores/logs';
@@ -32,6 +42,7 @@ import {
   type ShortcutAction,
   type ShortcutCombo,
 } from '../utils/keyboardShortcuts';
+import type { NodeAlignAction } from '../utils/nodeAlign';
 
 interface CanvasToolbarProps {
   canUndo: boolean;
@@ -56,6 +67,7 @@ interface CanvasToolbarProps {
   // 吸附开关
   snapEnabled: boolean;
   onToggleSnap: () => void;
+  onAlignSelection: (action: NodeAlignAction) => void;
 }
 
 export default function CanvasToolbar({
@@ -79,6 +91,7 @@ export default function CanvasToolbar({
   batchDone,
   snapEnabled,
   onToggleSnap,
+  onAlignSelection,
 }: CanvasToolbarProps) {
   const { theme, style } = useThemeStore();
   const isDark = theme === 'dark';
@@ -94,10 +107,12 @@ export default function CanvasToolbar({
   const resetShortcutAction = useShortcutStore((s) => s.resetAction);
   const resetAllShortcuts = useShortcutStore((s) => s.resetAll);
   const [tplOpen, setTplOpen] = useState(false);
+  const [alignOpen, setAlignOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [recordingActionId, setRecordingActionId] = useState<string | null>(null);
   const [shortcutMessage, setShortcutMessage] = useState<string>('');
   const tplRef = useRef<HTMLDivElement>(null);
+  const alignRef = useRef<HTMLDivElement>(null);
   const groupedShortcutActions = useMemo(() => {
     const groups = new Map<string, ShortcutAction[]>();
     for (const action of DEFAULT_SHORTCUTS) {
@@ -119,6 +134,21 @@ export default function CanvasToolbar({
     window.addEventListener('mousedown', onClick);
     return () => window.removeEventListener('mousedown', onClick);
   }, [tplOpen]);
+
+  useEffect(() => {
+    if (!alignOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (alignRef.current && !alignRef.current.contains(e.target as Node)) {
+        setAlignOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', onClick);
+    return () => window.removeEventListener('mousedown', onClick);
+  }, [alignOpen]);
+
+  useEffect(() => {
+    if (selectedCount === 0) setAlignOpen(false);
+  }, [selectedCount]);
 
   useEffect(() => {
     if (!recordingActionId) return;
@@ -211,6 +241,30 @@ export default function CanvasToolbar({
     setRecordingActionId(null);
     setShortcutMessage('');
   };
+  const runAlignAction = (action: NodeAlignAction) => {
+    onAlignSelection(action);
+    setAlignOpen(false);
+  };
+
+  const alignPanelButton = (
+    action: NodeAlignAction,
+    label: string,
+    Icon: typeof AlignStartVertical,
+    minCount = 2,
+  ) => {
+    const disabled = selectedCount < minCount;
+    return (
+      <button
+        type="button"
+        className={`${compactBtnCls} flex items-center justify-center gap-1 ${disabled ? disabledCls : ''}`}
+        onClick={() => runAlignAction(action)}
+        title={disabled ? `至少选择 ${minCount} 个节点` : label}
+      >
+        <Icon size={13} />
+        <span>{label}</span>
+      </button>
+    );
+  };
 
   const runningCls = isPixel
     ? isRunning
@@ -271,6 +325,47 @@ export default function CanvasToolbar({
         >
           <Magnet size={15} />
         </button>
+        <div className="relative" ref={alignRef}>
+          <button
+            className={`${baseBtn} ${selectedCount === 0 ? disabledCls : ''}`}
+            onClick={() => setAlignOpen((v) => !v)}
+            title={selectedCount > 0 ? `对齐/整理选区 · ${selectedCount} 个节点` : '先选择节点再对齐'}
+            aria-label="对齐/整理选区"
+          >
+            <LayoutGrid size={15} />
+          </button>
+          {alignOpen && selectedCount > 0 && (
+            <div
+              data-canvas-floating-ui="align-menu"
+              className={
+                isPixel
+                  ? 'absolute right-0 mt-1.5 w-72 px-card p-2'
+                  : `absolute right-0 mt-1.5 w-72 rounded-lg border p-2 shadow-xl ${
+                      isDark ? 'border-white/10 bg-zinc-950/95 text-zinc-100' : 'border-black/10 bg-white text-zinc-900'
+                    }`
+              }
+            >
+              <div className={`mb-2 px-1 text-[11px] font-bold ${isPixel ? 'text-[var(--px-ink)]' : isDark ? 'text-white/70' : 'text-zinc-600'}`}>
+                对齐选区
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {alignPanelButton('align-left', '左', AlignStartVertical)}
+                {alignPanelButton('align-center-x', '水平中', AlignCenterVertical)}
+                {alignPanelButton('align-right', '右', AlignEndVertical)}
+                {alignPanelButton('align-top', '上', AlignStartHorizontal)}
+                {alignPanelButton('align-center-y', '垂直中', AlignCenterHorizontal)}
+                {alignPanelButton('align-bottom', '下', AlignEndHorizontal)}
+              </div>
+              <div className={`my-2 h-px ${isPixel ? 'bg-[var(--px-ink)]/25' : isDark ? 'bg-white/10' : 'bg-black/10'}`} />
+              <div className="grid grid-cols-2 gap-1.5">
+                {alignPanelButton('distribute-x', '水平等距', AlignHorizontalSpaceBetween, 3)}
+                {alignPanelButton('distribute-y', '垂直等距', AlignVerticalSpaceBetween, 3)}
+                {alignPanelButton('snap-grid', '吸附网格', Magnet, 1)}
+                {alignPanelButton('arrange-grid', '整理网格', Grid3x3, 2)}
+              </div>
+            </div>
+          )}
+        </div>
         <button
           className={`${baseBtn} ${
             completionSoundEnabled

@@ -63,6 +63,15 @@ const DEFAULT: ApiSettings = {
     comfyuiConfigured: false,
     jimengConfigured: false,
   },
+  cloudUploadTargets: [],
+  cloudUploadSummary: {
+    totalCount: 0,
+    enabledCount: 0,
+    configuredCount: 0,
+    supportedUploadCount: 0,
+    defaultTargetId: '',
+    defaultLabel: '',
+  },
   preferences: { theme: 'dark', language: 'zh-CN' },
 };
 

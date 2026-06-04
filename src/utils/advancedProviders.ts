@@ -2,6 +2,15 @@ import type { AdvancedProviderConfig, AdvancedProviderSummary, CanvasProviderSou
 
 const MASKED_RE = /^\*{2,}/;
 
+export interface ModelscopeLoraOption {
+  id: string;
+  name: string;
+  targetModel: string;
+  strength: number;
+  enabled: boolean;
+  note?: string;
+}
+
 export function parseAdvancedProviderModelText(value: string): string[] {
   const out: string[] = [];
   for (const raw of String(value || '').split(/[\n,]/)) {
@@ -17,6 +26,53 @@ export function stringifyAdvancedProviderModels(values?: string[]): string {
     .map((item) => String(item || '').trim())
     .filter(Boolean)
     .join('\n');
+}
+
+export function normalizeModelscopeLoraStrength(value: unknown, fallback = 0.8): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(2, n));
+}
+
+export function normalizeModelscopeLoras(values?: unknown[]): ModelscopeLoraOption[] {
+  const out: ModelscopeLoraOption[] = [];
+  const seen = new Set<string>();
+  for (const raw of Array.isArray(values) ? values : []) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const item = raw as Record<string, any>;
+    const id = String(item.id || item.loraId || '').trim();
+    const targetModel = String(item.targetModel || item.target_model || item.model || '').trim();
+    if (!id || !targetModel) continue;
+    const key = `${targetModel}\n${id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id: id.slice(0, 180),
+      name: String(item.name || id).trim().replace(/\s+/g, ' ').slice(0, 80) || id,
+      targetModel: targetModel.slice(0, 180),
+      strength: normalizeModelscopeLoraStrength(item.strength ?? item.default_strength ?? item.defaultStrength, 0.8),
+      enabled: item.enabled !== false,
+      note: String(item.note || '').trim().slice(0, 300),
+    });
+  }
+  return out;
+}
+
+export function modelscopeLorasForModel(
+  provider: AdvancedProviderConfig | null | undefined,
+  modelId?: string,
+): ModelscopeLoraOption[] {
+  const target = String(modelId || '').trim();
+  if (!provider || provider.protocol !== 'modelscope' || !target) return [];
+  const raw = [
+    ...(Array.isArray(provider.modelscopeConfig?.loras) ? provider.modelscopeConfig.loras : []),
+    ...(Array.isArray((provider as any).ms_loras) ? (provider as any).ms_loras : []),
+  ];
+  return normalizeModelscopeLoras(raw).filter((lora) => (
+    lora.enabled !== false &&
+    lora.id &&
+    lora.targetModel === target
+  ));
 }
 
 export function hasAdvancedProviderSecret(value?: string): boolean {
@@ -63,18 +119,34 @@ const LLM_PROTOCOLS = new Set(['openai-compatible', 'modelscope', 'volcengine', 
 const FALLBACK_MODELS: Record<AdvancedProviderNodeKind, Partial<Record<string, string[]>>> = {
   image: {
     'openai-compatible': ['gpt-image-1'],
-    modelscope: ['MusePublic/489_ckpt_FLUX_1'],
+    modelscope: [
+      'Tongyi-MAI/Z-Image-Turbo',
+      'Qwen/Qwen-Image-2512',
+      'Qwen/Qwen-Image-Edit-2511',
+      'black-forest-labs/FLUX.2-klein-9B',
+    ],
     volcengine: ['doubao-seedream-4-0-250828'],
     'jimeng-cli': ['jimeng-image-2k'],
   },
   video: {
     'openai-compatible': [],
-    volcengine: ['doubao-seedance-2-0-pro-250528'],
+    volcengine: [
+      'doubao-seedance-2-0-260128',
+      'doubao-seedance-2-0-fast-260128',
+      'doubao-seedance-1-5-pro-251215',
+      'doubao-seedance-1-0-pro-250528',
+      'doubao-seedance-1-0-lite-t2v-250428',
+      'doubao-seedance-1-0-lite-i2v-250428',
+    ],
     'jimeng-cli': ['seedance2.0fast_vip'],
   },
   llm: {
     'openai-compatible': ['gpt-4o-mini'],
-    modelscope: ['Qwen/Qwen3-Coder-480B-A35B-Instruct'],
+    modelscope: [
+      'Qwen/Qwen3-235B-A22B',
+      'Qwen/Qwen3-VL-235B-A22B-Instruct',
+      'MiniMax/MiniMax-M2.7:MiniMax',
+    ],
     volcengine: ['doubao-seed-1-6-250615'],
   },
 };

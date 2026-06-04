@@ -121,6 +121,32 @@ export function createUploadDataFromItem(item: MediaItem): Record<string, any> {
   return createUploadDataFromItems(item.kind, [item]);
 }
 
+export function createEmptyUploadMediaData(): Record<string, any> {
+  const data: Record<string, any> = {
+    uploadType: null,
+    fileName: '',
+    fileNames: [],
+    fileSize: 0,
+    fileSizes: [],
+    mime: '',
+    mimes: [],
+  };
+  for (const meta of Object.values(MEDIA_KIND_META)) {
+    data[meta.singleField] = undefined;
+    data[meta.arrayField] = [];
+    data[meta.directSingleField] = undefined;
+    data[meta.directArrayField] = [];
+  }
+  return data;
+}
+
+export function createUploadReplacementData(kind: MediaKind, items: MediaItem[]): Record<string, any> {
+  return {
+    ...createEmptyUploadMediaData(),
+    ...createUploadDataFromItems(kind, items),
+  };
+}
+
 export function createOutputDataFromItems(kind: MediaKind, items: MediaItem[]): Record<string, any> {
   const meta = MEDIA_KIND_META[kind];
   const clean = items.filter((item) => item.kind === kind && item.url);

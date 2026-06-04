@@ -15,6 +15,34 @@ type Note = {
   type?: OscillatorType;
 };
 
+type MidiNoteEvent = {
+  tick: number;
+  type: 'on' | 'off';
+  channel: number;
+  note: number;
+  velocity: number;
+};
+
+type MidiTempoEvent = {
+  tick: number;
+  microsecondsPerQuarter: number;
+};
+
+type MidiScheduledNote = {
+  midi: number;
+  channel: number;
+  start: number;
+  duration: number;
+  velocity: number;
+};
+
+type MidiSequence = {
+  notes: MidiScheduledNote[];
+  duration: number;
+};
+
+const MIDI_SEQUENCE_CACHE = new Map<string, Promise<MidiSequence>>();
+
 const PRESET_NOTES: Record<ThemeMusicPreset, Note[]> = {
   'tech-pulse': [
     { freq: 220, at: 0, len: 0.12, type: 'sawtooth' },
@@ -84,6 +112,16 @@ const PRESET_NOTES: Record<ThemeMusicPreset, Note[]> = {
     { freq: 392, at: 1.42, len: 0.1, type: 'square' },
     { freq: 659, at: 1.68, len: 0.16, type: 'triangle' },
   ],
+  'golden-goal': [
+    { freq: 196, at: 0, len: 0.08, type: 'triangle' },
+    { freq: 294, at: 0.16, len: 0.08, type: 'sine' },
+    { freq: 392, at: 0.32, len: 0.1, type: 'triangle' },
+    { freq: 587, at: 0.56, len: 0.12, type: 'sine' },
+    { freq: 523, at: 0.82, len: 0.09, type: 'triangle' },
+    { freq: 659, at: 1.04, len: 0.13, type: 'sine' },
+    { freq: 784, at: 1.34, len: 0.16, type: 'triangle' },
+    { freq: 587, at: 1.72, len: 0.12, type: 'square' },
+  ],
 };
 
 const PRESET_LOOP_SECONDS: Record<ThemeMusicPreset, number> = {
@@ -95,6 +133,7 @@ const PRESET_LOOP_SECONDS: Record<ThemeMusicPreset, number> = {
   'eva-sync': 1.72,
   'spirit-gun': 1.92,
   'buzzer-beater': 2.08,
+  'golden-goal': 2.08,
 };
 
 function clampVolume(value?: number) {
@@ -120,6 +159,225 @@ function scheduleNote(ctx: AudioContext, master: GainNode, note: Note, startAt: 
   gain.connect(master);
   oscillator.start(noteStart);
   oscillator.stop(noteEnd + release + 0.02);
+}
+
+function isMidiUrl(url: string) {
+  return /\.(mid|midi)(?:[?#]|$)/i.test(url) || /^data:audio\/(?:midi|x-midi|mid)/i.test(url);
+}
+
+function readAscii(bytes: Uint8Array, offset: number, length: number) {
+  let output = '';
+  for (let i = 0; i < length; i += 1) output += String.fromCharCode(bytes[offset + i] || 0);
+  return output;
+}
+
+function readUInt16(bytes: Uint8Array, offset: number) {
+  return ((bytes[offset] || 0) << 8) | (bytes[offset + 1] || 0);
+}
+
+function readUInt32(bytes: Uint8Array, offset: number) {
+  return (
+    ((bytes[offset] || 0) * 0x1000000) +
+    ((bytes[offset + 1] || 0) << 16) +
+    ((bytes[offset + 2] || 0) << 8) +
+    (bytes[offset + 3] || 0)
+  );
+}
+
+function readVariableLength(bytes: Uint8Array, state: { offset: number }) {
+  let value = 0;
+  for (let i = 0; i < 4 && state.offset < bytes.length; i += 1) {
+    const byte = bytes[state.offset] || 0;
+    state.offset += 1;
+    value = (value << 7) | (byte & 0x7f);
+    if ((byte & 0x80) === 0) break;
+  }
+  return value;
+}
+
+function midiFrequency(note: number) {
+  return 440 * 2 ** ((note - 69) / 12);
+}
+
+function parseMidiSequence(buffer: ArrayBuffer): MidiSequence {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length < 14 || readAscii(bytes, 0, 4) !== 'MThd') {
+    throw new Error('Invalid MIDI header');
+  }
+
+  const headerLength = readUInt32(bytes, 4);
+  const trackCount = readUInt16(bytes, 10);
+  const division = readUInt16(bytes, 12);
+  if ((division & 0x8000) !== 0) {
+    throw new Error('SMPTE MIDI timing is not supported');
+  }
+
+  const ticksPerQuarter = Math.max(1, division);
+  const noteEvents: MidiNoteEvent[] = [];
+  const tempoEvents: MidiTempoEvent[] = [{ tick: 0, microsecondsPerQuarter: 500000 }];
+  let offset = 8 + headerLength;
+  let tracksRead = 0;
+
+  while (offset + 8 <= bytes.length && tracksRead < trackCount) {
+    const chunkType = readAscii(bytes, offset, 4);
+    const chunkLength = readUInt32(bytes, offset + 4);
+    offset += 8;
+    const chunkEnd = Math.min(bytes.length, offset + chunkLength);
+    if (chunkType !== 'MTrk') {
+      offset = chunkEnd;
+      continue;
+    }
+    tracksRead += 1;
+
+    const state = { offset };
+    let tick = 0;
+    let runningStatus = 0;
+    while (state.offset < chunkEnd) {
+      tick += readVariableLength(bytes, state);
+      if (state.offset >= chunkEnd) break;
+      let status = bytes[state.offset] || 0;
+      state.offset += 1;
+      if (status < 0x80) {
+        if (!runningStatus) break;
+        state.offset -= 1;
+        status = runningStatus;
+      } else if (status < 0xf0) {
+        runningStatus = status;
+      }
+
+      if (status === 0xff) {
+        const metaType = bytes[state.offset] || 0;
+        state.offset += 1;
+        const length = readVariableLength(bytes, state);
+        if (metaType === 0x51 && length >= 3 && state.offset + 2 < chunkEnd) {
+          tempoEvents.push({
+            tick,
+            microsecondsPerQuarter:
+              ((bytes[state.offset] || 0) << 16) |
+              ((bytes[state.offset + 1] || 0) << 8) |
+              (bytes[state.offset + 2] || 0),
+          });
+        }
+        state.offset = Math.min(chunkEnd, state.offset + length);
+        if (metaType === 0x2f) break;
+        continue;
+      }
+
+      if (status === 0xf0 || status === 0xf7) {
+        const length = readVariableLength(bytes, state);
+        state.offset = Math.min(chunkEnd, state.offset + length);
+        runningStatus = 0;
+        continue;
+      }
+
+      const eventType = status & 0xf0;
+      const channel = status & 0x0f;
+      const data1 = bytes[state.offset] || 0;
+      state.offset += 1;
+      const needsSecondByte = eventType !== 0xc0 && eventType !== 0xd0;
+      const data2 = needsSecondByte ? bytes[state.offset] || 0 : 0;
+      if (needsSecondByte) state.offset += 1;
+
+      if (eventType === 0x90 && data2 > 0) {
+        noteEvents.push({ tick, type: 'on', channel, note: data1, velocity: data2 });
+      } else if (eventType === 0x80 || (eventType === 0x90 && data2 === 0)) {
+        noteEvents.push({ tick, type: 'off', channel, note: data1, velocity: 0 });
+      }
+    }
+    offset = chunkEnd;
+  }
+
+  tempoEvents.sort((a, b) => a.tick - b.tick);
+  const tickToSeconds = (targetTick: number) => {
+    let seconds = 0;
+    let previousTick = 0;
+    let tempo = 500000;
+    for (const event of tempoEvents) {
+      if (event.tick > targetTick) break;
+      seconds += ((event.tick - previousTick) * tempo) / (ticksPerQuarter * 1000000);
+      previousTick = event.tick;
+      tempo = event.microsecondsPerQuarter || tempo;
+    }
+    return seconds + ((targetTick - previousTick) * tempo) / (ticksPerQuarter * 1000000);
+  };
+
+  noteEvents.sort((a, b) => a.tick - b.tick || (a.type === 'off' ? -1 : 1));
+  const activeNotes = new Map<string, MidiNoteEvent[]>();
+  const scheduledNotes: MidiScheduledNote[] = [];
+  const lastTick = Math.max(0, ...noteEvents.map((event) => event.tick));
+
+  for (const event of noteEvents) {
+    const key = `${event.channel}:${event.note}`;
+    if (event.type === 'on') {
+      const queue = activeNotes.get(key) || [];
+      queue.push(event);
+      activeNotes.set(key, queue);
+      continue;
+    }
+    const queue = activeNotes.get(key);
+    const startEvent = queue?.shift();
+    if (!startEvent) continue;
+    const start = tickToSeconds(startEvent.tick);
+    const end = tickToSeconds(Math.max(event.tick, startEvent.tick + 1));
+    scheduledNotes.push({
+      midi: startEvent.note,
+      channel: startEvent.channel,
+      start,
+      duration: Math.max(0.04, end - start),
+      velocity: startEvent.velocity,
+    });
+  }
+
+  for (const queue of activeNotes.values()) {
+    for (const startEvent of queue) {
+      const start = tickToSeconds(startEvent.tick);
+      const end = tickToSeconds(Math.max(lastTick, startEvent.tick + ticksPerQuarter));
+      scheduledNotes.push({
+        midi: startEvent.note,
+        channel: startEvent.channel,
+        start,
+        duration: Math.max(0.08, end - start),
+        velocity: startEvent.velocity,
+      });
+    }
+  }
+
+  scheduledNotes.sort((a, b) => a.start - b.start);
+  const duration = Math.max(2, scheduledNotes.reduce((max, note) => Math.max(max, note.start + note.duration), 0) + 0.6);
+  return { notes: scheduledNotes.slice(0, 6000), duration };
+}
+
+async function loadMidiSequence(url: string) {
+  const cached = MIDI_SEQUENCE_CACHE.get(url);
+  if (cached) return cached;
+  const pending = fetch(url)
+    .then((response) => {
+      if (!response.ok) throw new Error(`Unable to load MIDI: ${response.status}`);
+      return response.arrayBuffer();
+    })
+    .then(parseMidiSequence);
+  MIDI_SEQUENCE_CACHE.set(url, pending);
+  return pending;
+}
+
+function scheduleMidiNote(ctx: AudioContext, master: GainNode, note: MidiScheduledNote, startAt: number, volume: number) {
+  const oscillator = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const noteStart = startAt + note.start;
+  const duration = Math.max(0.04, Math.min(note.duration, note.channel === 9 ? 0.12 : 8));
+  const noteEnd = noteStart + duration;
+  const peak = Math.max(0.0001, volume * (note.velocity / 127) * (note.channel === 9 ? 0.12 : 0.24));
+
+  oscillator.type = note.channel === 9 ? 'square' : note.midi < 48 ? 'triangle' : 'sine';
+  oscillator.frequency.setValueAtTime(note.channel === 9 ? 70 + (note.midi % 24) * 10 : midiFrequency(note.midi), noteStart);
+  gain.gain.setValueAtTime(0.0001, noteStart);
+  gain.gain.exponentialRampToValueAtTime(peak, noteStart + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd + 0.06);
+
+  oscillator.connect(gain);
+  gain.connect(master);
+  oscillator.start(noteStart);
+  oscillator.stop(noteEnd + 0.08);
 }
 
 export default function ThemeMusicToggle({ template }: ThemeMusicToggleProps) {
@@ -212,6 +470,28 @@ export default function ThemeMusicToggle({ template }: ThemeMusicToggleProps) {
     await audio.play();
   };
 
+  const playMidiUrl = async (url: string) => {
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextCtor) return;
+    const ctx = new AudioContextCtor() as AudioContext;
+    const master = ctx.createGain();
+    master.gain.value = 0.9;
+    master.connect(ctx.destination);
+    audioCtxRef.current = ctx;
+    masterGainRef.current = master;
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    const sequence = await loadMidiSequence(url);
+    const playLoop = () => {
+      if (audioCtxRef.current !== ctx) return;
+      const startAt = ctx.currentTime + 0.04;
+      sequence.notes.forEach((note) => scheduleMidiNote(ctx, master, note, startAt, volume));
+    };
+
+    playLoop();
+    timerRef.current = window.setInterval(playLoop, Math.max(2, sequence.duration) * 1000);
+  };
+
   const playSynth = async () => {
     const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextCtor) return;
@@ -238,7 +518,12 @@ export default function ThemeMusicToggle({ template }: ThemeMusicToggleProps) {
     stop();
     try {
       if ((music?.source === 'url' || music?.source === 'upload') && music.url?.trim()) {
-        await playUrl(music.url.trim());
+        const url = music.url.trim();
+        if (isMidiUrl(url)) {
+          await playMidiUrl(url);
+        } else {
+          await playUrl(url);
+        }
       } else {
         await playSynth();
       }

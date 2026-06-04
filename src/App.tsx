@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Moon, Settings, Sun, Wifi, WifiOff, Sparkles, Cloud, ExternalLink, Copy, Check, Gift, Heart, Youtube, PlayCircle, Bell, Wand2, Globe, MessageCircle, CalendarDays, Rocket, Key, Gem, Library, Palette, Skull, Sailboat } from 'lucide-react';
+import { Moon, Settings, Sun, Wifi, WifiOff, Sparkles, Cloud, ExternalLink, Copy, Check, Gift, Heart, Youtube, PlayCircle, Bell, Wand2, Globe, MessageCircle, CalendarDays, Rocket, Key, Library, Palette, Skull, Sailboat } from 'lucide-react';
 import { useThemeStore } from './stores/theme';
 import { useApiKeysStore } from './stores/apiKeys';
 import { useShortcutStore } from './stores/shortcuts';
 import Sidebar from './components/Sidebar';
 import Canvas, { type AddNodeFn, type InsertWorkflowFn } from './components/Canvas';
 import ApiSettingsModal from './components/ApiSettings';
-import RechargeModal from './components/RechargeModal';
 import ResourceLibraryDrawer from './components/ResourceLibraryDrawer';
 import MaterialContextMenu from './components/MaterialContextMenu';
 import ThemeTemplateManager from './components/ThemeTemplateManager';
@@ -164,7 +163,6 @@ function App() {
   );
   const [backendStatus, setBackendStatus] = useState<'checking' | 'ok' | 'error'>('checking');
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [rechargeOpen, setRechargeOpen] = useState(false);
   const [resourceOpen, setResourceOpen] = useState(false);
   const [themeManagerOpen, setThemeManagerOpen] = useState(false);
   // 「在线画布」推广浮层开关 + 容器 ref(用于点击外部关闭)
@@ -409,6 +407,7 @@ function App() {
   const isEva = currentTemplate.visuals?.style === 'eva';
   const isYyh = currentTemplate.visuals?.style === 'yyh';
   const isSlamdunk = currentTemplate.visuals?.style === 'slamdunk';
+  const isSoccer = currentTemplate.visuals?.style === 'soccer-hero';
 
   const handleAddNode = (type: NodeType) => {
     addNodeRef.current?.(type);
@@ -465,7 +464,7 @@ function App() {
     <div
       className={`t8-app-shell h-screen flex flex-col overflow-hidden ${
         isPixel ? '' : isDark ? 'bg-zinc-950 text-white' : 'bg-zinc-50 text-zinc-900'
-      } ${isOp ? 't8-app-shell--op' : ''} ${isRh ? 't8-app-shell--rh' : ''} ${isNaruto ? 't8-app-shell--naruto' : ''} ${isEva ? 't8-app-shell--eva' : ''} ${isYyh ? 't8-app-shell--yyh' : ''} ${isSlamdunk ? 't8-app-shell--slamdunk' : ''}`}
+      } ${isOp ? 't8-app-shell--op' : ''} ${isRh ? 't8-app-shell--rh' : ''} ${isNaruto ? 't8-app-shell--naruto' : ''} ${isEva ? 't8-app-shell--eva' : ''} ${isYyh ? 't8-app-shell--yyh' : ''} ${isSlamdunk ? 't8-app-shell--slamdunk' : ''} ${isSoccer ? 't8-app-shell--soccer' : ''}`}
       style={{ background: 'var(--t8-bg-app)', color: 'var(--t8-text-main)' }}
     >
       {/* 头部状态栏 */}
@@ -566,6 +565,21 @@ function App() {
                 </div>
               </div>
               <span className="t8-slamdunk-brand__score" aria-hidden="true">T8 10 : 08 AI</span>
+            </div>
+          ) : isSoccer ? (
+            <div className="t8-soccer-brand flex items-center gap-2">
+              <span className="t8-soccer-brand__mark" aria-hidden="true">
+                <span className="t8-soccer-brand__jersey" />
+              </span>
+              <div className="min-w-0">
+                <h1 className="t8-soccer-brand__title text-[14px] font-black leading-none">
+                  足球小将 · 贞贞的无限画布
+                </h1>
+                <div className="t8-soccer-brand__sub text-[9px] font-bold tracking-wide leading-none mt-0.5">
+                  CAPTAIN TSUBASA CANVAS / GOLDEN GOAL READY
+                </div>
+              </div>
+              <span className="t8-soccer-brand__score" aria-hidden="true">Japan 3:2 Brazil</span>
             </div>
           ) : isPixel ? (
             <>
@@ -1257,22 +1271,6 @@ function App() {
             <span className="text-[11px] truncate">{currentTemplate.name}</span>
           </button>
           <button
-            onClick={() => setRechargeOpen(true)}
-            className={
-              isPixel
-                ? 'px-btn px-btn--sm px-btn--yellow'
-                : `flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors border ${
-                    isDark
-                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
-                      : 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
-                  }`
-            }
-            title="算力充值"
-          >
-            <Gem size={14} />
-            <span className="text-[11px]">充值</span>
-          </button>
-          <button
             onClick={() => setResourceOpen(true)}
             className={
               isPixel
@@ -1323,7 +1321,6 @@ function App() {
 
       {/* API 设置弹窗 */}
       <ApiSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <RechargeModal open={rechargeOpen} onClose={() => setRechargeOpen(false)} />
       <ThemeTemplateManager open={themeManagerOpen} onClose={() => setThemeManagerOpen(false)} />
       <ResourceLibraryDrawer
         open={resourceOpen}

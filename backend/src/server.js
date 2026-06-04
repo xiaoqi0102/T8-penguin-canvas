@@ -57,12 +57,12 @@ const settingsRouter = require('./routes/settings');
 const proxyRouter = require('./routes/proxy');
 const filesRouter = require('./routes/files');
 const imageOpsRouter = require('./routes/imageOps');
-const rechargeRouter = require('./routes/recharge');
 const resourcesRouter = require('./routes/resources');
 const themesRouter = require('./routes/themes');
 const eagleRouter = require('./routes/eagle');
 const externalProvidersRouter = require('./routes/externalProviders');
 const aiWatermarkRouter = require('./routes/aiWatermark');
+const cloudUploadsRouter = require('./routes/cloudUploads');
 
 app.use('/api/canvas', canvasRouter);
 app.use('/api/settings', settingsRouter);
@@ -70,12 +70,11 @@ app.use('/api/proxy', proxyRouter);
 app.use('/api/proxy/external', externalProvidersRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/image', imageOpsRouter);
-app.use('/api/recharge', rechargeRouter.apiRouter);
 app.use('/api/resources', resourcesRouter);
 app.use('/api/themes', themesRouter);
 app.use('/api/eagle', eagleRouter);
 app.use('/api/ai-watermark', aiWatermarkRouter);
-app.use('/pay', rechargeRouter.payRouter);
+app.use('/api/cloud-uploads', cloudUploadsRouter);
 
 // ========== 前端静态资源(仅打包模式) ==========
 // 开发模式下不启用,避免与 Vite dev server 打架。

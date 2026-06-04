@@ -43,7 +43,7 @@ import {
  *                + video_url(role=reference_video) + audio_url(role=reference_audio)
  *   - 参数: duration / ratio / resolution / generate_audio / return_last_frame
  *           / watermark / web_search(tools) / seed
- *   - 轮询: 默认 10s 间隔, 最多 360 次
+ *   - 轮询: 默认 10s 间隔, 最少覆盖 3600s
  *
  * 上游连接(支持的输入):
  *   - text 节点 → prompt
@@ -58,6 +58,9 @@ const MODEL_OPTIONS = [
 const RATIO_OPTIONS = ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '9:21', 'adaptive'];
 const RESOLUTION_OPTIONS = ['480p', '720p', 'native1080p', '1080p', '2k', '4k'];
 const DURATION_OPTIONS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+const SEEDANCE_POLL_TIMEOUT_SECONDS = 3600;
+const seedanceMinPollCount = (intervalMs: number) =>
+  Math.ceil((SEEDANCE_POLL_TIMEOUT_SECONDS * 1000) / Math.max(1, intervalMs));
 
 const SeedanceNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
@@ -86,6 +89,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
     [advancedProviders, d?.providerSource, d?.providerId, d?.providerModel],
   );
   const isExternalSelected = providerSelection.available && providerSelection.providerSource !== 'zhenzhen';
+  const isJimengCliSelected = isExternalSelected && providerSelection.provider?.protocol === 'jimeng-cli';
   const savedExternalMissing = !!d?.providerSource && d.providerSource !== 'zhenzhen' && !providerSelection.available;
   const externalModelOptions = providerSelection.provider
     ? advancedProviderModelOptions(providerSelection.provider, 'video')
@@ -231,7 +235,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
     return new Promise<void>((resolve, reject) => {
       let elapsed = 0;
       const POLL_MS = Math.max(2, pollInt) * 1000;
-      const MAX = Math.max(10, maxPoll);
+      const MAX = Math.max(10, maxPoll, seedanceMinPollCount(POLL_MS));
       let lastProgress = '';
       pollTimer.current = window.setInterval(async () => {
         elapsed += 1;
@@ -310,14 +314,19 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
           images: imageUrls,
           videos: videoUrls,
           audios: audioUrls,
-          providerParams: {
-            ...(d?.providerParams || {}),
-            generate_audio: generateAudio,
-            return_last_frame: returnLastFrame,
-            watermark,
-            web_search: webSearch,
-            frameMode,
-          },
+          providerParams: isJimengCliSelected
+            ? {
+                ...(d?.providerParams || {}),
+                frameMode,
+              }
+            : {
+                ...(d?.providerParams || {}),
+                generate_audio: generateAudio,
+                return_last_frame: returnLastFrame,
+                watermark,
+                web_search: webSearch,
+                frameMode,
+              },
         });
         const nextVideoUrl = r.videoUrls[0];
         if (!nextVideoUrl) throw new Error('扩展平台没有返回视频。');
@@ -545,18 +554,31 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* 模型 */}
-        <div>
-          <label className="text-[10px] text-white/50 block mb-1">Model</label>
-          <select
-            value={model}
-            onChange={(e) => update({ model: e.target.value })}
-            className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
-          >
-            {MODEL_OPTIONS.map((m) => (
-              <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>
-            ))}
-          </select>
-        </div>
+        {isExternalSelected && providerSelection.provider ? (
+          <div className="rounded border border-amber-400/25 bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-100/90">
+            当前使用「{providerSelection.provider.label || providerSelection.provider.id}」的外部模型
+            <span className="font-semibold"> {externalProviderModel || '未选模型'} </span>
+            生成；下方只保留时长、比例、分辨率、参考素材和 Prompt 等通用参数。
+            {isJimengCliSelected && (
+              <div className="mt-1 text-amber-100/70">
+                即梦 CLI 会通过本地 dreamina 上传图片 / 视频 / 音频参考，并在只返回 submit_id 时自动查询下载结果。
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <label className="text-[10px] text-white/50 block mb-1">Model</label>
+            <select
+              value={model}
+              onChange={(e) => update({ model: e.target.value })}
+              className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+            >
+              {MODEL_OPTIONS.map((m) => (
+                <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Duration / Ratio */}
         <div className="grid grid-cols-2 gap-1.5">
@@ -621,14 +643,14 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
             onChange={(e) => update({ frameMode: e.target.value })}
             className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
           >
-            <option value="auto" className="bg-zinc-900">全部作参考图(auto)</option>
-            <option value="first" className="bg-zinc-900">上传首帧（图生视频）</option>
-            <option value="firstlast" className="bg-zinc-900">传入首帧+尾帧（首尾帧视频）</option>
+            <option value="auto" className="bg-zinc-900">{isJimengCliSelected ? '全能参考(auto)' : '全部作参考图(auto)'}</option>
+            <option value="first" className="bg-zinc-900">{isJimengCliSelected ? '单图参考（图生视频）' : '上传首帧（图生视频）'}</option>
+            <option value="firstlast" className="bg-zinc-900">{isJimengCliSelected ? '首帧+尾帧(frames2video)' : '传入首帧+尾帧（首尾帧视频）'}</option>
           </select>
         </div>
 
         {/* 开关组 */}
-        <div className="grid grid-cols-2 gap-1.5">
+        {!isExternalSelected && <div className="grid grid-cols-2 gap-1.5">
           <label className="flex items-center gap-1 text-[10px] text-white/60 cursor-pointer">
             <input
               type="checkbox"
@@ -665,18 +687,18 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
             />
             水印
           </label>
-        </div>
+        </div>}
 
         {/* 轮询参数 */}
-        <div className="grid grid-cols-2 gap-1.5">
+        {!isExternalSelected && <div className="grid grid-cols-2 gap-1.5">
           <div>
             <label className="text-[10px] text-white/50 block mb-1">Max Poll</label>
             <input
               type="number"
               value={maxPoll}
               min={10}
-              max={1000}
-              onChange={(e) => update({ maxPoll: Math.max(10, Math.min(1000, Number(e.target.value) || 360)) })}
+              max={3600}
+              onChange={(e) => update({ maxPoll: Math.max(10, Math.min(3600, Number(e.target.value) || 360)) })}
               className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
             />
           </div>
@@ -691,7 +713,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
               className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
             />
           </div>
-        </div>
+        </div>}
 
         {/* 上游素材聚合预览区 (代替原「上游图像计数」, Seedance 支持四类素材全开) */}
         <MaterialPreviewSection

@@ -11,6 +11,7 @@ export const evaThemeMusicUrl = new URL('../assets/theme-music/eva-decisive-batt
 export const yyhThemeMusicUrl = new URL('../assets/theme-music/yyh-unbalanced-kiss-piano.mp3', import.meta.url).href;
 export const yyhHiddenThemeMusicUrl = new URL('../assets/theme-music/yyh-hidden-tonight.mp3', import.meta.url).href;
 export const slamdunkThemeMusicUrl = new URL('../assets/theme-music/slamdunk-kimi-ga-suki.mp3', import.meta.url).href;
+export const soccerThemeMusicUrl = new URL('../assets/theme-music/soccer-tsubasa-burning-hero.mid', import.meta.url).href;
 
 export const DEFAULT_THEME_TEMPLATE_ID = 'pixel-candy';
 export const TECH_TEMPLATE_ID = 'tech-default';
@@ -21,6 +22,7 @@ export const NARUTO_TEMPLATE_ID = 'naruto-style';
 export const EVA_TEMPLATE_ID = 'eva-style';
 export const YYH_TEMPLATE_ID = 'yyh-style';
 export const SLAMDUNK_TEMPLATE_ID = 'slamdunk-style';
+export const SOCCER_TEMPLATE_ID = 'soccer-hero-style';
 
 const techDark: ThemeTokens = {
   appBg: '#09090b',
@@ -606,6 +608,80 @@ const slamdunkDark: ThemeTokens = {
   portAudio: '#b7a0ff',
 };
 
+const soccerLight: ThemeTokens = {
+  appBg: '#d8f5be',
+  canvasBg: '#59b94b',
+  panelBg: '#f6ffe8',
+  panelBgElevated: '#ffffff',
+  panelBgMuted: '#c9edaa',
+  nodeBg: '#fbfff2',
+  nodeHeaderBg: '#0b68c8',
+  textMain: '#06131d',
+  textMuted: '#254158',
+  textDim: '#5c745f',
+  border: '#07121f',
+  borderStrong: '#07121f',
+  accent: '#126bd8',
+  accentHover: '#2388ff',
+  accentText: '#ffffff',
+  secondary: '#f5d550',
+  warning: '#f2b544',
+  danger: '#d64242',
+  success: '#1f9f4a',
+  shadowPanel: '4px 5px 0 #07121f, 0 18px 42px rgba(7,18,31,0.16)',
+  shadowButton: '2px 3px 0 #07121f',
+  shadowStrong: '7px 8px 0 #07121f, 0 24px 68px rgba(7,18,31,0.22)',
+  radiusPanel: '10px',
+  radiusButton: '8px',
+  radiusNode: '12px',
+  gridDot: '#236d36',
+  edge: '#0f4e8f',
+  edgeSelected: '#f2b544',
+  selectionBg: 'rgba(18,107,216,0.16)',
+  selectionBorder: '#126bd8',
+  portText: '#126bd8',
+  portImage: '#1f9f4a',
+  portVideo: '#d64242',
+  portAudio: '#7b58d8',
+  fontFamily: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+  displayFont: "'Arial Black', Impact, 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif",
+};
+
+const soccerDark: ThemeTokens = {
+  ...soccerLight,
+  appBg: '#06120b',
+  canvasBg: '#0a2414',
+  panelBg: '#0d2114',
+  panelBgElevated: '#143420',
+  panelBgMuted: '#173820',
+  nodeBg: '#102818',
+  nodeHeaderBg: '#08366f',
+  textMain: '#efffe7',
+  textMuted: '#b9e6c8',
+  textDim: '#82aa8d',
+  border: '#d7f8c8',
+  borderStrong: '#f5d550',
+  accent: '#3aa2ff',
+  accentHover: '#64c3ff',
+  accentText: '#06121f',
+  secondary: '#f5d550',
+  warning: '#ffd76a',
+  danger: '#ff5d5d',
+  success: '#79f26b',
+  shadowPanel: '0 18px 54px rgba(0,0,0,0.54), 4px 5px 0 #020704',
+  shadowButton: '2px 3px 0 #020704',
+  shadowStrong: '0 28px 82px rgba(0,0,0,0.68), 7px 8px 0 #020704',
+  gridDot: '#3d7f4b',
+  edge: '#9ad7ff',
+  edgeSelected: '#ffd76a',
+  selectionBg: 'rgba(58,162,255,0.18)',
+  selectionBorder: '#f5d550',
+  portText: '#6fd0ff',
+  portImage: '#79f26b',
+  portVideo: '#ff5d5d',
+  portAudio: '#c4a7ff',
+};
+
 export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
   {
     schema: 't8-theme-template',
@@ -836,6 +912,34 @@ export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
       copyrightNote: '灌篮高手风格默认音乐文件，可在主题模板中上传替换。公开分发前请确认音乐授权边界。',
     },
     modes: { dark: { tokens: slamdunkDark }, light: { tokens: slamdunkLight } },
+  },
+  {
+    schema: 't8-theme-template',
+    version: THEME_TEMPLATE_VERSION,
+    id: SOCCER_TEMPLATE_ID,
+    name: '足球小将风格',
+    description: '绿茵热血视觉：整场球场、蓝白 10 号球衣、比分牌节点、传球轨迹、足球精灵和终场冲刺感控件。原创足球意象，不使用官方角色图像。',
+    author: 'T8',
+    builtIn: true,
+    legacyStyle: 'pixel',
+    visuals: {
+      style: 'soccer-hero',
+      intensity: 'strong',
+      iconPack: 'soccer',
+      canvasPattern: 'pitch',
+      nodeFrame: 'match-card',
+      headerMark: 'GOLDEN GOAL',
+    },
+    music: {
+      title: '足球小将主题歌（燃烧英雄）',
+      preset: 'golden-goal',
+      source: 'url',
+      url: soccerThemeMusicUrl,
+      volume: 0.18,
+      bpm: 150,
+      copyrightNote: '足球小将风格默认 MIDI 音乐文件；若公开分发请确认音乐授权边界，golden-goal 仅作为兜底 preset。',
+    },
+    modes: { dark: { tokens: soccerDark }, light: { tokens: soccerLight } },
   },
 ];
 

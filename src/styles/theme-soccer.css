@@ -1,0 +1,855 @@
+/*
+ * Soccer Hero visual skin.
+ * Original full-pitch UI: green field, blue-white number 10 jersey,
+ * match-card nodes, score strip, pass edges, soccer-ball cut controls.
+ */
+
+html[data-theme-visual="soccer-hero"] {
+  --sc-ink: var(--t8-text-main);
+  --sc-cream: var(--t8-bg-panel);
+  --sc-card: var(--t8-bg-node);
+  --sc-card-2: var(--t8-bg-panel-elevated);
+  --sc-muted: var(--t8-bg-panel-muted);
+  --sc-blue: var(--t8-accent);
+  --sc-blue-hot: var(--t8-accent-hover);
+  --sc-gold: var(--t8-secondary);
+  --sc-green: var(--t8-success);
+  --sc-red: var(--t8-danger);
+  --sc-line: color-mix(in srgb, var(--t8-text-main) 44%, transparent);
+  --sc-pitch-line: rgba(247, 255, 240, 0.78);
+  --sc-pitch-line-strong: rgba(247, 255, 240, 0.92);
+  --sc-pitch-a: #61c850;
+  --sc-pitch-b: #3fa449;
+  --sc-board: color-mix(in srgb, #07121f 88%, var(--sc-blue) 12%);
+  --sc-button-shape: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  --sc-jersey-image: url("../assets/soccer-jersey-tsubasa-v2.png");
+  --sc-ball-image: url("../assets/soccer-ball-v2.png");
+  --sc-ball-cursor-image: url("../assets/soccer-ball-v2-cursor.png");
+  --sc-pitch-map-image: url("../assets/soccer-pitch-map.svg");
+  --sc-whistle-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'><path fill='black' d='M6 8h12l5 4v8H10a7 7 0 0 1 0-14h4l2-3h5v4h-3l-1 1H6Zm5 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z'/></svg>");
+  --sc-pitch-bg:
+    linear-gradient(90deg, transparent 0 42px, var(--sc-pitch-line-strong) 42px 46px, transparent 46px calc(100% - 46px), var(--sc-pitch-line-strong) calc(100% - 46px) calc(100% - 42px), transparent calc(100% - 42px)),
+    linear-gradient(0deg, transparent 0 42px, var(--sc-pitch-line-strong) 42px 46px, transparent 46px calc(100% - 46px), var(--sc-pitch-line-strong) calc(100% - 46px) calc(100% - 42px), transparent calc(100% - 42px)),
+    linear-gradient(90deg, transparent 0 calc(50% - 2px), var(--sc-pitch-line-strong) calc(50% - 2px) calc(50% + 2px), transparent calc(50% + 2px)),
+    radial-gradient(circle at 50% 50%, transparent 0 82px, var(--sc-pitch-line-strong) 83px 87px, transparent 88px),
+    linear-gradient(90deg, transparent 0 132px, var(--sc-pitch-line) 132px 136px, transparent 136px calc(100% - 136px), var(--sc-pitch-line) calc(100% - 136px) calc(100% - 132px), transparent calc(100% - 132px)),
+    linear-gradient(90deg, transparent 0 66px, var(--sc-pitch-line) 66px 70px, transparent 70px calc(100% - 70px), var(--sc-pitch-line) calc(100% - 70px) calc(100% - 66px), transparent calc(100% - 66px)),
+    radial-gradient(circle at 136px 50%, transparent 0 62px, var(--sc-pitch-line) 63px 66px, transparent 67px),
+    radial-gradient(circle at calc(100% - 136px) 50%, transparent 0 62px, var(--sc-pitch-line) 63px 66px, transparent 67px),
+    repeating-linear-gradient(90deg, var(--sc-pitch-a) 0 90px, var(--sc-pitch-b) 90px 180px);
+  --sc-pitch-map-bg:
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 12%, transparent), color-mix(in srgb, var(--sc-blue) 10%, transparent)),
+    var(--sc-pitch-map-image) center / cover no-repeat,
+    var(--sc-pitch-bg);
+  --sc-pitch-mini-bg:
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 10%, transparent), color-mix(in srgb, var(--sc-blue) 12%, transparent)),
+    var(--sc-pitch-map-image) center / cover no-repeat,
+    var(--sc-card);
+  --t8-cut-cursor: var(--sc-ball-cursor-image) 24 24, crosshair;
+  --t8-cut-color: var(--sc-blue);
+  --t8-cut-track: color-mix(in srgb, var(--sc-blue) 74%, var(--sc-gold));
+  --t8-cut-button-bg: var(--sc-card-2);
+  --t8-cut-button-fg: var(--sc-blue);
+  --t8-cut-button-mask: var(--sc-whistle-mask);
+  --px-mint: var(--sc-green);
+  --px-mint-deep: var(--sc-blue);
+  --px-candy-mint: var(--sc-green);
+  --px-candy-mint-deep: var(--sc-blue);
+  --px-success: var(--sc-green);
+  --px-cyan: var(--sc-blue);
+  --px-sky: var(--sc-blue);
+  --px-blue: var(--sc-blue);
+  --px-teal: var(--sc-green);
+  --px-violet: var(--sc-gold);
+  --px-purple: var(--sc-blue);
+  --px-fuchsia: var(--sc-red);
+  --px-candy-sky: var(--sc-blue);
+  --px-candy-violet: var(--sc-gold);
+  --px-candy-pink: var(--sc-red);
+}
+
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] {
+  --sc-pitch-a: #0c2f18;
+  --sc-pitch-b: #123b1d;
+  --sc-pitch-line: rgba(235, 255, 228, 0.28);
+  --sc-pitch-line-strong: rgba(235, 255, 228, 0.44);
+  --sc-board: #07121f;
+  --sc-pitch-map-bg:
+    linear-gradient(180deg, rgba(2, 8, 5, 0.34), rgba(1, 8, 4, 0.56)),
+    var(--sc-pitch-map-image) center / cover no-repeat,
+    var(--sc-pitch-bg);
+  --sc-pitch-mini-bg:
+    linear-gradient(180deg, rgba(2, 8, 5, 0.18), rgba(1, 8, 4, 0.36)),
+    var(--sc-pitch-map-image) center / cover no-repeat,
+    var(--sc-card);
+}
+
+@keyframes sc-pass-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -44; }
+}
+
+@keyframes sc-pass-flow-gold {
+  from { stroke-dashoffset: 18; }
+  to { stroke-dashoffset: -26; }
+}
+
+html[data-theme-visual="soccer-hero"] body,
+html[data-theme-visual="soccer-hero"] #root {
+  background: var(--t8-bg-app);
+  color: var(--t8-text-main);
+  font-family: var(--t8-font-family);
+}
+
+html[data-theme-visual="soccer-hero"] .t8-app-shell {
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--sc-blue) 24%, transparent), transparent 28%),
+    radial-gradient(circle at 86% 10%, color-mix(in srgb, var(--sc-green) 22%, transparent), transparent 26%),
+    repeating-linear-gradient(90deg, transparent 0 38px, color-mix(in srgb, var(--sc-ink) 7%, transparent) 38px 39px),
+    var(--t8-bg-app) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-topbar {
+  position: relative;
+  min-height: 54px;
+  background:
+    radial-gradient(circle at 12% 50%, color-mix(in srgb, var(--sc-gold) 22%, transparent), transparent 18%),
+    linear-gradient(90deg, #07121f 0 12px, var(--sc-blue) 12px 36%, #ffffff 36% 38%, #07121f 38% 72%, var(--sc-green) 72% 100%) !important;
+  border-bottom: 3px solid var(--sc-ink) !important;
+  box-shadow: 0 4px 0 var(--sc-gold);
+  overflow: visible;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-topbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 5px;
+  background:
+    repeating-linear-gradient(90deg, var(--sc-ink) 0 14px, var(--sc-blue) 14px 50px, #ffffff 50px 58px, var(--sc-green) 58px 76px);
+  pointer-events: none;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-soccer-brand__mark {
+  width: 44px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: var(--sc-button-shape);
+  border: 2px solid var(--sc-ink);
+  background:
+    linear-gradient(90deg, var(--sc-blue) 0 32%, #ffffff 32% 40%, var(--sc-board) 40% 100%);
+  box-shadow: 3px 3px 0 var(--sc-ink);
+}
+
+html[data-theme-visual="soccer-hero"] .t8-soccer-brand__jersey {
+  width: 32px;
+  height: 32px;
+  background: var(--sc-jersey-image) center / contain no-repeat;
+  filter: drop-shadow(1px 1px 0 var(--sc-ink));
+}
+
+html[data-theme-visual="soccer-hero"] .t8-soccer-brand__title {
+  color: #ffffff;
+  font-family: var(--t8-font-display);
+  font-size: 16px !important;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-shadow: 2px 2px 0 #07121f, 0 0 12px color-mix(in srgb, var(--sc-blue) 56%, transparent);
+}
+
+html[data-theme-visual="soccer-hero"] .t8-soccer-brand__sub {
+  color: var(--sc-gold);
+  letter-spacing: 0;
+  max-width: clamp(190px, 28vw, 360px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 #07121f;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-soccer-brand__score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  min-width: 138px;
+  max-width: 156px;
+  padding: 0 8px;
+  border: 2px solid var(--sc-ink);
+  border-radius: 6px;
+  background: #07121f;
+  color: var(--sc-gold);
+  font-family: var(--t8-font-display);
+  font-size: 10px;
+  font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-topbar button,
+html[data-theme-visual="soccer-hero"] .t8-topbar .px-btn,
+html[data-theme-visual="soccer-hero"] .t8-topbar .t8-btn,
+html[data-theme-visual="soccer-hero"] .t8-topbar .px-chip,
+html[data-theme-visual="soccer-hero"] .t8-topbar-status-chip {
+  min-height: 25px;
+  border: 2px solid var(--sc-ink) !important;
+  border-radius: 7px !important;
+  clip-path: var(--sc-button-shape);
+  background: linear-gradient(180deg, var(--sc-card-2), var(--sc-cream)) !important;
+  color: var(--sc-ink) !important;
+  box-shadow: 3px 3px 0 var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-topbar button:hover,
+html[data-theme-visual="soccer-hero"] .t8-topbar .t8-btn:hover {
+  background: linear-gradient(180deg, var(--sc-blue-hot), var(--sc-blue)) !important;
+  color: var(--t8-accent-text) !important;
+  transform: translate(-1px, -1px);
+}
+
+html[data-theme-visual="soccer-hero"] .t8-sidebar {
+  position: relative;
+  background:
+    linear-gradient(90deg, var(--sc-blue) 0 7px, #ffffff 7px 10px, transparent 10px),
+    linear-gradient(180deg, color-mix(in srgb, var(--sc-cream) 96%, #fff 4%), color-mix(in srgb, var(--sc-cream) 88%, var(--sc-green) 12%)) !important;
+  border-right: 4px solid var(--sc-ink) !important;
+  box-shadow: 6px 0 0 var(--sc-gold);
+}
+
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .t8-sidebar {
+  background:
+    linear-gradient(90deg, var(--sc-blue) 0 7px, var(--sc-gold) 7px 10px, transparent 10px),
+    linear-gradient(180deg, #06120b, #0d2114) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-sidebar .px-row,
+html[data-theme-visual="soccer-hero"] .t8-sidebar .px-group-title,
+html[data-theme-visual="soccer-hero"] .t8-sidebar-search-row,
+html[data-theme-visual="soccer-hero"] .t8-sidebar > div {
+  color: var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-sidebar .px-row {
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-sidebar .px-row.is-active {
+  border-color: var(--sc-ink) !important;
+  background: color-mix(in srgb, var(--sc-green) 28%, var(--sc-card-2)) !important;
+  box-shadow: 2px 2px 0 var(--sc-ink);
+}
+
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .t8-sidebar .px-row.is-active {
+  color: #06120b !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-sidebar-node > span:first-child {
+  background:
+    radial-gradient(circle at 68% 28%, color-mix(in srgb, #fff 34%, transparent) 0 18%, transparent 19%),
+    linear-gradient(135deg, var(--sc-green), var(--sc-blue)) !important;
+  border-color: var(--sc-ink) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow: 2px 2px 0 var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-sidebar-node:hover {
+  border-color: var(--sc-ink);
+  background: color-mix(in srgb, var(--sc-blue) 13%, var(--sc-card-2)) !important;
+  box-shadow: 2px 2px 0 var(--sc-ink);
+}
+
+html[data-theme-visual="soccer-hero"] .t8-canvas-shell {
+  --t8-flow-controls-bg: var(--sc-board);
+  --t8-flow-controls-border: var(--sc-ink);
+  --t8-flow-controls-fg: #ffffff;
+  --t8-flow-controls-muted: rgba(255, 255, 255, 0.48);
+  --t8-flow-controls-button-bg: color-mix(in srgb, var(--sc-board) 88%, var(--sc-blue) 12%);
+  --t8-flow-controls-button-hover-bg: var(--sc-blue);
+  --t8-flow-controls-accent: var(--sc-gold);
+  background: var(--sc-pitch-map-bg) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-canvas-shell > .react-flow,
+html[data-theme-visual="soccer-hero"] .react-flow__pane,
+html[data-theme-visual="soccer-hero"] .react-flow__renderer,
+html[data-theme-visual="soccer-hero"] .react-flow__viewport {
+  background: transparent !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__background {
+  background: var(--sc-pitch-map-bg) !important;
+  background-color: transparent !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__background-pattern circle {
+  fill: color-mix(in srgb, var(--sc-ink) 38%, transparent) !important;
+  opacity: 0.18;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) {
+  filter: none !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div,
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child,
+html[data-theme-style="pixel"][data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child {
+  border: 3px solid var(--sc-ink) !important;
+  border-radius: var(--t8-radius-node) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sc-card) 96%, #fff 4%), var(--sc-card)) !important;
+  box-shadow: none !important;
+  overflow: visible;
+  isolation: isolate;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div::before {
+  content: "MATCH DAY";
+  position: absolute;
+  right: 10px;
+  top: 7px;
+  z-index: 4;
+  color: color-mix(in srgb, var(--t8-accent-text) 78%, transparent);
+  font-family: var(--t8-font-display);
+  font-size: 8px;
+  font-weight: 950;
+  pointer-events: none;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div > .t8-node-header,
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div > [class*="border-b"] {
+  min-height: 52px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sc-blue-hot) 76%, var(--sc-card) 24%), var(--sc-blue)) !important;
+  border-bottom: 4px solid var(--sc-ink) !important;
+  color: var(--t8-accent-text) !important;
+  position: relative;
+  z-index: 2;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div > .t8-node-header [class*="text-[10px]"],
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div > [class*="border-b"] [class*="text-[10px]"],
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div > .t8-node-header .text-xs,
+html[data-theme-visual="soccer-hero"] .react-flow__node:not(.react-flow__node-groupBox) > div > [class*="border-b"] .text-xs {
+  color: color-mix(in srgb, var(--t8-accent-text) 78%, transparent) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div,
+html[data-theme-visual="soccer-hero"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div:first-child,
+html[data-theme-style="pixel"][data-theme-visual="soccer-hero"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div:first-child {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc-gold) 70%, transparent) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-node-serial-badge {
+  --t8-node-serial-offset-x: 12px;
+  --t8-node-serial-offset-y: -12px;
+  min-width: 27px;
+  height: 22px;
+  border: 2px solid var(--sc-ink);
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--sc-blue), color-mix(in srgb, var(--sc-blue) 70%, #000));
+  color: #ffffff;
+  box-shadow: 2px 2px 0 var(--sc-ink);
+  font-family: var(--t8-font-display);
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__handle {
+  border: 2px solid var(--sc-ink) !important;
+  background: var(--sc-gold) !important;
+  box-shadow: 2px 2px 0 color-mix(in srgb, var(--sc-ink) 80%, transparent) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__handle.target {
+  background: var(--sc-green) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__handle.source {
+  background: var(--sc-blue) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__edge-path,
+html[data-theme-visual="soccer-hero"] .react-flow__connection-path {
+  stroke: color-mix(in srgb, var(--sc-blue) 76%, var(--sc-gold)) !important;
+  stroke-width: 3.2px !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 18 11 4 11 !important;
+  animation: sc-pass-flow 0.95s linear infinite;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--sc-blue) 36%, transparent)) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-edge-yyh-red-segment {
+  display: block;
+  stroke: var(--sc-gold) !important;
+  stroke-width: 2.2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 5 24;
+  animation: sc-pass-flow-gold 0.95s linear infinite;
+  opacity: 0.84;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__edge.selected .react-flow__edge-path,
+html[data-theme-visual="soccer-hero"] .react-flow__edge:hover .react-flow__edge-path,
+html[data-theme-visual="soccer-hero"] .react-flow__edge:focus .react-flow__edge-path {
+  stroke: var(--sc-blue-hot) !important;
+  stroke-width: 3.8px !important;
+  stroke-dasharray: 8 8 !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-edge-theme-marker {
+  display: none;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-edge-soccer-ball {
+  display: block;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sc-gold) 58%, transparent));
+}
+
+html[data-theme-visual="soccer-hero"] .t8-edge-soccer-ball__image {
+  image-rendering: auto;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-edge-cut-button {
+  width: 40px;
+  height: 40px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-edge-cut-button:hover {
+  background: transparent !important;
+  transform: scale(1.08);
+}
+
+html[data-theme-visual="soccer-hero"] .t8-edge-cut-glyph {
+  width: 36px;
+  height: 36px;
+  background: var(--sc-ball-image) center / contain no-repeat;
+  -webkit-mask: none;
+  mask: none;
+  filter: drop-shadow(2px 2px 0 var(--sc-ink));
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node-groupBox > div,
+html[data-theme-visual="soccer-hero"] .group-box-node {
+  border: 3px dashed var(--sc-ink) !important;
+  border-radius: 12px !important;
+  background:
+    linear-gradient(90deg, transparent 0 calc(50% - 1px), color-mix(in srgb, var(--sc-pitch-line) 80%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    color-mix(in srgb, var(--sc-card) 56%, transparent) !important;
+  box-shadow: 5px 5px 0 color-mix(in srgb, var(--sc-ink) 72%, transparent) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__minimap {
+  position: absolute;
+  background: var(--sc-pitch-mini-bg) !important;
+  background-color: var(--sc-card) !important;
+  overflow: visible !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__minimap::before,
+html[data-theme-visual="soccer-hero"] .react-flow__minimap::after {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  font-family: var(--t8-font-display);
+  font-weight: 950;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__minimap::before {
+  content: "Captain Tsubasa";
+  left: 0;
+  top: -46px;
+  width: 172px;
+  max-width: calc(100% - 8px);
+  padding: 2px 7px 3px;
+  border: 2px solid var(--sc-ink);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--sc-blue);
+  font-size: 12px;
+  line-height: 1;
+  text-shadow: 1px 1px 0 var(--sc-gold);
+  box-shadow: 2px 2px 0 var(--sc-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__minimap::after {
+  content: "Japan 3:2 Brazil";
+  left: 0;
+  top: -22px;
+  width: 172px;
+  max-width: calc(100% - 8px);
+  padding: 2px 6px;
+  border: 2px solid var(--sc-ink);
+  border-radius: 5px;
+  background: #07121f;
+  color: var(--sc-gold);
+  font-size: 8px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__controls,
+html[data-theme-visual="soccer-hero"] .t8-theme-music-toggle,
+html[data-theme-visual="soccer-hero"] .t8-control-rail-help {
+  border: 2px solid var(--sc-ink) !important;
+  border-radius: 8px !important;
+  box-shadow: 3px 3px 0 var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__controls,
+html[data-theme-visual="soccer-hero"] .react-flow__controls-button,
+html[data-theme-visual="soccer-hero"] .t8-theme-music-toggle,
+html[data-theme-visual="soccer-hero"] .t8-control-rail-help {
+  background: linear-gradient(180deg, var(--sc-board), #02070d) !important;
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__controls-button svg,
+html[data-theme-visual="soccer-hero"] .t8-theme-music-toggle svg,
+html[data-theme-visual="soccer-hero"] .t8-control-rail-help svg {
+  color: currentColor !important;
+  stroke: currentColor !important;
+  fill: none !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__controls-button:hover,
+html[data-theme-visual="soccer-hero"] .t8-theme-music-toggle:hover,
+html[data-theme-visual="soccer-hero"] .t8-control-rail-help:hover {
+  background: linear-gradient(180deg, var(--sc-blue-hot), var(--sc-blue)) !important;
+  color: var(--t8-accent-text) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__controls-button:disabled {
+  color: rgba(255, 255, 255, 0.45) !important;
+  opacity: 1 !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-node-action-bar--soccer-hero button {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sc-board) 84%, var(--sc-green) 16%), var(--sc-board)) !important;
+  border: 2px solid var(--sc-gold) !important;
+  color: #ffffff !important;
+  box-shadow: 2px 2px 0 var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-node-action-bar--soccer-hero button:hover {
+  background: linear-gradient(180deg, var(--sc-blue-hot), var(--sc-blue)) !important;
+  color: var(--t8-accent-text) !important;
+  border-color: var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-context-menu,
+html[data-theme-visual="soccer-hero"] .t8-model-help-panel,
+html[data-theme-visual="soccer-hero"] .resource-library-drawer,
+html[data-theme-visual="soccer-hero"] .t8-node-action-bar {
+  border: 3px solid var(--sc-ink) !important;
+  border-radius: 10px !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sc-card-2) 92%, var(--sc-green) 8%), var(--sc-card)) !important;
+  color: var(--sc-ink) !important;
+  box-shadow: 5px 5px 0 var(--sc-ink), 0 18px 42px rgba(0, 0, 0, 0.2) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-context-menu::before,
+html[data-theme-visual="soccer-hero"] .t8-node-action-bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 6px;
+  background: repeating-linear-gradient(90deg, var(--sc-blue) 0 32px, #ffffff 32px 40px, var(--sc-green) 40px 56px);
+  pointer-events: none;
+}
+
+html[data-theme-visual="soccer-hero"] .px-btn--mint,
+html[data-theme-visual="soccer-hero"] .px-btn--sky,
+html[data-theme-visual="soccer-hero"] .px-btn--violet,
+html[data-theme-visual="soccer-hero"] .px-btn--pink,
+html[data-theme-visual="soccer-hero"] .px-btn--peach,
+html[data-theme-visual="soccer-hero"] .px-btn--yellow,
+html[data-theme-visual="soccer-hero"] .px-chip--mint,
+html[data-theme-visual="soccer-hero"] .t8-btn-primary,
+html[data-theme-visual="soccer-hero"] .react-flow__node button.w-full,
+html[data-theme-visual="soccer-hero"] .react-flow__node button.flex-1 {
+  border: 2px solid var(--sc-ink) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sc-gold) 78%, #fff 12%), var(--sc-blue)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow: 3px 3px 0 var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] input,
+html[data-theme-visual="soccer-hero"] textarea,
+html[data-theme-visual="soccer-hero"] select,
+html[data-theme-visual="soccer-hero"] .t8-input,
+html[data-theme-visual="soccer-hero"] .t8-select {
+  border: 2px solid color-mix(in srgb, var(--sc-ink) 72%, transparent) !important;
+  border-radius: 7px !important;
+  background: color-mix(in srgb, var(--sc-card-2) 90%, #fff 10%) !important;
+  color: var(--sc-ink) !important;
+  color-scheme: light;
+}
+
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] input,
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] textarea,
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] select,
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .t8-input,
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .t8-select {
+  color-scheme: dark;
+}
+
+html[data-theme-visual="soccer-hero"] select option {
+  background: var(--sc-card-2);
+  color: var(--sc-ink);
+}
+
+html[data-theme-visual="soccer-hero"] select option:checked {
+  background: var(--sc-blue);
+  color: var(--t8-accent-text);
+}
+
+html[data-theme-visual="soccer-hero"] .t8-material-preview-header {
+  border: 2px solid var(--sc-ink) !important;
+  border-radius: 7px !important;
+  background:
+    radial-gradient(circle at 92% 50%, color-mix(in srgb, var(--sc-gold) 34%, transparent) 0 10px, transparent 11px),
+    linear-gradient(180deg, color-mix(in srgb, var(--sc-gold) 86%, #fff 8%), var(--sc-blue)) !important;
+  color: var(--sc-ink) !important;
+  box-shadow: none !important;
+  font-family: var(--t8-font-display);
+}
+
+html[data-theme-visual="soccer-hero"] .t8-material-preview-count {
+  border: 1.5px solid var(--sc-ink) !important;
+  border-radius: 4px !important;
+  background: var(--sc-gold) !important;
+  color: var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-material-preview-group-label {
+  color: color-mix(in srgb, var(--sc-ink) 74%, var(--sc-blue)) !important;
+  font-weight: 800;
+}
+
+html[data-theme-visual="soccer-hero"] .t8-material-preview-upload {
+  border-color: color-mix(in srgb, var(--sc-ink) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--sc-green) 16%, var(--sc-card-2)) !important;
+  color: var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-emerald-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-green-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-lime-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-cyan-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-sky-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-blue-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-teal-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-indigo-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-violet-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-purple-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="text-fuchsia-"],
+html[data-theme-visual="soccer-hero"] [class*="text-emerald-"],
+html[data-theme-visual="soccer-hero"] [class*="text-green-"],
+html[data-theme-visual="soccer-hero"] [class*="text-lime-"],
+html[data-theme-visual="soccer-hero"] [class*="text-cyan-"],
+html[data-theme-visual="soccer-hero"] [class*="text-sky-"],
+html[data-theme-visual="soccer-hero"] [class*="text-blue-"],
+html[data-theme-visual="soccer-hero"] [class*="text-teal-"],
+html[data-theme-visual="soccer-hero"] [class*="text-indigo-"],
+html[data-theme-visual="soccer-hero"] [class*="text-violet-"],
+html[data-theme-visual="soccer-hero"] [class*="text-purple-"],
+html[data-theme-visual="soccer-hero"] [class*="text-fuchsia-"] {
+  color: var(--sc-blue) !important;
+}
+
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-emerald-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-green-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-lime-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-cyan-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-sky-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-blue-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-teal-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-indigo-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-violet-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-purple-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .react-flow__node [class*="text-fuchsia-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-emerald-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-green-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-lime-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-cyan-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-sky-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-blue-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-teal-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-indigo-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-violet-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-purple-"],
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] [class*="text-fuchsia-"] {
+  color: var(--sc-gold) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-emerald-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-green-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-lime-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-cyan-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-sky-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-blue-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-teal-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-indigo-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-violet-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-purple-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="bg-fuchsia-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-emerald-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-green-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-lime-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-cyan-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-sky-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-blue-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-teal-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-indigo-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-violet-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-purple-"]:not(img):not(video):not(canvas),
+html[data-theme-visual="soccer-hero"] [class*="bg-fuchsia-"]:not(img):not(video):not(canvas) {
+  background-color: color-mix(in srgb, var(--sc-green) 20%, var(--sc-card-2)) !important;
+  background-image: none !important;
+}
+
+html[data-theme-visual="soccer-hero"] button[class*="bg-emerald-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-green-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-lime-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-cyan-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-sky-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-blue-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-teal-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-indigo-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-violet-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-purple-"],
+html[data-theme-visual="soccer-hero"] button[class*="bg-fuchsia-"] {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sc-gold) 82%, #fff 10%), var(--sc-blue)) !important;
+  color: var(--t8-accent-text) !important;
+  border-color: var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-emerald-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-green-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-lime-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-cyan-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-sky-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-blue-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-teal-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-indigo-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-violet-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-purple-"],
+html[data-theme-visual="soccer-hero"] .react-flow__node [class*="border-fuchsia-"],
+html[data-theme-visual="soccer-hero"] [class*="border-emerald-"],
+html[data-theme-visual="soccer-hero"] [class*="border-green-"],
+html[data-theme-visual="soccer-hero"] [class*="border-lime-"],
+html[data-theme-visual="soccer-hero"] [class*="border-cyan-"],
+html[data-theme-visual="soccer-hero"] [class*="border-sky-"],
+html[data-theme-visual="soccer-hero"] [class*="border-blue-"],
+html[data-theme-visual="soccer-hero"] [class*="border-teal-"],
+html[data-theme-visual="soccer-hero"] [class*="border-indigo-"],
+html[data-theme-visual="soccer-hero"] [class*="border-violet-"],
+html[data-theme-visual="soccer-hero"] [class*="border-purple-"],
+html[data-theme-visual="soccer-hero"] [class*="border-fuchsia-"] {
+  border-color: var(--sc-blue) !important;
+}
+
+html[data-theme-visual="soccer-hero"] [class*="accent-cyan-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-sky-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-blue-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-teal-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-indigo-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-violet-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-purple-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-fuchsia-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-emerald-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-green-"],
+html[data-theme-visual="soccer-hero"] [class*="accent-lime-"] {
+  accent-color: var(--sc-blue) !important;
+}
+
+html[data-theme-visual="soccer-hero"] [class*="ring-cyan-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-sky-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-blue-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-teal-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-indigo-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-violet-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-purple-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-fuchsia-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-emerald-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-green-"],
+html[data-theme-visual="soccer-hero"] [class*="ring-lime-"] {
+  --tw-ring-color: color-mix(in srgb, var(--sc-blue) 58%, transparent) !important;
+}
+
+html[data-theme-visual="soccer-hero"] [class*="shadow-cyan-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-sky-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-blue-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-teal-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-indigo-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-violet-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-purple-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-fuchsia-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-emerald-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-green-"],
+html[data-theme-visual="soccer-hero"] [class*="shadow-lime-"] {
+  --tw-shadow-color: color-mix(in srgb, var(--sc-blue) 24%, transparent) !important;
+  --tw-shadow: none !important;
+}
+
+html[data-theme-visual="soccer-hero"] .react-flow__node-output .w-6.h-6.rounded,
+html[data-theme-visual="soccer-hero"] .react-flow__node .w-6.h-6.rounded.flex.items-center.justify-center,
+html[data-theme-visual="soccer-hero"] .react-flow__node [style*="94, 234, 212"] {
+  background:
+    radial-gradient(circle at 68% 28%, color-mix(in srgb, #fff 30%, transparent) 0 20%, transparent 21%),
+    linear-gradient(135deg, var(--sc-green), var(--sc-blue)) !important;
+  color: var(--t8-accent-text) !important;
+  border-color: var(--sc-ink) !important;
+  box-shadow: inset 0 0 0 1px var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .text-white,
+html[data-theme-visual="soccer-hero"] .text-zinc-100,
+html[data-theme-visual="soccer-hero"] .text-zinc-200,
+html[data-theme-visual="soccer-hero"] .text-neutral-100 {
+  color: var(--sc-ink) !important;
+}
+
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .text-white,
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .text-zinc-100,
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .text-zinc-200,
+html[data-theme-visual="soccer-hero"][data-theme-mode="dark"] .text-neutral-100 {
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .bg-zinc-900,
+html[data-theme-visual="soccer-hero"] .bg-neutral-900,
+html[data-theme-visual="soccer-hero"] .bg-black\/40,
+html[data-theme-visual="soccer-hero"] .bg-white\/5 {
+  background-color: color-mix(in srgb, var(--sc-card-2) 88%, transparent) !important;
+}
+
+html[data-theme-visual="soccer-hero"] .border-white\/10,
+html[data-theme-visual="soccer-hero"] .border-white\/20,
+html[data-theme-visual="soccer-hero"] .border-zinc-700 {
+  border-color: color-mix(in srgb, var(--sc-ink) 28%, transparent) !important;
+}

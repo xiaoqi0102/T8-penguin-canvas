@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type DragEvent as ReactDragEvent, type RefObject } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type DragEvent as ReactDragEvent, type RefObject } from 'react';
 import {
   ReactFlow,
   Background,
@@ -39,7 +39,15 @@ import {
   rectOf,
   type Rect as PlacementRect,
 } from '../utils/nodePlacement';
-import { createOutputDataFromItems, createUploadDataFromItems, fileNameFromUrl, getMediaItemsFromData, type MediaItem, type MediaKind } from '../utils/mediaCollection';
+import {
+  createOutputDataFromItems,
+  createUploadDataFromItems,
+  createUploadReplacementData,
+  fileNameFromUrl,
+  getMediaItemsFromData,
+  type MediaItem,
+  type MediaKind,
+} from '../utils/mediaCollection';
 import { markCanvasNodesDeleted } from '../utils/deletedNodeRegistry';
 import {
   bucketSendableMaterials,
@@ -69,6 +77,7 @@ import {
 } from '../utils/nodeSerialIds';
 import { resolveConnectionByNodeSerialId } from '../utils/connectByNodeSerialId';
 import { formatShortcutList, matchesAnyShortcut } from '../utils/keyboardShortcuts';
+import { applyNodeAlignment, type NodeAlignAction } from '../utils/nodeAlign';
 import {
   collectMaterialSetBucketsFromData,
   isMaterialSetKind,
@@ -99,9 +108,13 @@ import AudioNode from './nodes/AudioNode';
 import RunningHubNode from './nodes/RunningHubNode';
 import RhConfigNode from './nodes/RhConfigNode';
 import RHToolsNode from './nodes/RHToolsNode';
+import RHToolboxNode from './nodes/RHToolboxNode';
+import ComfyUIStoreNode from './nodes/ComfyUIStoreNode';
+import ComfyUIAppMakerNode from './nodes/ComfyUIAppMakerNode';
 import ResizeNode from './nodes/ResizeNode';
 import UpscaleNode from './nodes/UpscaleNode';
 import GridCropNode from './nodes/GridCropNode';
+import GridEditorNode from './nodes/GridEditorNode';
 import CombineNode from './nodes/CombineNode';
 import RemoveBgNode from './nodes/RemoveBgNode';
 import ImageCompareNode from './nodes/ImageCompareNode';
@@ -141,6 +154,16 @@ import {
   type PortType,
 } from '../config/portTypes';
 
+const RHToolboxMakerNode = import.meta.env?.DEV
+  ? lazy(() => import('./nodes/RHToolboxMakerNode'))
+  : PlaceholderNode;
+
+const RHToolboxMakerDevNode = (props: any) => import.meta.env?.DEV ? (
+  <Suspense fallback={<PlaceholderNode {...props} />}>
+    <RHToolboxMakerNode {...props} />
+  </Suspense>
+) : <PlaceholderNode {...props} />;
+
 // Phase 4 阶段:全部 24 个节点均已实现业务逻辑
 const SPECIFIC_NODES: Record<string, any> = {
   // Core (8)
@@ -156,6 +179,10 @@ const SPECIFIC_NODES: Record<string, any> = {
   'rh-config': RhConfigNode,
   // RH 工具节点：内置启动器 + 应用运行面板（v1.2.10+）
   'rh-tools': RHToolsNode,
+  'rh-toolbox': RHToolboxNode,
+  ...(import.meta.env?.DEV ? { 'rh-toolbox-maker': RHToolboxMakerDevNode } : {}),
+  'comfyui-store': ComfyUIStoreNode,
+  'comfyui-app-maker': ComfyUIAppMakerNode,
   // Special (5)
   'multi-angle-3d': PresetImageNode,
   'panorama-720': PresetImageNode,
@@ -177,6 +204,7 @@ const SPECIFIC_NODES: Record<string, any> = {
   'remove-bg': RemoveBgNode,
   upscale: UpscaleNode,
   'grid-crop': GridCropNode,
+  'grid-editor': GridEditorNode,
   // Auxiliary (5)
   edit: ImageNode, // 复用 ImageNode,默认偏向 edit 能力
   idea: IdeaNode,
@@ -415,6 +443,92 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
     videoUrl: '',
     audioUrl: '',
   },
+  'rh-toolbox': {
+    rhToolboxCategoryId: 'all',
+    rhToolboxActiveToolId: '',
+    rhToolboxSearchQuery: '',
+    rhToolboxUserParams: {},
+    materialOrder: [],
+    excludedMaterialIds: [],
+    instanceType: '',
+    status: 'idle',
+    taskId: '',
+    urls: [],
+    imageUrl: '',
+    imageUrls: [],
+    videoUrl: '',
+    videoUrls: [],
+    audioUrl: '',
+    audioUrls: [],
+    outputText: '',
+    error: '',
+  },
+  'comfyui-store': {
+    comfyuiStoreProviderId: '',
+    comfyuiStoreCategoryId: 'all',
+    comfyuiStoreActiveAppId: '',
+    comfyuiStoreSearchQuery: '',
+    comfyuiStoreParamValues: {},
+    materialOrder: [],
+    excludedMaterialIds: [],
+    status: 'idle',
+    taskId: '',
+    imageUrl: '',
+    imageUrls: [],
+    videoUrls: [],
+    audioUrls: [],
+    outputText: '',
+    error: '',
+  },
+  'comfyui-app-maker': {
+    comfyMakerTitle: 'Anima 文生图',
+    comfyMakerAppId: 'anima-text-to-image-v1',
+    comfyMakerCategoryId: 'image',
+    comfyMakerDescription: '从 ComfyUI API Workflow 自动生成的本地应用',
+    comfyMakerWorkflowRaw: '',
+    text: '',
+    outputText: '',
+  },
+  ...(import.meta.env?.DEV ? {
+    'rh-toolbox-maker': {
+      rhToolboxMakerTitle: '智能抠图',
+      rhToolboxMakerId: 'image-cutout-v1',
+      rhToolboxMakerDescription: '维护者预置 RH 工具模板',
+      rhToolboxMakerCategoryId: 'image-tools',
+      rhToolboxMakerWebappId: '',
+      rhToolboxMakerCapabilities: 'image.cutout\nimage.edit',
+      rhToolboxMakerEnabled: true,
+      rhToolboxMakerShowInNode: true,
+      rhToolboxMakerAccent: '#22c55e',
+      rhToolboxMakerPollIntervalMs: 5000,
+      rhToolboxMakerMaxPolls: 480,
+      rhToolboxMakerInputs: [
+        {
+          rowId: 'input-1',
+          key: 'source-image',
+          label: '原图',
+          kind: 'image',
+          rhNodeId: '7',
+          fieldName: 'image',
+          required: true,
+          uploadAsset: true,
+        },
+      ],
+      rhToolboxMakerOutputs: [
+        {
+          rowId: 'output-1',
+          key: 'output-image',
+          label: '输出图',
+          kind: 'image',
+          role: 'append-output',
+        },
+      ],
+      rhToolboxMakerUserParams: [],
+      rhToolboxMakerFixedParams: [],
+      text: '',
+      outputText: '',
+    },
+  } : {}),
   // 循环器: 默认串联 + image kind
   loop: { mode: 'serial', kind: 'image', outputs: [], progress: { done: 0, total: 0, ok: 0, fail: 0 } },
   // 从合集获取: 默认 image + 第 1 个
@@ -422,6 +536,19 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
   'image-compare': { mode: 'slider', align: 'contain', split: 50, opacity: 50, threshold: 24 },
   'drawing-board': { boardRatio: '16:9', boardWidth: 960, boardHeight: 540, boardElements: [], boardColor: '#111827', boardStrokeSize: 5 },
   'grid-crop': { rows: 3, cols: 3, gap: 0 },
+  'grid-editor': {
+    gridEditorRows: 3,
+    gridEditorCols: 3,
+    gridEditorWidth: 1200,
+    gridEditorHeight: 1200,
+    gridEditorGap: 0,
+    gridEditorBackground: '#111827',
+    gridEditorFit: 'adaptive',
+    gridEditorShowIndexes: false,
+    gridEditorOrder: [],
+    gridEditorLocalItems: [],
+    gridEditorHiddenIds: [],
+  },
   'remove-ai-watermark': {
     aiWatermarkMode: 'smart',
     aiWatermarkProcessAll: false,
@@ -442,8 +569,8 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
       steps: 50,
       humanize: 0,
       maxResolution: 0,
-      protectText: true,
-      protectFaces: true,
+      protectText: false,
+      protectFaces: false,
       keepStandardMetadata: true,
       noVisible: false,
     },
@@ -457,8 +584,8 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   'multi-angle-3d', 'panorama-720', 'penguin-portrait',
   'video', 'seedance', 'audio', 'llm', 'runninghub', 'runninghub-wallet',
   // v1.2.10.1: rh-tools 与 RunningHub 同质，同样可被批量运行调起
-  'rh-tools',
-  'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine', 'image-compare', 'drawing-board',
+  'rh-tools', 'rh-toolbox', 'comfyui-store',
+  'resize', 'upscale', 'grid-crop', 'grid-editor', 'remove-bg', 'combine', 'image-compare', 'drawing-board',
   'frame-extractor', 'frame-pair',
   'upload',
   // v1.2.8 工具节点 (循环器 / 从合集获取)
@@ -907,6 +1034,19 @@ function hasFileTransfer(dataTransfer: DataTransfer | null | undefined): boolean
   return Array.from(dataTransfer?.types || []).includes('Files');
 }
 
+function findUploadNodeIdFromTarget(target: EventTarget | Element | null | undefined): string {
+  if (typeof Element === 'undefined') return '';
+  if (!(target instanceof Element)) return '';
+  const el = target.closest('[data-upload-node-id]') as HTMLElement | null;
+  return String(el?.dataset?.uploadNodeId || '').trim();
+}
+
+function chooseUploadReplacementKind(existingKind: any, buckets: Record<MediaKind, File[]>, firstKind: MediaKind | null): MediaKind | null {
+  const current = (['image', 'video', 'audio'] as MediaKind[]).includes(existingKind) ? existingKind as MediaKind : null;
+  if (current && buckets[current].length > 0) return current;
+  return firstKind;
+}
+
 function isTextEditingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   const tag = el?.tagName?.toLowerCase();
@@ -1004,6 +1144,7 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
   const isEva = visualStyle === 'eva';
   const isYyh = visualStyle === 'yyh';
   const isSlamdunk = visualStyle === 'slamdunk';
+  const isSoccer = visualStyle === 'soccer-hero';
   const themeTokens = getTemplateMode(currentTemplate, theme).tokens;
   const { screenToFlowPosition, setCenter, getViewport, setViewport, fitView } = useReactFlow();
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -1499,6 +1640,74 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
       return true;
     },
     [screenToFlowPosition, assignActiveNodeSerials]
+  );
+
+  const replaceUploadNodeFromFiles = useCallback(
+    async (nodeId: string, rawFiles: File[]) => {
+      const target = nodesRef.current.find((node) => node.id === nodeId && node.type === 'upload');
+      if (!target) return false;
+
+      const seenFiles = new Set<string>();
+      const buckets: Record<MediaKind, File[]> = { image: [], video: [], audio: [] };
+      let firstKind: MediaKind | null = null;
+      let skipped = 0;
+      rawFiles.forEach((file) => {
+        const kind = inferCanvasMediaKind(file);
+        if (!kind) {
+          skipped += 1;
+          return;
+        }
+        const key = canvasMediaFileKey(file);
+        if (seenFiles.has(key)) return;
+        seenFiles.add(key);
+        if (!firstKind) firstKind = kind;
+        buckets[kind].push(file);
+      });
+
+      const kind = chooseUploadReplacementKind((target.data as any)?.uploadType, buckets, firstKind);
+      if (!kind) return false;
+      const accepted = buckets[kind];
+      if (accepted.length === 0) return false;
+      const supportedCount = buckets.image.length + buckets.video.length + buckets.audio.length;
+      const skippedDifferentKind = Math.max(0, supportedCount - accepted.length);
+
+      const items: MediaItem[] = [];
+      const failures: string[] = [];
+      for (let i = 0; i < accepted.length; i += 1) {
+        const file = accepted[i];
+        try {
+          items.push(await uploadCanvasMediaFile(file, kind, i));
+        } catch (err: any) {
+          failures.push(`${file.name || kind}: ${err?.message || '上传失败'}`);
+        }
+      }
+
+      if (items.length === 0) {
+        if (failures.length > 0) alert(`素材覆盖失败:\n${failures.slice(0, 5).join('\n')}`);
+        return true;
+      }
+
+      const replacement = createUploadReplacementData(kind, items);
+      setNodes((prev) =>
+        prev.map((node) => {
+          if (node.id !== nodeId) return { ...node, selected: false };
+          return {
+            ...node,
+            selected: true,
+            data: {
+              ...(node.data || {}),
+              ...replacement,
+            },
+          };
+        })
+      );
+      const notices: string[] = [];
+      if (skippedDifferentKind > 0 || skipped > 0) notices.push(`跳过 ${skippedDifferentKind + skipped} 个非${kind === 'image' ? '图像' : kind === 'video' ? '视频' : '音频'}素材`);
+      if (failures.length > 0) notices.push(...failures.slice(0, 4));
+      if (notices.length > 0) alert(`已覆盖上传素材节点，但有部分素材未使用:\n${notices.join('\n')}`);
+      return true;
+    },
+    []
   );
 
   const getMaterialSetMergeCandidate = useCallback((ids: string[]): { kind: MaterialSetKind; items: MaterialSetItem[] } | null => {
@@ -2231,8 +2440,8 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
               if (state.lastDone && state.lastDone.id === id) finish();
               if (cancelRunRef.current) finish();
             });
-            // 安全超时 5 分钟(轮询任务可能较长)
-            const timer = window.setTimeout(finish, 5 * 60 * 1000);
+            // 安全超时 60 分钟，避免图像/视频/SD2.0/音频长轮询被批量运行提前截断。
+            const timer = window.setTimeout(finish, 60 * 60 * 1000);
             triggerRun(id, 'batch');
           });
           setBatchProgress(order.length, i + 1);
@@ -2412,6 +2621,28 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
   const handleCancelRun = useCallback(() => {
     cancelRunRef.current = true;
     useRunBusStore.getState().cancelAll();
+  }, []);
+
+  const handleAlignSelection = useCallback((action: NodeAlignAction, ids?: string[]) => {
+    const targetIds = (ids && ids.length > 0)
+      ? ids
+      : nodesRef.current.filter((node) => node.selected).map((node) => node.id);
+    if (targetIds.length === 0) {
+      logBus.warn('请先选择要对齐的节点', '对齐');
+      return;
+    }
+    const result = applyNodeAlignment(nodesRef.current, targetIds, action, {
+      grid: SNAP_GRID,
+      gridGap: 48,
+      alignGap: 32,
+    });
+    if (!result.changed) {
+      logBus.info('选区已经足够整齐，未移动节点', '对齐');
+      return;
+    }
+    setGuides({ vertical: [], horizontal: [] });
+    setNodes(result.nodes);
+    logBus.success(`已整理 ${result.movedIds.length} 个节点`, '对齐');
   }, []);
 
   // ===== 智能对齐辅助线 =====
@@ -4177,6 +4408,12 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
       if (document.querySelector('.img-edit-overlay')) return;
       const files = collectCanvasMediaFiles(e.clipboardData);
       if (files.length === 0) return;
+      const pointerTarget = lastCanvasPointerRef.current
+        ? document.elementFromPoint(lastCanvasPointerRef.current.x, lastCanvasPointerRef.current.y)
+        : null;
+      const uploadTargetNodeId =
+        findUploadNodeIdFromTarget(e.target) ||
+        findUploadNodeIdFromTarget(pointerTarget);
       if (internalPasteTimerRef.current) {
         window.clearTimeout(internalPasteTimerRef.current);
         internalPasteTimerRef.current = null;
@@ -4184,17 +4421,22 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
       const signature = files
         .map(canvasMediaFileKey)
         .join('||');
+      const actionSignature = `${uploadTargetNodeId || 'new-upload-node'}::${signature}`;
       const now = Date.now();
       const last = lastExternalMediaPasteRef.current;
       e.preventDefault();
       e.stopPropagation();
-      if (last?.signature === signature && now - last.at < EXTERNAL_MEDIA_PASTE_DEDUPE_MS) return;
-      lastExternalMediaPasteRef.current = { signature, at: now };
+      if (last?.signature === actionSignature && now - last.at < EXTERNAL_MEDIA_PASTE_DEDUPE_MS) return;
+      lastExternalMediaPasteRef.current = { signature: actionSignature, at: now };
+      if (uploadTargetNodeId) {
+        void replaceUploadNodeFromFiles(uploadTargetNodeId, files);
+        return;
+      }
       void createUploadNodesFromFiles(files);
     };
     window.addEventListener('paste', onPaste, true);
     return () => window.removeEventListener('paste', onPaste, true);
-  }, [activeId, createUploadNodesFromFiles]);
+  }, [activeId, createUploadNodesFromFiles, replaceUploadNodeFromFiles]);
 
   const focusNearestNodeToViewport = useCallback(() => {
     if (!loaded || loadedCanvasId !== activeId) return;
@@ -4444,6 +4686,7 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
         batchDone={batchDone}
         snapEnabled={snapEnabled}
         onToggleSnap={() => setSnapEnabled((v) => !v)}
+        onAlignSelection={handleAlignSelection}
       />
       <TerminalPanel />
       {connectionPanModeActive && (
@@ -4610,8 +4853,8 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
             setCenter(position.x, position.y, { zoom, duration: 400 });
           }}
           style={{
-            width: isOp ? 144 : isNaruto ? 182 : isEva ? 258 : isYyh ? 224 : isSlamdunk ? 214 : undefined,
-            height: isOp ? 144 : isNaruto ? 122 : isEva ? 172 : isYyh ? 144 : isSlamdunk ? 128 : undefined,
+            width: isOp ? 144 : isNaruto ? 182 : isEva ? 258 : isYyh ? 224 : isSlamdunk ? 214 : isSoccer ? 224 : undefined,
+            height: isOp ? 144 : isNaruto ? 122 : isEva ? 172 : isYyh ? 144 : isSlamdunk ? 128 : isSoccer ? 136 : undefined,
             background: isOp
               ? themeTokens.panelBg
               : isNaruto
@@ -4621,6 +4864,8 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
               : isYyh
                 ? themeTokens.panelBg
               : isSlamdunk
+                ? themeTokens.panelBg
+              : isSoccer
                 ? themeTokens.panelBg
               : isDark ? 'rgba(20,20,22,.9)' : 'rgba(255,255,255,.9)',
             border: isOp
@@ -4633,10 +4878,12 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
                   ? `2px solid ${themeTokens.accent}`
               : isSlamdunk
                   ? `3px solid ${themeTokens.textMain}`
+              : isSoccer
+                  ? `3px solid ${themeTokens.textMain}`
                 : `1px solid ${isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.08)'}`,
-            borderRadius: isOp ? 999 : isNaruto ? '18px 18px 12px 12px' : isEva ? 8 : isYyh ? 12 : isSlamdunk ? 10 : 8,
-            right: isOp ? 24 : isNaruto ? 24 : isEva ? 24 : isYyh ? 24 : isSlamdunk ? 24 : undefined,
-            bottom: isOp ? 42 : isNaruto ? 40 : isEva ? 24 : isYyh ? 28 : isSlamdunk ? 32 : undefined,
+            borderRadius: isOp ? 999 : isNaruto ? '18px 18px 12px 12px' : isEva ? 8 : isYyh ? 12 : isSlamdunk ? 10 : isSoccer ? 12 : 8,
+            right: isOp ? 24 : isNaruto ? 24 : isEva ? 24 : isYyh ? 24 : isSlamdunk ? 24 : isSoccer ? 24 : undefined,
+            bottom: isOp ? 42 : isNaruto ? 40 : isEva ? 24 : isYyh ? 28 : isSlamdunk ? 32 : isSoccer ? 32 : undefined,
             boxShadow: isOp
               ? `0 0 0 7px ${themeTokens.warning}, 5px 5px 0 ${themeTokens.textMain}`
               : isNaruto
@@ -4647,12 +4894,14 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
                   ? `0 0 0 4px ${themeTokens.panelBgElevated}, 0 0 0 6px ${themeTokens.borderStrong}, 0 18px 46px rgba(0,0,0,.46), inset 0 0 34px ${themeTokens.secondary}22`
               : isSlamdunk
                   ? `0 0 0 5px ${themeTokens.secondary}, 5px 5px 0 ${themeTokens.textMain}, 0 18px 46px rgba(0,0,0,.28)`
+              : isSoccer
+                  ? `0 0 0 5px ${themeTokens.secondary}, 5px 5px 0 ${themeTokens.textMain}, 0 18px 46px rgba(0,0,0,.24)`
               : undefined,
             cursor: 'pointer',
-            overflow: isOp || isNaruto || isEva || isYyh || isSlamdunk ? 'hidden' : undefined,
+            overflow: isOp || isNaruto || isEva || isYyh || isSlamdunk || isSoccer ? 'hidden' : undefined,
           }}
-          maskColor={isOp ? 'rgba(15,124,140,.28)' : isNaruto ? 'rgba(255,91,31,.22)' : isEva ? 'rgba(156,255,0,.18)' : isYyh ? 'rgba(67,247,255,.16)' : isSlamdunk ? 'rgba(240,123,34,.22)' : isDark ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.6)'}
-          nodeColor={() => (isOp ? themeTokens.secondary : isNaruto ? themeTokens.accent : isEva ? themeTokens.danger : isYyh ? themeTokens.success : isSlamdunk ? themeTokens.accent : isDark ? '#a1a1aa' : '#52525b')}
+          maskColor={isOp ? 'rgba(15,124,140,.28)' : isNaruto ? 'rgba(255,91,31,.22)' : isEva ? 'rgba(156,255,0,.18)' : isYyh ? 'rgba(67,247,255,.16)' : isSlamdunk ? 'rgba(240,123,34,.22)' : isSoccer ? 'rgba(18,107,216,.22)' : isDark ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.6)'}
+          nodeColor={() => (isOp ? themeTokens.secondary : isNaruto ? themeTokens.accent : isEva ? themeTokens.danger : isYyh ? themeTokens.success : isSlamdunk ? themeTokens.accent : isSoccer ? themeTokens.accent : isDark ? '#a1a1aa' : '#52525b')}
         />
         {/* 选中可执行节点时的浮动操作栏 (执行 / 中止 / 关闭) */}
         <NodeActionBar />
@@ -4819,6 +5068,30 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
               ? `${sendableCount}素材`
               : `${sendNodeCount}节点`;
         const menuItemCls = 't8-context-menu__item';
+        const alignMiniBtnCls = 't8-context-menu__item justify-center text-[11px] !px-2 !py-1.5';
+        const alignButton = (
+          action: NodeAlignAction,
+          label: string,
+          Icon: ComponentType<{ size?: number }>,
+          minCount = 2,
+        ) => {
+          const disabled = ids.length < minCount;
+          return (
+            <button
+              key={action}
+              className={alignMiniBtnCls}
+              disabled={disabled}
+              title={disabled ? `至少选择 ${minCount} 个节点` : label}
+              onClick={() => {
+                closeContextMenu();
+                handleAlignSelection(action, ids);
+              }}
+            >
+              <Icon size={12} />
+              <span>{label}</span>
+            </button>
+          );
+        };
         return (
           <>
             {/* 遮罩层 */}
@@ -4847,6 +5120,26 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
                 <span className="text-[10px] font-normal opacity-60">
                   可执行 {exeCount}
                 </span>
+              </div>
+              <div className="px-2 py-2">
+                <div className="mb-1 flex items-center gap-1 text-[10px] font-bold opacity-65">
+                  <LucideIcons.LayoutGrid size={11} />
+                  <span>对齐 / 整理</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {alignButton('align-left', '左', LucideIcons.AlignStartVertical)}
+                  {alignButton('align-center-x', '水平中', LucideIcons.AlignCenterVertical)}
+                  {alignButton('align-right', '右', LucideIcons.AlignEndVertical)}
+                  {alignButton('align-top', '上', LucideIcons.AlignStartHorizontal)}
+                  {alignButton('align-center-y', '垂直中', LucideIcons.AlignCenterHorizontal)}
+                  {alignButton('align-bottom', '下', LucideIcons.AlignEndHorizontal)}
+                </div>
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                  {alignButton('distribute-x', '水平等距', LucideIcons.AlignHorizontalSpaceBetween, 3)}
+                  {alignButton('distribute-y', '垂直等距', LucideIcons.AlignVerticalSpaceBetween, 3)}
+                  {alignButton('snap-grid', '吸附网格', LucideIcons.Magnet, 1)}
+                  {alignButton('arrange-grid', '整理网格', LucideIcons.Grid3x3, 2)}
+                </div>
               </div>
               <button
                 className={menuItemCls}

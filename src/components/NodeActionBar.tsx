@@ -27,8 +27,8 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   'multi-angle-3d', 'panorama-720', 'penguin-portrait',
   'video', 'seedance', 'audio', 'llm', 'runninghub', 'runninghub-wallet',
     // v1.2.10.1: RH 工具节点
-    'rh-tools',
-  'resize', 'upscale', 'grid-crop', 'remove-bg', 'combine', 'image-compare', 'drawing-board',
+    'rh-tools', 'rh-toolbox', 'comfyui-store',
+  'resize', 'upscale', 'grid-crop', 'grid-editor', 'remove-bg', 'combine', 'image-compare', 'drawing-board',
   'frame-extractor', 'frame-pair',
   'upload',
   // v1.2.8 循环器 / 从合集获取
@@ -49,6 +49,7 @@ const ACTION_COLORS: Record<string, { run: string; stop: string; close: string }
   naruto: { run: '#f4511e', stop: '#f59e0b', close: '#d11d1d' },
   eva: { run: '#78ff4d', stop: '#ff9d00', close: '#ff3046' },
   yyh: { run: '#52ff9a', stop: '#ffb84d', close: '#ff4f7b' },
+  'soccer-hero': { run: '#1f9f4a', stop: '#f5d550', close: '#d64242' },
 };
 
 const NodeActionBar = () => {

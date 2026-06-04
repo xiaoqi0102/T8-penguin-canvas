@@ -6,12 +6,12 @@ const config = require('../config');
 const router = express.Router();
 const SCHEMA = 't8-theme-template';
 const VERSION = 2;
-const VISUAL_STYLES = new Set(['plain', 'tech', 'pixel', 'op', 'rh', 'naruto', 'eva', 'yyh', 'slamdunk']);
+const VISUAL_STYLES = new Set(['plain', 'tech', 'pixel', 'op', 'rh', 'naruto', 'eva', 'yyh', 'slamdunk', 'soccer-hero']);
 const INTENSITIES = new Set(['subtle', 'medium', 'strong']);
-const ICON_PACKS = new Set(['default', 'op', 'naruto', 'eva', 'yyh', 'slamdunk']);
-const CANVAS_PATTERNS = new Set(['none', 'dots', 'map', 'circuit', 'confetti', 'hub', 'chakra', 'eva-grid', 'spirit-map', 'court']);
-const NODE_FRAMES = new Set(['plain', 'glass', 'sticker', 'wanted', 'hub-card', 'shinobi-scroll', 'eva-panel', 'spirit-case', 'scoreboard-card']);
-const MUSIC_PRESETS = new Set(['tech-pulse', 'pixel-pop', 'grand-line-adventure', 'rh-pulse', 'shinobi-flame', 'eva-sync', 'spirit-gun', 'buzzer-beater']);
+const ICON_PACKS = new Set(['default', 'op', 'naruto', 'eva', 'yyh', 'slamdunk', 'soccer']);
+const CANVAS_PATTERNS = new Set(['none', 'dots', 'map', 'circuit', 'confetti', 'hub', 'chakra', 'eva-grid', 'spirit-map', 'court', 'pitch']);
+const NODE_FRAMES = new Set(['plain', 'glass', 'sticker', 'wanted', 'hub-card', 'shinobi-scroll', 'eva-panel', 'spirit-case', 'scoreboard-card', 'match-card']);
+const MUSIC_PRESETS = new Set(['tech-pulse', 'pixel-pop', 'grand-line-adventure', 'rh-pulse', 'shinobi-flame', 'eva-sync', 'spirit-gun', 'buzzer-beater', 'golden-goal']);
 const MUSIC_SOURCES = new Set(['synth', 'url', 'upload']);
 
 function loadSettings() {
@@ -71,6 +71,8 @@ function normalizeVisuals(raw, legacyStyle) {
           ? 'yyh'
         : style === 'slamdunk'
           ? 'slamdunk'
+        : style === 'soccer-hero'
+          ? 'soccer'
           : 'default',
     canvasPattern: CANVAS_PATTERNS.has(source.canvasPattern)
       ? source.canvasPattern
@@ -86,6 +88,8 @@ function normalizeVisuals(raw, legacyStyle) {
           ? 'spirit-map'
         : style === 'slamdunk'
           ? 'court'
+        : style === 'soccer-hero'
+          ? 'pitch'
         : style === 'tech'
           ? 'circuit'
           : 'dots',
@@ -103,6 +107,8 @@ function normalizeVisuals(raw, legacyStyle) {
           ? 'spirit-case'
         : style === 'slamdunk'
           ? 'scoreboard-card'
+        : style === 'soccer-hero'
+          ? 'match-card'
         : style === 'tech'
           ? 'glass'
           : 'sticker',
@@ -170,6 +176,16 @@ function defaultMusicFor(legacyStyle, visuals) {
       volume: 0.16,
       bpm: 104,
       copyrightNote: '原创篮球馆热血合成循环；可替换为已授权音频 URL。',
+    };
+  }
+  if (style === 'soccer-hero') {
+    return {
+      title: '足球小将主题歌（燃烧英雄）',
+      preset: 'golden-goal',
+      source: 'synth',
+      volume: 0.16,
+      bpm: 150,
+      copyrightNote: '足球小将风格默认音乐由前端内置模板提供；后端规范化兜底仍使用 golden-goal 合成循环，可替换为已授权音频 URL。',
     };
   }
   if (legacyStyle === 'tech' || style === 'tech') {

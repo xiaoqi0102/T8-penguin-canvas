@@ -10,8 +10,9 @@ function cleanExecutablePath(provider) {
 }
 
 function pollSeconds(provider) {
-  const n = Number(provider?.jimengConfig?.pollSeconds || 900);
-  return Math.max(1, Math.min(3600, Number.isFinite(n) ? Math.round(n) : 900));
+  const n = Number(provider?.jimengConfig?.pollSeconds || 3600);
+  const seconds = Number.isFinite(n) ? Math.round(n) : 3600;
+  return Math.max(3600, Math.min(3600, seconds));
 }
 
 function commandExists(command) {
@@ -111,19 +112,62 @@ function cliCommand(provider) {
   };
 }
 
+function jsonScore(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 1;
+  const keys = new Set(Object.keys(value).map((key) => key.toLowerCase()));
+  let weight = 0;
+  for (const key of ['submit_id', 'gen_status', 'result_json', 'images', 'videos', 'data', 'total_credit']) {
+    if (keys.has(key)) weight += 10;
+  }
+  return weight;
+}
+
+function jsonCandidates(raw) {
+  const out = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    const first = raw[i];
+    if (first !== '{' && first !== '[') continue;
+    const stack = [];
+    let inString = false;
+    let escape = false;
+    for (let j = i; j < raw.length; j += 1) {
+      const ch = raw[j];
+      if (inString) {
+        if (escape) escape = false;
+        else if (ch === '\\') escape = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+      } else if (ch === '{' || ch === '[') {
+        stack.push(ch);
+      } else if (ch === '}' || ch === ']') {
+        const open = stack.pop();
+        if ((ch === '}' && open !== '{') || (ch === ']' && open !== '[')) break;
+        if (!stack.length) {
+          try {
+            out.push({ index: i, value: JSON.parse(raw.slice(i, j + 1)) });
+          } catch {
+            // keep scanning
+          }
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
 function extractJson(text) {
   const raw = String(text || '').trim();
   if (!raw) return {};
-  for (let i = 0; i < raw.length; i += 1) {
-    const ch = raw[i];
-    if (ch !== '{' && ch !== '[') continue;
-    try {
-      return JSON.parse(raw.slice(i));
-    } catch {
-      // keep scanning
-    }
-  }
-  return { text: raw };
+  const candidates = jsonCandidates(raw);
+  if (!candidates.length) return { text: raw };
+  const exact = candidates.find((item) => !raw.slice(0, item.index).trim());
+  if (exact) return exact.value;
+  candidates.sort((a, b) => jsonScore(b.value) - jsonScore(a.value));
+  return candidates[0].value;
 }
 
 async function spawnCli(command, args, timeoutMs = 120000) {
@@ -164,11 +208,25 @@ async function runCli(provider, args, options = {}, extraTimeout = 120) {
   return spawnCli(exe, args, (pollSeconds(provider) + extraTimeout) * 1000);
 }
 
+function parseEmbeddedJson(value) {
+  const text = String(value || '').trim();
+  if (!/^[\[{]/.test(text)) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+const MEDIA_VALUE_RE = /^(https?:\/\/|file:\/\/|[A-Za-z]:\\|\/files\/output\/|\/output\/|\/assets\/|\/|.*\.(?:png|jpe?g|webp|gif|bmp|mp4|webm|mov|m4v)(?:\?|#)?$)/i;
+
 function collectOutputs(value, out = []) {
   if (!value) return out;
   if (typeof value === 'string') {
     const text = value.trim();
-    if (/^(https?:\/\/|file:\/\/|[A-Za-z]:\\|\/|.*\.(?:png|jpe?g|webp|gif|bmp|mp4|webm|mov|m4v)(?:\?|#)?$)/i.test(text)) out.push(text);
+    const parsed = parseEmbeddedJson(text);
+    if (parsed) collectOutputs(parsed, out);
+    else if (MEDIA_VALUE_RE.test(text)) out.push(text);
     return out;
   }
   if (Array.isArray(value)) {
@@ -180,10 +238,24 @@ function collectOutputs(value, out = []) {
     'url', 'urls', 'image', 'images', 'image_url', 'image_urls',
     'video', 'videos', 'video_url', 'video_urls', 'output', 'outputs',
     'result', 'results', 'file', 'files', 'path', 'paths',
-    'download_url', 'download_urls', 'downloadUrl', 'file_path', 'filePath',
+    'download_url', 'download_urls', 'downloadUrl', 'file_path', 'filePath', 'result_json',
   ]) {
     if (Object.prototype.hasOwnProperty.call(value, key)) collectOutputs(value[key], out);
   }
+  for (const item of Object.values(value)) {
+    if (item && typeof item === 'object') collectOutputs(item, out);
+  }
+  return out;
+}
+
+function outputValues(raw) {
+  const values = [];
+  collectOutputs(raw, values);
+  const out = [];
+  for (const value of values) {
+    if (value && !out.includes(value)) out.push(value);
+  }
+  return out;
 }
 
 function submitId(raw) {
@@ -201,6 +273,32 @@ function submitId(raw) {
   return found[0] || '';
 }
 
+function failureReason(raw) {
+  const found = [];
+  const visit = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) return value.forEach(visit);
+    if (typeof value !== 'object') return;
+    const status = String(value.gen_status || value.status || '').trim().toLowerCase();
+    const reason = value.fail_reason || value.failReason || value.error || value.message || value.msg;
+    const reasonText = String(reason || '').trim();
+    if (
+      reasonText
+      && (
+        ['fail', 'failed', 'error'].includes(status)
+        || /fail|error|invalid param|aigccompliance|confirmation|required/i.test(reasonText)
+      )
+    ) {
+      found.push(reasonText);
+    }
+    for (const item of Object.values(value)) {
+      if (item && (typeof item === 'object' || Array.isArray(item))) visit(item);
+    }
+  };
+  visit(raw);
+  return found[0] || '';
+}
+
 function outputExtFromMime(mime, fallback) {
   const text = String(mime || '').toLowerCase();
   if (text.includes('mp4')) return '.mp4';
@@ -210,6 +308,26 @@ function outputExtFromMime(mime, fallback) {
   if (text.includes('webp')) return '.webp';
   if (text.includes('png')) return '.png';
   return fallback;
+}
+
+const MEDIA_EXTS_BY_KIND = {
+  image: new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp']),
+  video: new Set(['.mp4', '.webm', '.mov', '.m4v']),
+};
+
+function windowsPathFromWsl(value) {
+  const text = String(value || '');
+  if (process.platform !== 'win32') return text;
+  const match = text.match(/^\/mnt\/([a-z])\/(.+)$/i);
+  if (!match) return text;
+  return `${match[1].toUpperCase()}:\\${match[2].replace(/\//g, '\\')}`;
+}
+
+function outputUrlForLocalPath(value) {
+  const localPath = path.resolve(windowsPathFromWsl(String(value || '')));
+  const outputRoot = path.resolve(config.OUTPUT_DIR);
+  if (localPath === outputRoot || !localPath.startsWith(`${outputRoot}${path.sep}`)) return '';
+  return `/files/output/${encodeURIComponent(path.basename(localPath))}`;
 }
 
 async function defaultStoreOutput(value, kind, options = {}) {
@@ -225,6 +343,7 @@ async function defaultStoreOutput(value, kind, options = {}) {
     localPath = decodeURIComponent(new URL(text).pathname || '');
     if (process.platform === 'win32' && /^\/[A-Za-z]:\//.test(localPath)) localPath = localPath.slice(1);
   }
+  localPath = windowsPathFromWsl(localPath);
   if (/^https?:\/\//i.test(text)) {
     const fetchImpl = options.fetchImpl || fetch;
     const res = await fetchImpl(text);
@@ -233,6 +352,8 @@ async function defaultStoreOutput(value, kind, options = {}) {
     ext = outputExtFromMime(contentType, ext);
     buf = Buffer.from(await res.arrayBuffer());
   } else if (fs.existsSync(localPath)) {
+    const existingOutputUrl = outputUrlForLocalPath(localPath);
+    if (existingOutputUrl) return existingOutputUrl;
     ext = path.extname(localPath) || ext;
     buf = fs.readFileSync(localPath);
   } else {
@@ -252,9 +373,56 @@ async function resolveLocalMedia(value, kind, provider, options = {}) {
   return wslPath(provider, resolved.path);
 }
 
-async function storeOutputs(raw, kind, options = {}) {
-  const values = [];
-  collectOutputs(raw, values);
+async function queryResult(provider, id, kind, options = {}) {
+  const args = [
+    'query_result',
+    `--submit_id=${id}`,
+    `--download_dir=${wslPath(provider, config.OUTPUT_DIR)}`,
+  ];
+  return runCli(provider, args, options, 60);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shortRaw(raw) {
+  try {
+    return JSON.stringify(raw).slice(0, 800);
+  } catch {
+    return String(raw || '').slice(0, 800);
+  }
+}
+
+function downloadedOutputsForTask(id, kind, startedAt = 0) {
+  if (!id || !fs.existsSync(config.OUTPUT_DIR)) return [];
+  const extSet = MEDIA_EXTS_BY_KIND[kind] || MEDIA_EXTS_BY_KIND.image;
+  const idText = String(id);
+  const since = Number(startedAt) || 0;
+  const files = fs.readdirSync(config.OUTPUT_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
+      const filePath = path.join(config.OUTPUT_DIR, entry.name);
+      let stat = null;
+      try {
+        stat = fs.statSync(filePath);
+      } catch {
+        return null;
+      }
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!extSet.has(ext)) return null;
+      if (!entry.name.includes(idText) && stat.mtimeMs < since - 1000) return null;
+      return { filePath, mtimeMs: stat.mtimeMs };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return files.map((item) => item.filePath);
+}
+
+async function materializeOutputs(raw, kind, options = {}) {
+  const failure = failureReason(raw);
+  if (failure) throw new Error(`即梦生成失败：${failure}`);
+  const values = outputValues(raw);
   const urls = [];
   for (const value of values) {
     const local = options.storeOutput
@@ -265,10 +433,70 @@ async function storeOutputs(raw, kind, options = {}) {
   return urls;
 }
 
+async function storeOutputs(raw, kind, provider, options = {}) {
+  const startedAt = Date.now();
+  let urls = await materializeOutputs(raw, kind, options);
+  if (urls.length) return urls;
+  const id = submitId(raw);
+  if (!id) {
+    throw new Error(`即梦 CLI 未返回可用媒体结果：${shortRaw(raw)}`);
+  }
+
+  const deadline = startedAt + pollSeconds(provider) * 1000;
+  const pollIntervalMs = options.pollIntervalMs === undefined
+    ? 2000
+    : Math.max(0, Number(options.pollIntervalMs) || 0);
+  let lastRaw = raw;
+  let lastStatus = '';
+  let lastFailure = '';
+  do {
+    const queried = await queryResult(provider, id, kind, options);
+    lastRaw = queried;
+    lastStatus = String(queried?.gen_status || queried?.status || '').trim();
+    lastFailure = failureReason(queried);
+    if (lastFailure) throw new Error(`即梦生成失败：${lastFailure}`);
+
+    urls = await materializeOutputs(queried, kind, options);
+    if (urls.length) return urls;
+
+    const downloaded = downloadedOutputsForTask(id, kind, startedAt);
+    for (const filePath of downloaded) {
+      const local = options.storeOutput
+        ? await options.storeOutput(filePath, kind)
+        : await defaultStoreOutput(filePath, kind, options);
+      if (local && !urls.includes(local)) urls.push(local);
+    }
+    if (urls.length) return urls;
+
+    const normalizedStatus = lastStatus.toLowerCase();
+    if (['fail', 'failed', 'error'].includes(normalizedStatus)) {
+      throw new Error(`即梦生成失败：${shortRaw(queried)}`);
+    }
+
+    if (Date.now() >= deadline) break;
+    await sleep(pollIntervalMs);
+  } while (true);
+
+  const suffix = lastStatus ? `，当前状态=${lastStatus}` : '';
+  if (lastFailure) {
+    throw new Error(`即梦生成失败：${lastFailure}`);
+  }
+  throw new Error(`即梦任务已提交但还没有可下载${kind === 'video' ? '视频' : '图片'}，submit_id=${id}${suffix}。稍后可用 dreamina query_result --submit_id=${id} --download_dir=${config.OUTPUT_DIR} 查询。原始返回：${shortRaw(lastRaw)}`);
+}
+
+async function resolveLocalMediaList(values, kind, provider, options = {}) {
+  const out = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    if (!value) continue;
+    out.push(await resolveLocalMedia(value, kind, provider, options));
+  }
+  return out;
+}
+
 async function generateImage(provider, input = {}, options = {}) {
   const prompt = String(input.prompt || '').trim();
   if (!prompt) return { ok: false, code: 'missing_prompt', providerId: provider.id, protocol: 'jimeng-cli', error: '请输入图像提示词。' };
-  const model = selectedModel(input.model || input.providerModel, provider.imageModels, 'jimeng-image-2k');
+  const model = selectedModel(input.providerModel || input.model, provider.imageModels, 'jimeng-image-2k');
   const refs = Array.isArray(input.images) ? input.images : [];
   const args = [];
   if (refs.length) {
@@ -280,8 +508,7 @@ async function generateImage(provider, input = {}, options = {}) {
   args.push(`--resolution_type=${imageResolution(model, input.size || '1024x1024')}`, `--poll=${pollSeconds(provider)}`);
   try {
     const raw = await runCli(provider, args, options, 120);
-    const imageUrls = await storeOutputs(raw, 'image', options);
-    if (!imageUrls.length) return { ok: false, code: 'empty_image', providerId: provider.id, protocol: 'jimeng-cli', error: '即梦 CLI 没有返回图片。', raw };
+    const imageUrls = await storeOutputs(raw, 'image', provider, options);
     return { ok: true, kind: 'image', code: 'completed', providerId: provider.id, protocol: 'jimeng-cli', model, imageUrls, taskId: submitId(raw), raw };
   } catch (e) {
     return { ok: false, code: 'cli_failed', providerId: provider.id, protocol: 'jimeng-cli', error: e?.message || '即梦 CLI 调用失败。' };
@@ -291,14 +518,33 @@ async function generateImage(provider, input = {}, options = {}) {
 async function generateVideo(provider, input = {}, options = {}) {
   const prompt = String(input.prompt || '').trim();
   if (!prompt) return { ok: false, code: 'missing_prompt', providerId: provider.id, protocol: 'jimeng-cli', error: '请输入视频提示词。' };
-  const model = selectedModel(input.model || input.providerModel, provider.videoModels, 'seedance2.0fast_vip');
+  const model = selectedModel(input.providerModel || input.model, provider.videoModels, 'seedance2.0fast_vip');
   const refs = Array.isArray(input.images) ? input.images : [];
+  const videos = Array.isArray(input.videos) ? input.videos : [];
+  const audios = Array.isArray(input.audios) ? input.audios : [];
   const duration = videoDuration(input.duration);
   const ratio = videoRatio(input.aspect_ratio || input.ratio);
+  const frameMode = String(input.providerParams?.frameMode || input.frameMode || '').trim();
   const args = [];
-  if (refs.length >= 2) {
+  if (videos.length || audios.length) {
+    const imagePaths = await resolveLocalMediaList(refs.slice(0, 9), 'image', provider, options);
+    const videoPaths = await resolveLocalMediaList(videos.slice(0, 3), 'video', provider, options);
+    const audioPaths = await resolveLocalMediaList(audios.slice(0, 3), 'audio', provider, options);
+    if (!imagePaths.length && !videoPaths.length) {
+      return { ok: false, code: 'jimeng_missing_visual_reference', providerId: provider.id, protocol: 'jimeng-cli', error: '即梦 CLI 的音频参考需要同时提供至少一张图片或一个视频。' };
+    }
+    args.push('multimodal2video', `--prompt=${prompt}`, `--duration=${duration}`);
+    if (ratio) args.push(`--ratio=${ratio}`);
+    for (const p of imagePaths) args.push(`--image=${p}`);
+    for (const p of videoPaths) args.push(`--video=${p}`);
+    for (const p of audioPaths) args.push(`--audio=${p}`);
+  } else if (frameMode === 'firstlast' && refs.length >= 2) {
+    const firstPath = await resolveLocalMedia(refs[0], 'image', provider, options);
+    const lastPath = await resolveLocalMedia(refs[1], 'image', provider, options);
+    args.push('frames2video', `--first=${firstPath}`, `--last=${lastPath}`, `--prompt=${prompt}`, `--duration=${duration}`);
+  } else if (refs.length >= 2) {
     const paths = [];
-    for (const ref of refs.slice(0, 8)) paths.push(await resolveLocalMedia(ref, 'image', provider, options));
+    for (const ref of refs.slice(0, 9)) paths.push(await resolveLocalMedia(ref, 'image', provider, options));
     args.push('multiframe2video', `--images=${paths.join(',')}`, `--prompt=${prompt}`, `--duration=${duration}`);
   } else if (refs.length === 1) {
     const refPath = await resolveLocalMedia(refs[0], 'image', provider, options);
@@ -309,11 +555,11 @@ async function generateVideo(provider, input = {}, options = {}) {
   }
   const modelVersion = videoModelVersion(model);
   if (modelVersion) args.push(`--model_version=${modelVersion}`);
-  args.push(`--video_resolution=${videoResolution(model, input.resolution).toLowerCase()}`, `--poll=${pollSeconds(provider)}`);
+  args.push(`--video_resolution=${videoResolution(model, input.resolution).toLowerCase()}`);
+  args.push(`--poll=${pollSeconds(provider)}`);
   try {
     const raw = await runCli(provider, args, options, 180);
-    const videoUrls = await storeOutputs(raw, 'video', options);
-    if (!videoUrls.length) return { ok: false, code: 'empty_video', providerId: provider.id, protocol: 'jimeng-cli', error: '即梦 CLI 没有返回视频。', raw };
+    const videoUrls = await storeOutputs(raw, 'video', provider, options);
     return { ok: true, kind: 'video', code: 'completed', providerId: provider.id, protocol: 'jimeng-cli', model, videoUrls, taskId: submitId(raw), raw };
   } catch (e) {
     return { ok: false, code: 'cli_failed', providerId: provider.id, protocol: 'jimeng-cli', error: e?.message || '即梦 CLI 调用失败。' };

@@ -1,5 +1,9 @@
 import type { NodeMeta } from '../types/canvas';
 
+const DEV_NODE_REGISTRY: NodeMeta[] = import.meta.env?.DEV ? [
+  { type: 'rh-toolbox-maker', label: 'RH工具箱制作器', category: 'rh', description: '维护者专用：在画布内制作 RH工具箱 manifest 模板，开发环境可见，用户包不打入', icon: 'FileJson', color: 'emerald' },
+] : [];
+
 /**
  * 节点元数据注册表
  * 严格对齐 features.json 中的 24 个保留节点
@@ -19,7 +23,7 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'audio', label: '音频', category: 'core', description: 'Suno V5.5 全模式(生成/翻唱/续写)', icon: 'Music', color: 'violet' },
   { type: 'llm', label: 'LLM', category: 'core', description: '多提供商 LLM 推理（直连/Geeknow TAB 切换，支持 GPT/Claude/Gemini/DeepSeek/Qwen）', icon: 'Brain', color: 'emerald' },
 
-  // ========== RH RunningHub 节点(3) ==========
+  // ========== RH RunningHub 节点 ==========
   { type: 'runninghub', label: 'RunningHub', category: 'rh', description: 'RH 工作流主节点', icon: 'Workflow', color: 'cyan' },
   // RH 钱包应用：复用 RunningHubNode 实现。v1.2.9.16 起与普通 RunningHub 节点统一使用 settings.rhApiKey
   { type: 'runninghub-wallet', label: 'RH钱包应用', category: 'rh', description: 'RH 钱包应用工作流（与 RunningHub 节点共用 RunningHub APIKEY）', icon: 'Wallet', color: 'violet' },
@@ -27,6 +31,12 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'rh-config', label: 'RH 配置', category: 'rh', description: 'RH 工作流参数注入', icon: 'Settings2', color: 'cyan', hidden: true },
   // RH 工具节点 (v1.2.10+, 显示名从 v1.2.10.4 起改为「RH 超市」): 启动器式包装多个 RunningHub AI 应用，在节点内直接运行
   { type: 'rh-tools', label: 'RH超市', category: 'rh', description: '启动器式包装多个 RunningHub AI 应用，在节点内分类浏览 / 拼音搜索 / 一键运行', icon: 'Sparkles', color: 'cyan' },
+  { type: 'rh-toolbox', label: 'RH工具箱', category: 'rh', description: '维护者精选 RunningHub 工具箱，只读分类运行，可作为图像/视频/文本/音频辅助能力被其他节点复用', icon: 'Wrench', color: 'cyan' },
+  ...DEV_NODE_REGISTRY,
+
+  // ========== ComfyUI 本地工作流节点 ==========
+  { type: 'comfyui-store', label: 'ComfyUI超市', category: 'comfyui', description: '本地 ComfyUI 应用库：导入制作好的工作流应用，接上游素材后一键运行', icon: 'Boxes', color: 'cyan' },
+  { type: 'comfyui-app-maker', label: 'ComfyUI应用制作工具', category: 'comfyui', description: '上传 ComfyUI API Workflow JSON，自动识别参数并保存为可复用应用', icon: 'FileJson', color: 'emerald' },
 
   // ========== Special 特殊节点(5) ==========
   // 以下五个节点暂时隐藏不展示 (hidden: true) —— 需要重新启用时删除 hidden 即可。
@@ -54,6 +64,7 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'remove-bg', label: '抠图', category: 'utility', description: '去除背景', icon: 'Eraser', color: 'orange', hidden: true },
   { type: 'upscale', label: '放大', category: 'utility', description: '图像放大', icon: 'ZoomIn', color: 'orange', hidden: true },
   { type: 'grid-crop', label: '宫格剪裁', category: 'utility', description: '网格切图', icon: 'Grid3x3', color: 'orange' },
+  { type: 'grid-editor', label: '宫格编辑', category: 'utility', description: '多图分镜宫格拼接与顺序拆分', icon: 'LayoutGrid', color: 'orange' },
 
   // ========== Auxiliary 辅助节点(6) ==========
   // 其中 2 个暂时隐藏: edit / video-output
@@ -77,6 +88,7 @@ export const NODE_GROUPS: Record<string, { label: string; nodes: NodeMeta[] }> =
   input: { label: '素材资源', nodes: NODE_REGISTRY.filter((n) => n.category === 'input' && !n.hidden) },
   core: { label: '核心节点', nodes: NODE_REGISTRY.filter((n) => n.category === 'core' && !n.hidden) },
   rh: { label: 'RH', nodes: NODE_REGISTRY.filter((n) => n.category === 'rh' && !n.hidden) },
+  comfyui: { label: 'ComfyUI', nodes: NODE_REGISTRY.filter((n) => n.category === 'comfyui' && !n.hidden) },
   special: { label: '特殊节点', nodes: NODE_REGISTRY.filter((n) => n.category === 'special' && !n.hidden) },
   utility: { label: '工具节点', nodes: NODE_REGISTRY.filter((n) => n.category === 'utility' && !n.hidden) },
   auxiliary: { label: '辅助节点', nodes: NODE_REGISTRY.filter((n) => n.category === 'auxiliary' && !n.hidden) },

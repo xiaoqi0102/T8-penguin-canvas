@@ -61,6 +61,13 @@ import {
  *   - Seedance  (kind=seedance) — 零破坏兼容旧 veo 字段
  * 流程: submit → poll(5s 间隔) → 转存 → 展示
  */
+const VIDEO_POLL_TIMEOUT_SECONDS = 3600;
+const VIDEO_POLL_INTERVAL_MS = 5000;
+const VIDEO_MAX_POLL = Math.ceil((VIDEO_POLL_TIMEOUT_SECONDS * 1000) / VIDEO_POLL_INTERVAL_MS);
+const VIDEO_FAL_POLL_INTERVAL_MS = 6000;
+const VIDEO_FAL_MAX_POLL = Math.ceil((VIDEO_POLL_TIMEOUT_SECONDS * 1000) / VIDEO_FAL_POLL_INTERVAL_MS);
+const JIMENG_SEEDANCE_LIMITS = { images: 9, videos: 3, audios: 3 };
+
 const splitGrokFalRefUrls = (raw: string): string[] =>
   String(raw || '')
     .split(/[\n,，]+/)
@@ -100,6 +107,8 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
     ? advancedProviderModelOptions(providerSelection.provider, 'video')
     : [];
   const externalProviderModel = providerSelection.providerModel || externalModelOptions[0] || '';
+  const isJimengCliSelected = isExternalSelected && providerSelection.provider?.protocol === 'jimeng-cli';
+  const isJimengSeedanceSelected = isJimengCliSelected && /seedance|jimeng-video|video/i.test(externalProviderModel);
   // 主模型 id (对应 VIDEO_MODELS 项)
   const rawModel = typeof d?.model === 'string' ? d.model : '';
   const isLegacySora2Model = /^sora-2(?:-\d{4}-\d{2}-\d{2})?$/.test(rawModel);
@@ -110,7 +119,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   // 各参数(跳过着调用 update 默认值)
   const ratio: string = d?.ratio || modelDef.defaultRatio;
   const duration: number = d?.duration ?? modelDef.defaultDuration ?? (modelDef.durations?.[0] || 0);
-  const resolution: string = d?.resolution || modelDef.defaultResolution || '';
+  const resolution: string = d?.resolution || (isJimengSeedanceSelected ? '720p' : modelDef.defaultResolution || '');
   const seed: number = typeof d?.seed === 'number' ? d.seed : 0;
   const enhancePrompt: boolean = d?.enhancePrompt ?? false;
   const enableUpsample: boolean = d?.enableUpsample ?? false;
@@ -119,6 +128,17 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   const isFal = isFalVideoModel(apiModel);
   const falReg = isFal ? VIDEO_FAL_REGISTRY[apiModel] : null;
   const isGrokFalV15 = apiModel === 'grok-imagine-video-1.5';
+  const showBuiltinFalControls = !isExternalSelected && isFal && !!falReg;
+  const showGenericVideoControls = isExternalSelected || !isFal;
+  const ratioOptions = isJimengSeedanceSelected
+    ? ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9']
+    : modelDef.ratios;
+  const durationOptions = isJimengSeedanceSelected
+    ? [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    : modelDef.durations || [];
+  const resolutionOptions = isJimengSeedanceSelected
+    ? ['480p', '720p', '1080p']
+    : modelDef.resolutions || [];
   // veo-fal 专属
   const vfRatio: string = d?.vfRatio || '16:9';
   const vfDuration: string = d?.vfDuration || '8s';
@@ -190,46 +210,81 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   };
   const handleRestoreExcludedMaterials = () => update({ excludedMaterialIds: [] });
 
-  // === 本地拖入参考图 (跨节点 Ctrl 拖拽) ===
+  // === 本地拖入参考素材 (跨节点 Ctrl 拖拽) ===
   const localRefImages: string[] = Array.isArray(d?.localRefImages) ? d.localRefImages : [];
-  const localRefImageMaterials: Material[] = useMemo(
-    () =>
-      localRefImages.map((url, i) => ({
+  const localRefVideos: string[] = Array.isArray(d?.localRefVideos) ? d.localRefVideos : [];
+  const localRefAudios: string[] = Array.isArray(d?.localRefAudios) ? d.localRefAudios : [];
+  const localRefMaterials: Material[] = useMemo(
+    () => [
+      ...localRefImages.map((url, i) => ({
         id: `local::video-image:${url}`,
         kind: 'image' as const,
         url,
         sourceNodeId: id,
         origin: 'local' as const,
-        label: `本地参考${i + 1}`,
+        label: `本地图片${i + 1}`,
       })),
-    [localRefImages, id],
+      ...localRefVideos.map((url, i) => ({
+        id: `local::video-video:${url}`,
+        kind: 'video' as const,
+        url,
+        sourceNodeId: id,
+        origin: 'local' as const,
+        label: `本地视频${i + 1}`,
+      })),
+      ...localRefAudios.map((url, i) => ({
+        id: `local::video-audio:${url}`,
+        kind: 'audio' as const,
+        url,
+        sourceNodeId: id,
+        origin: 'local' as const,
+        label: `本地音频${i + 1}`,
+      })),
+    ],
+    [localRefImages, localRefVideos, localRefAudios, id],
   );
   const maxMentionRefs =
-    isFal && falReg
+    isJimengSeedanceSelected
+      ? JIMENG_SEEDANCE_LIMITS.images
+      : isFal && falReg
       ? falReg.paramKind === 'grok-fal' && (isGrokFalV15 || gkfMode !== 'reference_to_video')
         ? 1
         : falReg.maxRefImages
       : modelDef.maxRefImages;
+  const maxMentionVideos = isJimengSeedanceSelected ? JIMENG_SEEDANCE_LIMITS.videos : 0;
+  const maxMentionAudios = isJimengSeedanceSelected ? JIMENG_SEEDANCE_LIMITS.audios : 0;
   const mentionMaterials = useMemo(
-    () => [...orderedImages, ...localRefImageMaterials].slice(0, maxMentionRefs),
-    [orderedImages, localRefImageMaterials, maxMentionRefs],
+    () => [
+      ...[...orderedImages, ...localRefMaterials.filter((m) => m.kind === 'image')].slice(0, maxMentionRefs),
+      ...[...orderedVideos, ...localRefMaterials.filter((m) => m.kind === 'video')].slice(0, maxMentionVideos),
+      ...[...orderedAudios, ...localRefMaterials.filter((m) => m.kind === 'audio')].slice(0, maxMentionAudios),
+    ],
+    [orderedImages, orderedVideos, orderedAudios, localRefMaterials, maxMentionRefs, maxMentionVideos, maxMentionAudios],
   );
 
-  // 分组动态跟随子模型: seedance 支持 image/video/audio, 其他 (grok/veo) 仅 image
+  // 分组动态跟随子模型: Seedance / 即梦 CLI 支持 image/video/audio, 其他 (grok/veo/sora) 仅 image
   const previewGroups = useMemo<ReadonlyArray<'text' | 'image' | 'video' | 'audio'>>(
-    () => (modelDef.kind === 'seedance' ? ['text', 'image', 'video', 'audio'] : ['text', 'image']),
-    [modelDef.kind],
+    () => (modelDef.kind === 'seedance' || isJimengSeedanceSelected ? ['text', 'image', 'video', 'audio'] : ['text', 'image']),
+    [modelDef.kind, isJimengSeedanceSelected],
   );
 
-  // 收集上游 prompt + 参考图 (按用户拖拽顺序), 合并本地拖入参考图
-  const collectUpstream = (): { prompt: string; imageUrls: string[] } => {
+  // 收集上游 prompt + 参考图/视频/音频 (按用户拖拽顺序), 合并本地拖入素材
+  const collectUpstream = (): { prompt: string; imageUrls: string[]; videoUrls: string[]; audioUrls: string[] } => {
     const prompts = orderedTexts.map((t) => t.url).filter((s) => !!s);
     const upImageUrls = orderedImages.map((m) => m.url).filter((s) => !!s);
-    const merged: string[] = [];
-    for (const u of [...upImageUrls, ...localRefImages]) {
-      if (u && merged.indexOf(u) === -1) merged.push(u);
-    }
-    return { prompt: prompts.join('\n').trim(), imageUrls: merged };
+    const upVideoUrls = orderedVideos.map((m) => m.url).filter((s) => !!s);
+    const upAudioUrls = orderedAudios.map((m) => m.url).filter((s) => !!s);
+    const dedupe = (items: string[]) => {
+      const out: string[] = [];
+      for (const item of items) if (item && !out.includes(item)) out.push(item);
+      return out;
+    };
+    return {
+      prompt: prompts.join('\n').trim(),
+      imageUrls: dedupe([...upImageUrls, ...localRefImages]),
+      videoUrls: dedupe([...upVideoUrls, ...localRefVideos]),
+      audioUrls: dedupe([...upAudioUrls, ...localRefAudios]),
+    };
   };
 
   // 本地 URL 转 base64(veo/seedance 路径使用;grok 可直接传 URL)
@@ -276,8 +331,8 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
     stopPoll();
     return new Promise<void>((resolve, reject) => {
       let elapsed = 0;
-      const POLL_INT = 5000;
-      const MAX = 480; // 40 分钟
+      const POLL_INT = VIDEO_POLL_INTERVAL_MS;
+      const MAX = VIDEO_MAX_POLL; // 60 分钟
       let lastProgress = '';
       pollTimer.current = window.setInterval(async () => {
         elapsed += 1;
@@ -327,8 +382,8 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
     stopPoll();
     return new Promise<void>((resolve, reject) => {
       let elapsed = 0;
-      const POLL_INT = 6000;
-      const MAX = 600; // 60分钟
+      const POLL_INT = VIDEO_FAL_POLL_INTERVAL_MS;
+      const MAX = VIDEO_FAL_MAX_POLL; // 60分钟
       pollTimer.current = window.setInterval(async () => {
         elapsed += 1;
         if (elapsed > MAX) {
@@ -367,7 +422,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
 
   const handleGenerate = async () => {
     setError(null);
-    const { prompt: upstreamPrompt, imageUrls } = collectUpstream();
+    const { prompt: upstreamPrompt, imageUrls, videoUrls, audioUrls } = collectUpstream();
     const resolvedLocalPrompt = resolveMediaMentions(localPrompt, promptMentions, mentionMaterials);
     const finalPrompt = (upstreamPrompt || resolvedLocalPrompt || '').trim();
     if (!finalPrompt) {
@@ -381,8 +436,12 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
       if (isExternalSelected && providerSelection.provider) {
         const providerModel = externalProviderModel;
         const refs = imageUrls.slice(0, Math.max(1, maxMentionRefs || modelDef.maxRefImages || 8));
+        const videoRefs = videoUrls.slice(0, maxMentionVideos);
+        const audioRefs = audioUrls.slice(0, maxMentionAudios);
         logBus.info(
-          `扩展平台视频提交: ${providerSelection.provider.label || providerSelection.provider.id} · ${providerModel} · refs=${refs.length}`,
+          isJimengSeedanceSelected
+            ? `扩展平台视频提交: ${providerSelection.provider.label || providerSelection.provider.id} · ${providerModel} · 图${refs.length}/视${videoRefs.length}/音${audioRefs.length}`
+            : `扩展平台视频提交: ${providerSelection.provider.label || providerSelection.provider.id} · ${providerModel} · refs=${refs.length}`,
           src,
         );
         const r = await generateExternalVideo({
@@ -396,6 +455,8 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           resolution,
           seed: seed > 0 ? seed : undefined,
           images: refs,
+          videos: videoRefs,
+          audios: audioRefs,
           providerParams: d?.providerParams,
         });
         const nextVideoUrl = r.videoUrls[0];
@@ -573,26 +634,39 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
     startDrag(payload, e.clientX, e.clientY);
   };
 
-  // === 跨节点拖拽: target (接收 image → localRefImages, text → prompt) ===
+  // === 跨节点拖拽: target (接收 image/video/audio/text) ===
   const handleDrop = (payload: MaterialPayload) => {
     if (payload.kind === 'image' && payload.url) {
       const cur = Array.isArray(d?.localRefImages) ? d.localRefImages : [];
       if (cur.indexOf(payload.url) !== -1) return;
-      const cap = (modelDef.maxRefImages || 7) + 4; // 给本地一些余量
+      const cap = isJimengSeedanceSelected ? JIMENG_SEEDANCE_LIMITS.images : (modelDef.maxRefImages || 7) + 4;
       if (cur.length >= cap) return;
       update({ localRefImages: [...cur, payload.url] });
+    } else if (payload.kind === 'video' && payload.url && isJimengSeedanceSelected) {
+      const cur = Array.isArray(d?.localRefVideos) ? d.localRefVideos : [];
+      if (cur.indexOf(payload.url) !== -1 || cur.length >= JIMENG_SEEDANCE_LIMITS.videos) return;
+      update({ localRefVideos: [...cur, payload.url] });
+    } else if (payload.kind === 'audio' && payload.url && isJimengSeedanceSelected) {
+      const cur = Array.isArray(d?.localRefAudios) ? d.localRefAudios : [];
+      if (cur.indexOf(payload.url) !== -1 || cur.length >= JIMENG_SEEDANCE_LIMITS.audios) return;
+      update({ localRefAudios: [...cur, payload.url] });
     } else if (payload.kind === 'text' && typeof payload.text === 'string') {
       update({ prompt: payload.text });
     }
   };
   const { dropProps, isAccepting } = useMaterialDropTarget({
     id,
-    accepts: ['image', 'text'],
+    accepts: isJimengSeedanceSelected ? ['image', 'video', 'audio', 'text'] : ['image', 'text'],
     onDrop: handleDrop,
   });
 
   const isBusy = status === 'submitting' || status === 'polling';
   const refsCount = orderedImages.length + localRefImages.length;
+  const videoRefsCount = orderedVideos.length + localRefVideos.length;
+  const audioRefsCount = orderedAudios.length + localRefAudios.length;
+  const previewTitle = isJimengSeedanceSelected
+    ? `上游素材 · 图${Math.min(refsCount, JIMENG_SEEDANCE_LIMITS.images)}/${JIMENG_SEEDANCE_LIMITS.images} 视${Math.min(videoRefsCount, JIMENG_SEEDANCE_LIMITS.videos)}/${JIMENG_SEEDANCE_LIMITS.videos} 音${Math.min(audioRefsCount, JIMENG_SEEDANCE_LIMITS.audios)}/${JIMENG_SEEDANCE_LIMITS.audios}`
+    : `上游素材 · 参考图 ${Math.min(refsCount, maxMentionRefs)}/${maxMentionRefs}`;
 
   return (
     <div
@@ -733,7 +807,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* === FAL 专属参数面板 === */}
-        {isFal && falReg?.paramKind === 'veo-fal' && (
+        {showBuiltinFalControls && falReg?.paramKind === 'veo-fal' && (
           <>
             <div className="grid grid-cols-2 gap-1.5">
               <div>
@@ -770,7 +844,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           </>
         )}
 
-        {isFal && falReg?.paramKind === 'grok-fal' && (
+        {showBuiltinFalControls && falReg?.paramKind === 'grok-fal' && (
           <>
             {isGrokFalV15 ? (
               <div className="rounded border border-white/10 bg-white/5 px-2 py-1.5 text-[10px] leading-relaxed text-white/60">
@@ -835,7 +909,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           </>
         )}
 
-        {isFal && falReg?.paramKind === 'sora-fal' && (
+        {showBuiltinFalControls && falReg?.paramKind === 'sora-fal' && (
           <>
             <div className="grid grid-cols-2 gap-1.5">
               <div>
@@ -891,7 +965,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* 比例(非 FAL 时显示原始控件) */}
-        {!isFal && (
+        {showGenericVideoControls && (
         <div className="grid grid-cols-2 gap-1.5">
           <div>
             <label className="text-[10px] text-white/50 block mb-1">比例</label>
@@ -900,21 +974,21 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
               onChange={(e) => update({ ratio: e.target.value })}
               className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
             >
-              {modelDef.ratios.map((r) => (
+              {ratioOptions.map((r) => (
                 <option key={r} value={r} className="bg-zinc-900">{r}</option>
               ))}
             </select>
           </div>
           {/* 时长(grok / seedance) */}
-          {modelDef.durations && modelDef.durations.length > 0 && (
+          {durationOptions.length > 0 && (
             <div>
               <label className="text-[10px] text-white/50 block mb-1">时长(s)</label>
               <select
                 value={String(duration)}
                 onChange={(e) => update({ duration: Number(e.target.value) })}
-                className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
-              >
-                {modelDef.durations.map((s) => (
+              className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+            >
+                {durationOptions.map((s) => (
                   <option key={s} value={s} className="bg-zinc-900">{s}s</option>
                 ))}
               </select>
@@ -924,15 +998,15 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* 分辨率(仅 grok 非FAL) */}
-        {!isFal && modelDef.resolutions && modelDef.resolutions.length > 0 && (
+        {showGenericVideoControls && resolutionOptions.length > 0 && (
           <div>
             <label className="text-[10px] text-white/50 block mb-1">分辨率</label>
             <select
-              value={resolution || modelDef.defaultResolution}
+              value={resolution || resolutionOptions[0]}
               onChange={(e) => update({ resolution: e.target.value })}
               className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
             >
-              {modelDef.resolutions.map((r) => (
+              {resolutionOptions.map((r) => (
                 <option key={r} value={r} className="bg-zinc-900">{r}</option>
               ))}
             </select>
@@ -940,7 +1014,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* veo 专用选项(非FAL) */}
-        {!isFal && modelDef.kind === 'veo' && (
+        {!isExternalSelected && !isFal && modelDef.kind === 'veo' && (
           <div className="grid grid-cols-2 gap-1.5">
             <label className="flex items-center gap-1 text-[10px] text-white/60 cursor-pointer">
               <input
@@ -964,7 +1038,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         )}
 
         {/* Seed(非FAL) */}
-        {!isFal && (
+        {showGenericVideoControls && (
         <div>
           <label className="text-[10px] text-white/50 block mb-1">Seed (0=随机)</label>
           <input
@@ -994,37 +1068,92 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
             isDark={isDark}
             isPixel={isPixel}
             groups={previewGroups}
-            title={`上游素材 · 参考图 ${Math.min(refsCount, maxMentionRefs)}/${maxMentionRefs}`}
+            title={previewTitle}
           />
         )}
 
-        {/* 本地拖入参考图 (Ctrl+拖拽自其他节点) */}
-        {modelDef.supportImages && localRefImages.length > 0 && (
-          <div className="rounded border border-emerald-400/30 bg-emerald-500/5 p-1.5">
-            <div className="text-[10px] text-emerald-200/80 mb-1">本地拖入参考图 · {localRefImages.length}</div>
-            <div className="flex gap-1 flex-wrap">
-              {localRefImages.map((u, i) => (
-                <div key={i} className="relative w-10 h-10">
-                  <img
-                    src={u}
-                    alt=""
-                    data-drag-source
-                    data-drag-kind="image"
-                    data-drag-url={u}
-                    data-drag-preview={u}
-                    data-drag-node-id={id}
-                    onMouseDown={(e) => beginMaterialDrag(e, { kind: 'image', url: u, sourceNodeId: id, previewUrl: u })}
-                    className="w-10 h-10 object-cover rounded border border-white/10 cursor-grab"
-                  />
-                  <button
-                    onClick={() => update({ localRefImages: localRefImages.filter((x) => x !== u) })}
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center"
-                  >
-                    <X size={9} />
-                  </button>
-                </div>
-              ))}
+        {/* 本地拖入参考素材 (Ctrl+拖拽自其他节点) */}
+        {modelDef.supportImages && (localRefImages.length + localRefVideos.length + localRefAudios.length) > 0 && (
+          <div className="rounded border border-emerald-400/30 bg-emerald-500/5 p-1.5 space-y-1">
+            <div className="text-[10px] text-emerald-200/80">
+              本地拖入 · 图{localRefImages.length} 视{localRefVideos.length} 音{localRefAudios.length}
             </div>
+            {localRefImages.length > 0 && (
+              <div className="flex gap-1 flex-wrap">
+                {localRefImages.map((u, i) => (
+                  <div key={`img-${i}`} className="relative w-10 h-10">
+                    <img
+                      src={u}
+                      alt=""
+                      data-drag-source
+                      data-drag-kind="image"
+                      data-drag-url={u}
+                      data-drag-preview={u}
+                      data-drag-node-id={id}
+                      onMouseDown={(e) => beginMaterialDrag(e, { kind: 'image', url: u, sourceNodeId: id, previewUrl: u })}
+                      className="w-10 h-10 object-cover rounded border border-white/10 cursor-grab"
+                    />
+                    <button
+                      onClick={() => update({ localRefImages: localRefImages.filter((x) => x !== u) })}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white flex items-center justify-center"
+                    >
+                      <X size={9} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {localRefVideos.length > 0 && (
+              <div className="space-y-1">
+                {localRefVideos.map((u, i) => (
+                  <div key={`vid-${i}`} className="flex items-center gap-1">
+                    <LoopingVideo
+                      src={u}
+                      data-drag-source
+                      data-drag-kind="video"
+                      data-drag-url={u}
+                      data-drag-preview={u}
+                      data-drag-node-id={id}
+                      onMouseDown={(e) => beginMaterialDrag(e, { kind: 'video', url: u, sourceNodeId: id, previewUrl: u })}
+                      className="w-12 h-8 object-cover rounded border border-white/10 cursor-grab"
+                    />
+                    <span className="flex-1 truncate text-[10px] text-white/50">{u.split('/').pop()}</span>
+                    <button
+                      onClick={() => update({ localRefVideos: localRefVideos.filter((x) => x !== u) })}
+                      className="text-rose-300/60 hover:text-rose-200"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {localRefAudios.length > 0 && (
+              <div className="space-y-1">
+                {localRefAudios.map((u, i) => (
+                  <div key={`aud-${i}`} className="flex items-center gap-1">
+                    <span
+                      data-drag-source
+                      data-drag-kind="audio"
+                      data-drag-url={u}
+                      data-drag-node-id={id}
+                      onMouseDown={(e) => beginMaterialDrag(e, { kind: 'audio', url: u, sourceNodeId: id, previewUrl: u })}
+                      className="text-[14px] cursor-grab"
+                      title="按住 Ctrl 拖拽"
+                    >
+                      ♪
+                    </span>
+                    <span className="flex-1 truncate text-[10px] text-white/50">{u.split('/').pop()}</span>
+                    <button
+                      onClick={() => update({ localRefAudios: localRefAudios.filter((x) => x !== u) })}
+                      className="text-rose-300/60 hover:text-rose-200"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

@@ -68,6 +68,7 @@ test('external provider test endpoint resolves saved providers without leaking s
   assert.equal(tested.data.ok, true);
   assert.equal(tested.data.providerId, 'modelscope');
   assert.equal(tested.data.protocol, 'modelscope');
+  assert.equal(tested.data.provider.id, 'modelscope');
   assert.equal(JSON.stringify(tested).includes('ms-secret-abcdef'), false);
 
   const missing = await fetch(`${base}/api/proxy/external/test-provider`, {
