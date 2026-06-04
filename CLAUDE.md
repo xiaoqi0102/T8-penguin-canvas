@@ -1,6 +1,6 @@
 # T8-penguin-canvas · AI 节点画布工作流（CLAUDE 工程索引）
 
-> 版本：v2.0.0 · 更新时间：2026-06-03
+> 版本：v2.1.0 · 更新时间：2026-06-04
 >
 > 文档目的：为 Claude / AI 协作者提供「全局架构入口 + 模块文档导航」。源代码不动，只读 + 索引。
 
@@ -236,9 +236,9 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 
 ### 当前状态
 
-- **Fork 版本**：v2.0.0
-- **Upstream 版本**：v1.9.1
-- **领先状态**：✅ 领先一个主版本号
+- **Fork 版本**：v2.1.0
+- **Upstream 版本**：v1.9.9
+- **领先状态**：✅ 领先（v2.1.0 > v1.9.9）
 
 ---
 
@@ -264,6 +264,7 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 | 2026-05-31 | Geeknow 模型瘦身：保留 5 个推理模型（gpt-5.5 / gemini-3-pro-preview / gemini-3.1-pro-preview / gemini-3.5-flash / deepseek-v4-pro），默认模型改为 gemini-3.1-pro-preview；移除「刷新模型列表」功能（前端按钮 + 后端 `/llm-geeknow/models` 路由 + `fetchGeeknowModels` 服务函数 + `localStorage.t8f-geeknow-dynamic-models` 缓存） |
 | 2026-05-31 | 新增 fork 维护指南 `fork-maintenance-guide.md`（替换原 `grsai-qiniu-api.md`），整合三部分：Fork 项目维护指南（合并 upstream 流程 + 共享文件改动清单 + 验收清单）+ Provider 接入规范（图像/LLM 三种接入模式对比）+ API 接口规范（grsai/qiniu/geeknow 协议详情） |
 | 2026-05-31 | 清理重复 Vite 配置产物：删除 `vite.config.js` 和 `vite.config.d.ts`，保留 `vite.config.ts` 作为唯一 Vite 配置入口；同步更新版本号同步位置说明。 |
+| 2026-06-04 | v2.1.0：合并 upstream v1.9.2→v1.9.7（宫格编辑节点 / 即梦 CLI Seedance 多素材 / ModelScope LoRA / RH工具箱+制作器 / ComfyUI 本地工作流+超市+制作工具 / 足球小将主题 / 云端上传 / 主节点 3600s 轮询 / LLM 视频输入 / 画布对齐修复）。冲突融合：`registry.js`（fork 默认填充 + upstream modelscope/volcengine 并存）、`ImageNode.tsx`/`LLMNode.tsx`（fork 七牛/Grsai/Geeknow 流式提交 + upstream ComfyUI/LoRA/视频输入）；fork phase124→127 撞 key 顺延为 **phase138→141** + 新增 phase142；接受 upstream「Harden public release」删除充值（`recharge.js`/`RechargeModal.tsx`），保留 fork 对 `roadmap.md`/`vite.config.js` 的删除。8 处版本号同步，type-check / build 通过 |
 
 ---
 
