@@ -178,6 +178,7 @@ graph TD
 | 调试运行总线 | `src/stores/runBus.ts` · `src/hooks/useRunTrigger.ts` |
 | 修改 / 新增 LLM 推理接入 | `src/components/nodes/LLMNode.tsx` · `src/providers/models.ts` · `backend/src/providers/geeknow.js` |
 | 合并 upstream / 接入新 provider / API 协议查询 | [docs/advanced-provider-guide.md](./docs/advanced-provider-guide.md) — 高级 Provider 接入指南 |
+| 打包 / Electron 分发 / sidecar runtime / compression 取舍 | [docs/packaging-and-distribution.md](./docs/packaging-and-distribution.md) — 打包与分发指南（v2.1.0 新增） |
 
 **注意事项**：
 - 不要随意 `git pull --rebase`（参考 `phase29` 灾难抢救历史），改用 merge 或新分支
@@ -265,6 +266,8 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 | 2026-05-31 | 新增 fork 维护指南 `fork-maintenance-guide.md`（替换原 `grsai-qiniu-api.md`），整合三部分：Fork 项目维护指南（合并 upstream 流程 + 共享文件改动清单 + 验收清单）+ Provider 接入规范（图像/LLM 三种接入模式对比）+ API 接口规范（grsai/qiniu/geeknow 协议详情） |
 | 2026-05-31 | 清理重复 Vite 配置产物：删除 `vite.config.js` 和 `vite.config.d.ts`，保留 `vite.config.ts` 作为唯一 Vite 配置入口；同步更新版本号同步位置说明。 |
 | 2026-06-04 | v2.1.0：合并 upstream v1.9.2→v1.9.7（宫格编辑节点 / 即梦 CLI Seedance 多素材 / ModelScope LoRA / RH工具箱+制作器 / ComfyUI 本地工作流+超市+制作工具 / 足球小将主题 / 云端上传 / 主节点 3600s 轮询 / LLM 视频输入 / 画布对齐修复）。冲突融合：`registry.js`（fork 默认填充 + upstream modelscope/volcengine 并存）、`ImageNode.tsx`/`LLMNode.tsx`（fork 七牛/Grsai/Geeknow 流式提交 + upstream ComfyUI/LoRA/视频输入）；fork phase124→127 撞 key 顺延为 **phase138→141** + 新增 phase142；接受 upstream「Harden public release」删除充值（`recharge.js`/`RechargeModal.tsx`），保留 fork 对 `roadmap.md`/`vite.config.js` 的删除。8 处版本号同步，type-check / build 通过 |
+| 2026-06-04 | AI 去水印 sidecar runtime 完整集成与打包验证（v2.1.0 正式版）：`tools/remove-ai-watermarks-runtime/` 嵌入式 Python 3.12.9 + Torch 2.12.0 CPU + remove_ai_watermarks 0.8.7 + 全功能（visible/invisible/lama/detect/trustmark），打包后由 `T8PC_RES` 注入定位到 `resources/tools/remove-ai-watermarks/`；后端 `tools/aiWatermark/runner.js` 探测链路实测命中 `python -m remove_ai_watermarks.cli`；`_post_build.cjs` 全部 27 个 `.t8c` + ffmpeg sidecar + AI 水印 sidecar + RH toolbox maker 安全闸通过；compression 模式实测对比 store(4m00s/529MB) vs maximum(3m52s/528MB) → NSIS 外层 LZMA 主导，几乎无差，保留 store。正式版 `Setup-2.1.0.exe` 529 MB / SHA-256 `bf82ebcb…b2be83b7` |
+| 2026-06-04 | 文档整理：新增 [`docs/packaging-and-distribution.md`](./docs/packaging-and-distribution.md)（打包链路 / sidecar 机制 / compression 实测 / post-build 校验 / 正式版 SOP）；同步更新 `electron/CLAUDE.md`（.t8c 27 个 + extraResources + FAQ Q4 体积）、`backend/CLAUDE.md`（§3.9 AI 水印路由 + §3.10 externalProviders/cloudUploads/eagle + 文件清单加 providers/cloudUploads/tools/aiWatermark）、`src/CLAUDE.md`（§6.4 工具节点补 RemoveAiWatermarkNode 数量 13→14）；本节顶部 AI 使用指引追加打包专项指向 |
 
 ---
 

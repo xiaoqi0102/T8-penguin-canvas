@@ -133,8 +133,9 @@
 - `RunningHubNode.tsx` — 工作流 + 钱包应用共用（`useWallet = type === 'runninghub-wallet'`）
 - `RhConfigNode.tsx`（hidden） · `RHToolsNode.tsx` + `RHToolEditorModal.tsx`（RH 超市启动器）
 
-### 6.4 工具节点（13，5 隐藏）
+### 6.4 工具节点（14，5 隐藏）
 - `ResizeNode.tsx` · `UpscaleNode.tsx`(hidden) · `RemoveBgNode.tsx`(hidden) · `CombineNode.tsx` · `GridCropNode.tsx` · `FrameExtractorNode.tsx`(hidden) · `FramePairNode.tsx`(首尾帧) · `LoopNode.tsx`(循环器) · `PickFromSetNode.tsx` · `TextSplitNode.tsx`(文本分割) · `DrawingBoardNode.tsx`(hidden) · `BrowserNode.tsx`(hidden) · `ImageCompareNode.tsx` + `ImageCompareModal.tsx` + `ImageCompareStage.tsx`
+- `RemoveAiWatermarkNode.tsx`（v1.8.6+，type `remove-ai-watermark`）— 桥接后端 `/api/ai-watermark/*`，调用本机 sidecar runtime (`tools/remove-ai-watermarks-runtime` 打包到 `resources/tools/remove-ai-watermarks`)；6 个 mode（smart/visible/erase/invisible/metadata-check/metadata-remove/identify）+ Gemini/豆包/即梦 mark 切换 + 框选擦除 + AI 元数据 + 来源鉴别；Status 探测通过 `GET /api/ai-watermark/status` 返回 `installed/version/markKeys/optionalFeatures{invisible,lama,detect,trustmark}`。详见 [`docs/packaging-and-distribution.md`](../docs/packaging-and-distribution.md) §三。
 
 ### 6.5 辅助节点（5，2 隐藏）
 - `IdeaNode.tsx` · `BpNode.tsx` · `RelayNode.tsx`(any 透传) · `VideoOutputNode.tsx`(hidden) · `edit`(hidden, 走 `ImageEditModal.tsx` 5 模式)
@@ -269,3 +270,4 @@ src/
 | 日期 | 变更 |
 |---|---|
 | 2026-05-27 | 初次生成 src 模块 CLAUDE.md，覆盖 100+ 个 ts/tsx 源文件结构 |
+| 2026-06-04 | §6.4 工具节点补 `RemoveAiWatermarkNode`（v1.8.6+ AI 去水印桥接节点，6 个 mode + 后端 `/api/ai-watermark/*` + sidecar runtime 探测），数量 13→14；交叉指向新增 `docs/packaging-and-distribution.md` |

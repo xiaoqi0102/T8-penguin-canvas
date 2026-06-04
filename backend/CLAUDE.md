@@ -4,7 +4,9 @@
 
 > 范围：`d:\T8-penguin-canvas\backend\**`  ·  入口：`backend/src/server.js`  ·  默认端口：`18766`
 >
-> 角色：所有上游 AI 服务（贞贞工坊 / RunningHub / FAL / MJ / Suno / Seedance / LLM）的代理层；隐藏 API Key、自动转存远端资源到本地、提供画布/设置/资源库/主题 CRUD。
+> 角色：所有上游 AI 服务（贞贞工坊 / RunningHub / FAL / MJ / Suno / Seedance / LLM / 扩展 Provider / AI 去水印 sidecar）的代理层；隐藏 API Key、自动转存远端资源到本地、提供画布/设置/资源库/主题 CRUD。
+
+> **路由完整清单以 [`../features.json`](../features.json) `backendRoutes` 字段为准**（27 个 `.t8c` 与之对应）。本文档优先覆盖核心 + AI 水印 sidecar；externalProviders / cloudUploads / eagle / aiWatermark 等 v1.9.x+v2.1.0 新路由暂以小节形式补充，详细 schema 见路由源码。
 
 ---
 
@@ -141,15 +143,41 @@
 
 ### 3.8 算力充值 `/api/recharge/*` + `/pay/*`
 
-走 VPS `pay.t8star.org` 公开下单 / 查单 / 重试接口；本地仅保存绑定用户 / 订单摘要 / order_token。
+> **v2.1.0 起公开仓库不含 recharge.js**（接受 upstream「Harden public release」决策）。私有 fork 可保留该路由，走 VPS `pay.t8star.org` 公开下单 / 查单 / 重试接口；本地仅保存绑定用户 / 订单摘要 / order_token。
 
-- `/api/recharge/bind` — 绑定网站用户 ID
-- `/api/recharge/tiers` — 档位列表（20/30/50/100/200/300/500 CP）
-- `/api/recharge/order` POST — 创建支付订单
-- `/api/recharge/order/:orderId` GET — 主动查单（脱敏，不回 trade_no）
-- `/api/recharge/orders` GET — 历史订单
-- `/api/recharge/transfer` POST — 转移算力（HMAC 签名仅本地私有模式启用）
-- `/pay/notify` POST — 支付回调（缺少 `DULUPAY_KEY` 时直接 fail，防伪造）
+### 3.9 AI 去水印 `/api/ai-watermark/*`（v1.8.6+，v2.1.0 起加密为 `.t8c`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/status` | 探测 sidecar runtime 安装情况，返回 `{installed, version, resolver, markKeys, optionalFeatures: {invisible, lama, detect, trustmark}, setupHints, errors}` |
+| POST | `/process` | 提交去水印任务（body: `{source\|url\|imageUrl, kind?, mode?, options?}`），返回 `{mode, outputKind, outputUrl, logs}`（reportOnly 模式返回 `outputText` + `report`） |
+
+**支持的 `mode`**（`backend/src/tools/aiWatermark/runner.js` `normalizeMode`）：
+- `smart`（默认，先 visible-auto，可选 invisible，再 metadata-remove）
+- `visible` — 可见水印识别 + 修复（`--mark <gemini|doubao|jimeng|auto>` + `--inpaint-method <ns|telea|gaussian>`）
+- `erase` — 框选擦除（`--backend <cv2|lama>` + `--region x,y,w,h`，需要至少 1 个区域）
+- `invisible` — 隐形水印（pipeline `default|ctrlregen` + device `auto|cpu|mps|cuda|xpu`，可选 `--protect-text` / `--protect-faces`，v2.1.0 起仅 opt-in）
+- `metadata-check` / `metadata-remove` — AI 元数据检查 / 清理
+- `identify` — 来源鉴别（输出 JSON 报告）
+
+**Runner 探测链路**（`commandCandidates()`）：
+
+1. `T8_REMOVE_AI_WATERMARKS_BIN` env CLI
+2. `T8_REMOVE_AI_WATERMARKS_RUNTIME` env runtime 根
+3. **`T8PC_RES/tools/remove-ai-watermarks/`**（Electron 打包默认命中：`python/python.exe` + `python -m remove_ai_watermarks.cli`）
+4. `T8_REMOVE_AI_WATERMARKS_SRC` env clone
+5. 开发环境 `_external/remove-ai-watermarks/`（仅 `IS_PACKAGED=false`）
+6. PATH `python` / `py -3` / `remove-ai-watermarks.exe` / `.cmd`
+
+每个 candidate 通过 `python-module` import probe 或 `cli-bin` `--version` 探测；命中即缓存 5 分钟（失败缓存 10 秒）。详细打包链路见 [`docs/packaging-and-distribution.md`](../docs/packaging-and-distribution.md) §三。
+
+### 3.10 其他新增路由（详细见源码 / `features.json`）
+
+| 路由前缀 | 文件 | 说明 |
+|---|---|---|
+| `/api/external-providers/*` | `routes/externalProviders.js` | 扩展 API 平台（OpenAI 兼容 / ModelScope / 火山 / ComfyUI / 即梦 CLI）的列表 / 提交 / 查询 / LoRA 管理 |
+| `/api/cloud-uploads/*` | `routes/cloudUploads.js` | 云端上传目标管理（七牛 / S3 等）；后台 worker 见 `backend/src/cloudUploads/` |
+| `/api/eagle/*` | `routes/eagle.js` | Eagle 本地素材入库（仅 localhost） |
 
 ---
 
@@ -238,7 +266,7 @@ RH 超市的分类与应用配置（与 `rh_apps.json` 分开，避免污染）�
 - ❌ 无单元测试（`backend/_test_poll.js` 是临时手动调试脚本，已被 `.gitignore _*.js` 模式覆盖）
 - ✅ 启动后由前端 `App.tsx` 每 15s GET `/api/status` 做存活检测
 - ✅ 简易访问日志：`[hh:mm:ss] METHOD /path`（控制台）
-- ✅ 打包模式由 `electron/_post_build.cjs` 校验 11 个 `.t8c` 文件 + 充值密钥泄漏扫描
+- ✅ 打包模式由 `electron/_post_build.cjs` 校验 **27 个 `.t8c`**（v2.1.0：核心 + providers + cloudUploads + tools/aiWatermark + utils） + 充值密钥泄漏扫描 + RH toolbox maker 字样扫描 + sidecar runtime 校验
 
 ---
 
@@ -268,17 +296,26 @@ backend/
 ├── package.json                  # express + cors + multer + sharp
 ├── _test_poll.js                 # 临时调试（.gitignore _* 模式）
 └── src/
-    ├── server.js                 # 入口 + 中间件 + 8 路由挂载 + SPA 兜底 + listen
+    ├── server.js                 # 入口 + 中间件 + 路由挂载 + SPA 兜底 + listen
     ├── config.js                 # 全局配置 + 数据目录派生 + 默认路径
-    ├── routes/
+    ├── routes/                   # 11 个路由模块（与 features.json.backendRoutes 对应）
     │   ├── canvas.js             # 画布 CRUD + 自动导出
     │   ├── settings.js           # 设置 + RH 工具分类/应用（22 路由）
     │   ├── proxy.js              # 上游 AI 代理（~2200 行，30+ 路由）
     │   ├── files.js              # 文件上传 + base64 + save-to-disk
     │   ├── imageOps.js           # sharp 图像处理（7 路由）
-    │   ├── recharge.js           # 算力充值（VPS 公开接口 + 本地兜底）
     │   ├── resources.js          # 资源库（分类 + 单素材 + 素材集）
-    │   └── themes.js             # 自定义主题模板
+    │   ├── themes.js             # 自定义主题模板
+    │   ├── eagle.js              # Eagle 本地入库（v1.x+）
+    │   ├── externalProviders.js  # 扩展 API 平台（ModelScope/火山/ComfyUI/即梦 CLI 等）
+    │   ├── aiWatermark.js        # AI 去水印 sidecar 桥接（v1.8.6+）
+    │   └── cloudUploads.js       # 云端上传目标管理（v1.9.x+）
+    ├── providers/                # 9 个 provider 适配器（registry/mediaResolver/adapters/openaiCompatible/llmMedia/modelscope/volcengine/comfyui/jimengCli）
+    ├── cloudUploads/             # 云端上传 worker（settings.js + uploader.js）
+    ├── tools/
+    │   └── aiWatermark/          # AI 去水印 runner + media resolver
+    │       ├── runner.js         # sidecar 探测链路 + 命令构造 + 流式日志 + 能力探测缓存
+    │       └── media.js          # 输入路径解析 + 输出路径派生 + 媒体类型推断
     └── utils/
         ├── duckPayload.js        # tryDecodeDuckPayload（上游异形响应 payload 解码）
         └── whitePng.js           # getWhitePng（占位白图，提交时 reference 兜底）
@@ -291,3 +328,4 @@ backend/
 | 日期 | 变更 |
 |---|---|
 | 2026-05-27 | 初次生成 backend 模块 CLAUDE.md，扫描 8 路由模块 + 2 工具函数 + 配置文件 |
+| 2026-06-04 | v2.1.0 同步：补 §3.9 AI 去水印路由（runner 探测链路 + 6 个 mode）；补 §3.10 externalProviders/cloudUploads/eagle；§六测试质量项 `.t8c` 计数 11→27；§八文件清单加 providers/ + cloudUploads/ + tools/aiWatermark/；顶部加路由清单指向 `features.json.backendRoutes` 为 SSOT |

@@ -13,8 +13,10 @@
 1. **主进程**（`main.cjs`）：拉起后端 Express 同进程 / 子进程、创建 BrowserWindow 加载前端 SPA、IPC 处理、端口探测/重试
 2. **加密装载**（`loader.cjs`）：内存解密 `.t8c` 字节码、复刻 bytenode `.jsc` 加载逻辑、MODULE_NOT_FOUND 兜底回退到 app.asar/node_modules
 3. **加密脚本**（`encrypt.cjs`）：用 Electron 内置 Node 跑 `bytenode` 编译 `.jsc`，再 T8ENC1（AES-256-CBC）二次加密为 `.t8c`
-4. **打包后置校验**（`_post_build.cjs`）：验 11 个 `.t8c` 必存、`resources/frontend/index.html` + assets 必存、主题音乐资源完整、清除明文 `src/` 残留、扫描充值密钥泄漏（用户分发包安全闸）
+4. **打包后置校验**（`_post_build.cjs`）：验 **27 个 `.t8c`** 必存、`resources/frontend/index.html` + assets 必存、主题音乐资源完整、**AI 去水印 / ffmpeg sidecar runtime** 必存（或可控警告）、清除明文 `src/` 残留、扫描充值密钥泄漏、扫描 RH toolbox maker 字样（用户分发包安全闸）
 5. **预加载**（`preload.cjs`）：白名单 IPC 桥接（窗口控制、外部链接、版本号、日志）
+
+> Sidecar runtime 集成（v2.1.0 起）、压缩模式实测、正式版 SOP 详见 [`docs/packaging-and-distribution.md`](../docs/packaging-and-distribution.md)。
 
 ---
 
@@ -48,7 +50,7 @@
 `npm run encrypt` = `cross-env ELECTRON_RUN_AS_NODE=1 electron electron/encrypt.cjs`
 
 - 必须用 Electron 内置 Node（V8 字节码版本对齐）
-- 输出 `build/backend-enc/*.t8c`（11 个文件 = server + config + routes/{canvas,settings,proxy,files,imageOps,recharge,resources,themes} + utils/duckPayload）
+- 输出 `build/backend-enc/*.t8c`（**v2.1.0 起共 27 个**：server + config + 11 routes + 9 providers + 2 cloudUploads + 2 tools/aiWatermark + 1 utils/duckPayload + 1 cloudUploads/uploader）
 - 流程：`backend/src/*.js` → bytenode compile `.jsc` → T8ENC1 AES-256-CBC 加密 → `.t8c`
 
 ### 2.4 `electron/_post_build.cjs`（打包后置校验）
@@ -56,11 +58,13 @@
 `electron-builder` 完成后自动执行：
 
 **必跑校验项**：
-- ✅ 11 个 `.t8c` 必存（server / config / 8 routes / duckPayload）
-- ✅ `resources/frontend/index.html` + `resources/frontend/assets/` 必存
-- ✅ `src/assets/theme-music/*.mp3` 经 Vite 输出到 `resources/frontend/assets`
+- ✅ **27 个 `.t8c`** 必存（server / config / 11 routes / 9 providers / 2 cloudUploads / 2 tools/aiWatermark / 1 utils/duckPayload）
+- ✅ `resources/frontend/index.html` + `resources/frontend/assets/` 必存（含 11 个主题音乐 `.mp3/.mid`）
+- ✅ `resources/tools/ffmpeg/ffmpeg.exe` 必存（LLM 视频抽帧用，**强制**，缺失即 fail）
+- ⚠️ `resources/tools/remove-ai-watermarks/` AI 水印 sidecar 入口（`python/python.exe` / `Scripts/remove-ai-watermarks.exe` / 等）：默认警告，**正式分发**应 `export T8_REQUIRE_AI_WATERMARK_RUNTIME=1` 转为强制
 - ✅ 自动清除任何意外混入的 `resources/{app,backend}/src` 明文目录
-- ⚠️ **充值密钥安全闸**：扫描 `RECHARGE_DEFAULT_ENC`/`AGENT_HMAC_KEY`/`DULUPAY_KEY` 非空 / `resources/data/recharge.private.json` 存在 / 遗留 ZZENC1 密文 → 任一发现立即 fail，用户分发包不得携带
+- ❌ **充值密钥安全闸**：扫描 `RECHARGE_DEFAULT_ENC`/`AGENT_HMAC_KEY`/`DULUPAY_KEY` 非空 / `resources/data/recharge.private.json` 存在 / 遗留 ZZENC1 密文 → 任一发现立即 fail
+- ❌ **RH toolbox maker 安全闸**（v2.1.0 起）：扫描 `RHToolboxMakerNode`/`RH工具箱制作器`/`rh-toolbox-maker` 在 `resources/frontend` 小文本文件里 → 任一发现立即 fail
 
 ### 2.5 `electron/preload.cjs`（IPC 桥接）
 
@@ -93,11 +97,11 @@
 
 | 字段 | 值 / 说明 |
 |---|---|
-| `compression` | `store`（无压缩，加快启动） |
+| `compression` | `store`（NSIS 外层 LZMA 主导，store/maximum 实测产物体积几乎相同，详见 [`docs/packaging-and-distribution.md`](../docs/packaging-and-distribution.md) §四） |
 | `asar` | `true` |
 | `asarUnpack` | `node_modules/sharp/**`、`node_modules/@img/**`（sharp 原生模块必须解包） |
 | `files` | 包含 `electron/{main,preload,loader}.cjs` + `package.json` + `node_modules/**`；**排除** `electron-builder` 自身、`*.md`、`*.ts`、`*.map`、`*.d.ts`、`test/`、`docs/`、`backend/src/`（防明文泄漏）、`src/`、`data/`、`input/`、`output/`、`thumbnails/`、`dist_electron/`、`build/` |
-| `extraResources` | `build/backend-enc → resources/backend-enc/`、`dist → resources/frontend/`（**asar 外**，运行时可读） |
+| `extraResources` | `build/backend-enc → resources/backend-enc/`、`dist → resources/frontend/`、`tools/remove-ai-watermarks-runtime → resources/tools/remove-ai-watermarks/`（**约 1.8 GB sidecar runtime**）、`tools/ffmpeg-runtime → resources/tools/ffmpeg/`（filter 仅 `ffmpeg.exe`/`ffmpeg`/`README.md`）（**asar 外**，运行时可读） |
 | `win.target` | `nsis x64` |
 | `win.artifactName` | `${productName}-Setup-${version}.${ext}` |
 | `nsis` | `oneClick: false`、`perMachine: false`、`allowToChangeInstallationDirectory: true`、`deleteAppDataOnUninstall: false`、`shortcutName: 贞贞的无限画布`、桌面+开始菜单快捷方式 |
@@ -113,14 +117,17 @@
 ## 五、数据模型（产物拓扑）
 
 ```
-dist_electron/T8-PenguinCanvas-Setup-<ver>.exe   # NSIS 安装包
+dist_electron/T8-PenguinCanvas-Setup-<ver>.exe   # NSIS 安装包（v2.1.0 实测 529 MB）
   → win-unpacked/
       ├── T8-PenguinCanvas.exe                   # 主程序
       ├── resources/
       │   ├── app.asar                            # 含 electron/{main,loader,preload}.cjs + node_modules + package.json
       │   ├── app.asar.unpacked/node_modules/sharp/  # 原生模块解包区
-      │   ├── backend-enc/                        # 11 个 .t8c 后端密文 (asar 外)
-      │   └── frontend/                           # dist/ 前端 SPA + 主题音乐 mp3 (asar 外)
+      │   ├── backend-enc/                        # 27 个 .t8c 后端密文 (asar 外)
+      │   ├── frontend/                           # dist/ 前端 SPA + 主题音乐 mp3/mid (asar 外)
+      │   └── tools/
+      │       ├── remove-ai-watermarks/           # AI 去水印 sidecar (~1.8 GB, Python 3.12.9 + Torch CPU)
+      │       └── ffmpeg/ffmpeg.exe               # LLM 视频抽帧用 ffmpeg sidecar
       ├── *.dll                                   # Electron 运行时
       └── locales/                                # i18n
 ```
@@ -159,7 +166,10 @@ A：`encrypt` 必须用 Electron 内置 Node：`cross-env ELECTRON_RUN_AS_NODE=1
 A：`build.asarUnpack` 必须包含 `node_modules/sharp/**` 与 `node_modules/@img/**`，否则原生 `.node` 文件无法从 asar 内加载。
 
 **Q4：用户安装包体积过大？**
-A：检查 `build.files` 是否正确排除 `*.md`、`*.ts`、`*.map`、`test/`、`docs/`、`examples/`。`compression: 'store'` 是有意为之（加快启动）。当前 v1.5.x 实测产物约 100MB 量级（v1.4.2 为 104.58MB）。
+A：v2.1.0 实测 `Setup-2.1.0.exe` 为 **529 MB**（含 AI 去水印 sidecar），其中 sidecar 约占 410 MB、主程序约 120 MB。
+- `build.files` 已正确排除 `*.md`、`*.ts`、`*.map`、`test/`、`docs/`、`examples/`
+- `compression: 'store'` 是有意为之 —— NSIS 外层 LZMA 主导，切 `maximum` 实测只省 1 MB（详见 [`docs/packaging-and-distribution.md`](../docs/packaging-and-distribution.md) §四）
+- 若必须瘦身：可拆 sidecar 为可选下载（~120 MB），或排除 sidecar 内 `__pycache__`/`*.dist-info`（-20 MB）
 
 **Q5：用户报告"启动卡在『启动中...』"？**
 A：参考 `phase27`。三个根因：(1) loader 用 Temp/.jsc 二次 require 找不到 asar 内 node_modules；(2) backend/config.js 未识别 `T8PC_*` 环境变量，数据目录写到只读区；(3) server.js 未挂载前端静态托管，GET / 返回 `Cannot GET /`。全部已修复。
@@ -192,3 +202,4 @@ electron/
 | 日期 | 变更 |
 |---|---|
 | 2026-05-27 | 初次生成 electron 模块 CLAUDE.md，覆盖 5 个 .cjs 文件 + 打包链路与安全闸 |
+| 2026-06-04 | v2.1.0 同步：`.t8c` 计数 11→27（providers/cloudUploads/tools/aiWatermark 全部纳管）；`extraResources` 新增 AI 去水印 + ffmpeg 双 sidecar；`_post_build.cjs` 校验项扩展（ffmpeg 强制 / AI 水印 sidecar 可控 / RH toolbox maker 安全闸）；FAQ Q4 体积说明更新（实测 529 MB）；交叉指向新增 `docs/packaging-and-distribution.md` |
