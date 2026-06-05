@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { CloudUpload, FolderPlus, Library, Plus, X } from 'lucide-react';
 import { useThemeStore } from '../stores/theme';
 import { useCanvasStore } from '../stores/canvas';
+import { trackAchievementEvent } from '../stores/achievements';
 import * as api from '../services/api';
 import type { CloudUploadTargetConfig } from '../types/canvas';
 import type { ResourceCategory, ResourceKind, ResourceMaterialSetKind, ResourceMediaKind } from '../services/api';
+import SmartImage from './SmartImage';
 
 interface MenuState {
   x: number;
@@ -156,6 +158,13 @@ export default function MaterialContextMenu() {
         });
     if (r.success) {
       const duplicate = (r as any).duplicate;
+      if (!duplicate) {
+        trackAchievementEvent({
+          type: 'resource.saved',
+          kind: menu.kind === 'set' ? `${menu.materialSetKind || 'material'}-set` : menu.kind,
+          category: categoryId,
+        });
+      }
       setMessage(duplicate ? '已存在，已定位到该分类' : '已加入资源库');
       window.dispatchEvent(new CustomEvent('penguin:resources-changed'));
       window.setTimeout(close, 650);
@@ -248,7 +257,7 @@ export default function MaterialContextMenu() {
       </div>
       {menu.kind === 'image' && menu.previewUrl && (
         <div className="h-24 bg-black overflow-hidden">
-          <img src={menu.previewUrl} className="w-full h-full object-cover" draggable={false} />
+          <SmartImage src={menu.previewUrl} className="w-full h-full object-cover" draggable={false} thumbSize={320} />
         </div>
       )}
       {menu.kind === 'set' && (

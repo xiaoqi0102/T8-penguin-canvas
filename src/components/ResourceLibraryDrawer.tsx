@@ -3,6 +3,7 @@ import {
   Eye,
   FolderPlus,
   FileText,
+  Globe2,
   Image as ImageIcon,
   Library,
   Music,
@@ -14,6 +15,7 @@ import {
   Send,
   Star,
   Trash2,
+  UserRoundCog,
   Video,
   Workflow,
   X,
@@ -22,18 +24,25 @@ import type { CSSProperties } from 'react';
 import { useThemeStore } from '../stores/theme';
 import * as api from '../services/api';
 import type { ResourceCategory, ResourceItem, ResourceKind } from '../services/api';
+import { isPortraitResourceItem } from '../utils/portraitResource';
 import { resourceItemToSendMaterials } from '../utils/sendMaterials';
 import { summarizeWorkflowResource } from '../utils/workflowResource';
 import LoopingVideo from './LoopingVideo';
+import SmartImage from './SmartImage';
 
 const KIND_META: Record<ResourceKind, { label: string; icon: typeof ImageIcon; accent: string }> = {
   image: { label: '图像', icon: ImageIcon, accent: '#fbbf24' },
   video: { label: '视频', icon: Video, accent: '#fb7185' },
   audio: { label: '音频', icon: Music, accent: '#a78bfa' },
+  panorama: { label: '全景', icon: Globe2, accent: '#38bdf8' },
   set: { label: '素材集', icon: PackageOpen, accent: '#2dd4bf' },
   pose: { label: '姿势', icon: PersonStanding, accent: '#fb923c' },
-  workflow: { label: '工作流', icon: Workflow, accent: '#38bdf8' },
+  workflow: { label: '工作流', icon: Workflow, accent: '#60a5fa' },
 };
+
+function resourceItemDragKind(item: ResourceItem) {
+  return item.kind === 'panorama' ? 'image' : item.kind;
+}
 
 interface ResourceLibraryDrawerProps {
   open: boolean;
@@ -179,10 +188,14 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
     ]);
     const nextCats = resultData<ResourceCategory[]>(catRes);
     const nextItems = resultData<ResourceItem[]>(itemRes);
-    if (nextCats) setCategories(nextCats);
-    if (nextItems) setItems(nextItems);
+    const filteredCats = nextCats ? nextCats.filter((cat) => cat.kind === kind) : null;
+    const filteredItems = nextItems ? nextItems.filter((item) => item.kind === kind) : null;
+    if (filteredCats) setCategories(filteredCats);
+    if (filteredItems) setItems(filteredItems);
     if (!nextCats || !nextItems) {
       setMsg((catRes as any)?.error || (itemRes as any)?.error || '资源库加载失败');
+    } else if (kind === 'panorama' && nextCats.length > 0 && filteredCats?.length === 0) {
+      setMsg('后端尚未加载全景资源类型，请重启开发后端后再打开资源库。');
     }
     setLoading(false);
   }, [open, kind, categoryId, q, favoriteOnly]);
@@ -462,7 +475,9 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
-            {items.map((item) => (
+            {items.map((item) => {
+              const isPortraitResource = isPortraitResourceItem(item);
+              return (
               <article
                 key={item.id}
                 className={`resource-card overflow-hidden transition-transform ${isPixel ? 'border-2 border-[var(--px-ink)] bg-[var(--px-surface)] shadow-[3px_3px_0_var(--px-ink)]' : isDark ? 'rounded-lg border border-white/10 bg-white/[0.04]' : 'rounded-lg border border-black/10 bg-black/[0.03]'}`}
@@ -470,13 +485,15 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                   ? {}
                   : {
                       'data-drag-source': true,
-                      'data-drag-kind': item.kind,
+                      'data-drag-kind': resourceItemDragKind(item),
                       'data-drag-url': item.fileUrl,
                       'data-drag-preview': item.thumbUrl || item.fileUrl,
                       'data-drag-node-id': 'resource-library',
                     })}
                 title={
-                  item.kind === 'set'
+                  isPortraitResource
+                    ? '点击恢复为肖像大师节点'
+                    : item.kind === 'set'
                     ? '点击插入整个素材集'
                     : item.kind === 'pose'
                       ? '点击恢复为姿势大师节点'
@@ -486,13 +503,14 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                 }
               >
                 <div className="relative h-28 overflow-hidden bg-black/80">
-                  {item.kind === 'image' && (
+                  {(item.kind === 'image' || item.kind === 'panorama') && (
                     <>
-                      <img
+                      <SmartImage
                         src={item.thumbUrl || item.fileUrl}
                         alt={item.title}
                         className="resource-media w-full h-full object-cover transition-transform duration-200"
                         draggable={false}
+                        thumbSize={320}
                       />
                       <button
                         type="button"
@@ -525,32 +543,46 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                     </div>
                   )}
                   {item.kind === 'set' && (
-                    <div className="resource-media h-full w-full bg-[var(--t8-bg-panel-muted)] p-2 transition-transform duration-200">
-                      <div className="grid h-full grid-cols-2 gap-1 overflow-hidden">
-                        {(item.materialSetItems || []).slice(0, 4).map((child, index) => (
-                          <div
-                            key={child.id || index}
-                            className="flex items-center justify-center overflow-hidden rounded border border-black/10 bg-black/10 text-[10px]"
-                            title={child.name || child.text || child.url || ''}
-                          >
-                            {child.kind === 'image' && child.url ? (
-                              <img src={child.url} className="h-full w-full object-cover" draggable={false} />
-                            ) : child.kind === 'video' ? (
-                              <Video size={18} className="text-rose-300" />
-                            ) : child.kind === 'audio' ? (
-                              <Music size={18} className="text-violet-200" />
-                            ) : (
-                              <div className="flex h-full w-full items-center gap-1 p-1 text-left text-[9px] leading-tight text-[var(--t8-text-muted)]">
-                                <FileText size={12} className="shrink-0" />
-                                <span className="line-clamp-3 break-all">{child.text || child.name || '文本'}</span>
-                              </div>
-                            )}
+                    <div
+                      className="resource-media h-full w-full bg-[var(--t8-bg-panel-muted)] p-2 transition-transform duration-200"
+                      style={isPortraitResource ? { background: 'linear-gradient(135deg, rgba(236,72,153,.9), rgba(14,165,233,.78), rgba(15,23,42,.92))' } : undefined}
+                    >
+                      {isPortraitResource ? (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-center">
+                          <UserRoundCog size={36} className="text-white drop-shadow" />
+                          <div className="rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            PortraitMaster
                           </div>
-                        ))}
-                      </div>
-                      <div className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
-                        {materialSetLabel(item.materialSetKind)} · {item.materialSetItems?.length || 0}
-                      </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="grid h-full grid-cols-2 gap-1 overflow-hidden">
+                            {(item.materialSetItems || []).slice(0, 4).map((child, index) => (
+                              <div
+                                key={child.id || index}
+                                className="flex items-center justify-center overflow-hidden rounded border border-black/10 bg-black/10 text-[10px]"
+                                title={child.name || child.text || child.url || ''}
+                              >
+                                {child.kind === 'image' && child.url ? (
+                                  <SmartImage src={child.url} className="h-full w-full object-cover" draggable={false} thumbSize={180} />
+                                ) : child.kind === 'video' ? (
+                                  <Video size={18} className="text-rose-300" />
+                                ) : child.kind === 'audio' ? (
+                                  <Music size={18} className="text-violet-200" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center gap-1 p-1 text-left text-[9px] leading-tight text-[var(--t8-text-muted)]">
+                                    <FileText size={12} className="shrink-0" />
+                                    <span className="line-clamp-3 break-all">{child.text || child.name || '文本'}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            {materialSetLabel(item.materialSetKind)} · {item.materialSetItems?.length || 0}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                   {item.kind === 'pose' && (
@@ -583,12 +615,16 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                 <div className="p-2 space-y-1.5">
                   <div className="text-xs font-medium truncate" title={item.title}>{item.title}</div>
                   <div className={`text-[10px] truncate ${subtle}`}>
-                    {item.kind === 'set'
+                    {isPortraitResource
+                      ? '肖像大师配置 · 可恢复节点'
+                      : item.kind === 'set'
                       ? `${materialSetLabel(item.materialSetKind)} · ${item.materialSetItems?.length || 0} 项`
                       : item.kind === 'pose'
                         ? '姿势大师配置 · 可恢复节点'
                         : item.kind === 'workflow'
                           ? `${summarizeWorkflowResource(item)} · 可插入画布`
+                          : item.kind === 'panorama'
+                            ? `全景贴图 · ${formatSize(item.size) || item.mime || '图像'}`
                       : formatSize(item.size) || item.mime || item.kind}
                   </div>
                   {item.kind === 'audio' && <audio src={item.fileUrl} controls className="w-full h-8" />}
@@ -604,8 +640,8 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                       onClick={() => insertItem(item)}
                       className="nodrag nopan t8-mini-icon-button resource-card-action"
                       style={miniInsertStyle}
-                      title="插入画布"
-                      aria-label="插入画布"
+                      title={isPortraitResource ? '恢复为肖像大师节点' : '插入画布'}
+                      aria-label={isPortraitResource ? '恢复为肖像大师节点' : '插入画布'}
                     >
                       <Plus size={15} />
                     </button>
@@ -638,7 +674,8 @@ export default function ResourceLibraryDrawer({ open, onClose, onInsertMaterial 
                   </div>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         </main>
       </div>

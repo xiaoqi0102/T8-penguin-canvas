@@ -160,3 +160,13 @@ test('VideoNode keeps Jimeng Seedance media limits separate from Grok FAL contro
   assert.match(source, /图\$\{refs\.length\}\/视\$\{videoRefs\.length\}\/音\$\{audioRefs\.length\}/);
   assert.match(ports, /video:\s*\{\s*inputs:\s*\['text', 'image', 'video', 'audio'\],\s*outputs:\s*\['video'\]\s*\}/);
 });
+
+test('SeedanceNode exposes explicit Jimeng intelligent multiframe mode only for Jimeng CLI', () => {
+  const source = fs.readFileSync(new URL('../src/components/nodes/SeedanceNode.tsx', import.meta.url), 'utf8');
+
+  assert.match(source, /type SeedanceFrameMode = 'auto' \| 'first' \| 'firstlast' \| 'multiframe'/);
+  assert.match(source, /const activeFrameMode: SeedanceFrameMode = !isJimengCliSelected && frameMode === 'multiframe' \? 'auto' : frameMode/);
+  assert.match(source, /frameMode: activeFrameMode/);
+  assert.match(source, /isJimengCliSelected && \(\s*<option value="multiframe"/);
+  assert.match(source, /智能多帧\(multiframe\)/);
+});

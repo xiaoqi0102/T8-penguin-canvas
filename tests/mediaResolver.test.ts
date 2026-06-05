@@ -57,6 +57,39 @@ test('resolveMediaRef converts local file paths to data URLs and local paths whe
   }
 });
 
+test('resolveMediaRef maps resource library file URLs to local paths', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 't8-resource-library-'));
+  const imageDir = path.join(tmpDir, 'image');
+  fs.mkdirSync(imageDir, { recursive: true });
+  const filePath = path.join(imageDir, 'res_1.png');
+  fs.writeFileSync(filePath, Buffer.from('ABC'));
+  fs.writeFileSync(path.join(tmpDir, 'resource_library.json'), JSON.stringify({
+    schema: 't8-resource-library',
+    version: 1,
+    categories: [],
+    items: [{
+      id: 'res_1',
+      kind: 'image',
+      fileRel: 'image/res_1.png',
+      originalName: 'res_1.png',
+      mime: 'image/png',
+    }],
+  }));
+
+  try {
+    const resolved = await resolveMediaRef('/api/resources/file/res_1', {
+      target: 'local-path',
+      resourceLibraryPath: tmpDir,
+    });
+
+    assert.equal(resolved.kind, 'local-path');
+    assert.equal(resolved.path, filePath);
+    assert.equal(resolved.mime, 'image/png');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test('resolveT8LocalMediaPath maps /files/input and /files/output to configured directories', () => {
   const config = require('../backend/src/config.js');
   const oldInput = config.INPUT_DIR;

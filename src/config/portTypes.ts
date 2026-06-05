@@ -125,6 +125,11 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   'portrait-master': { inputs: ['text', 'metadata'], outputs: ['text', 'metadata'] },
   // 姿势大师二阶段: 兼容上游肖像/运镜文本与参考图。未连接时保持旧版独立输出行为。
   'pose-master': { inputs: ['text', 'image', 'metadata'], outputs: ['image', 'text', 'metadata'] },
+  // 聚合解析: 可直接接上游分享文案文本，输出解析摘要与媒体地址。
+  'aggregate-parser': { inputs: ['text'], outputs: ['text', 'image', 'video', 'audio'] },
+
+  // ========== 3D ==========
+  'panorama-3d': { inputs: ['image'], outputs: ['image'] },
 
   // ========== 上传素材节点 (NEW) ==========
   // 动态:由 data.uploadType 决定具体输出。未上传时 outputs=[],不允许连出。

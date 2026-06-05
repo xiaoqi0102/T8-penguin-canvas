@@ -36,6 +36,8 @@ import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
 import MentionPromptInput from './MentionPromptInput';
 import LoopingVideo from '../LoopingVideo';
+import SmartImage from '../SmartImage';
+import PromptTextarea from '../PromptTextarea';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useRHToolsSafe } from '../../providers/RHToolsProvider';
 import { useThemeStore } from '../../stores/theme';
@@ -1075,15 +1077,17 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
                               </div>
                             )}
                             {isLinked ? (
-                              <textarea
+                              <PromptTextarea
+                                title={`RH 工具箱参数 · ${it.fieldName || '文本'} #${it.nodeId || ''}`}
                                 value={cur.value}
+                                onValueChange={() => undefined}
                                 readOnly
                                 className="w-full min-h-14 resize-none rounded px-2 py-1 text-[11px] outline-none"
                                 style={{ background: accentSoft, color: text, border: `1px solid ${ringColor}`, cursor: 'not-allowed' }}
-                                title="已从上游文本同步；取消勾选后可手动编辑"
                               />
                             ) : (
                               <MentionPromptInput
+                                title={`RH 工具箱参数 · ${it.fieldName || '文本'} #${it.nodeId || ''}`}
                                 value={cur.value}
                                 mentions={getParamMentions(k)}
                                 materials={mentionMaterials}
@@ -1167,7 +1171,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
                 if (/\.(mp3|wav|ogg|m4a|flac|aac)$/i.test(u)) {
                   return <audio key={i} src={u} controls className="w-full h-8" />;
                 }
-                return <img key={i} src={u} alt={`输出 ${i}`} className="w-full rounded object-cover" />;
+                return <SmartImage key={i} src={u} alt={`输出 ${i}`} className="w-full rounded object-cover" thumbSize={720} />;
               })}
             </div>
           )}

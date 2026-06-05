@@ -23,6 +23,7 @@ import { useThemeStore } from '../../stores/theme';
 import { PORT_COLOR } from '../../config/portTypes';
 import { useUpstreamMaterials, type Material, type MaterialKind } from './useUpstreamMaterials';
 import CollectionSplitButton from '../CollectionSplitButton';
+import SmartImage from '../SmartImage';
 import {
   createUploadDataFromItem,
   fileNameFromUrl,
@@ -678,10 +679,11 @@ const MaterialSetNode = ({ id, data, selected }: NodeProps) => {
                   onDragStart={(event) => event.preventDefault()}
                 >
                   {material.kind === 'image' ? (
-                    <img
+                    <SmartImage
                       src={material.url}
                       alt={material.label || ''}
                       draggable={false}
+                      thumbSize={220}
                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none', userSelect: 'none' }}
                     />
                   ) : material.kind === 'video' ? (

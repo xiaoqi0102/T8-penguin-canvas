@@ -15,7 +15,9 @@ export interface GenerateImageRequest {
   prompt: string;
   n?: number;
   // 主参数(双协议通用):
+  aspectRatio?: string;    // camelCase 兼容字段，后端仍以 aspect_ratio 为主
   aspect_ratio?: string;   // 1:1 / 16:9 / Auto …
+  sizeLevel?: string;      // camelCase 兼容字段，后端仍以 image_size 为主
   image_size?: string;     // 1K / 2K / 4K (banana) 或像素串(GPT 也可透传)
   // 多张参考图(base64 dataURL 或 http(s):// URL)
   images?: string[];

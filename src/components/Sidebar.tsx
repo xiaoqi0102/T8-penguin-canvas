@@ -61,6 +61,7 @@ const OP_ICON_BY_TYPE: Record<string, string> = {
   cinematic: 'Clapperboard',
   'video-motion': 'Sailboat',
   'pose-master': 'PersonStanding',
+  'panorama-3d': 'Globe2',
 };
 
 const NARUTO_ICON_BY_TYPE: Record<string, string> = {
@@ -93,6 +94,7 @@ const NARUTO_ICON_BY_TYPE: Record<string, string> = {
   'image-compare': 'ScanSearch',
   'material-set': 'Package',
   'pose-master': 'PersonStanding',
+  'panorama-3d': 'Globe2',
 };
 
 const EVA_ICON_BY_TYPE: Record<string, string> = {
@@ -125,6 +127,7 @@ const EVA_ICON_BY_TYPE: Record<string, string> = {
   'image-compare': 'ScanSearch',
   'material-set': 'Package',
   'pose-master': 'PersonStanding',
+  'panorama-3d': 'Globe2',
 };
 
 const YYH_ICON_BY_TYPE: Record<string, string> = {
@@ -159,6 +162,7 @@ const YYH_ICON_BY_TYPE: Record<string, string> = {
   'drawing-board': 'PenTool',
   'portrait-master': 'UserRoundCog',
   'pose-master': 'PersonStanding',
+  'panorama-3d': 'Globe2',
 };
 
 const SLAMDUNK_ICON_BY_TYPE: Record<string, string> = {
@@ -193,6 +197,7 @@ const SLAMDUNK_ICON_BY_TYPE: Record<string, string> = {
   'drawing-board': 'PenTool',
   'portrait-master': 'UserRoundCog',
   'pose-master': 'PersonStanding',
+  'panorama-3d': 'Globe2',
 };
 
 const SOCCER_ICON_BY_TYPE: Record<string, string> = {
@@ -227,6 +232,7 @@ const SOCCER_ICON_BY_TYPE: Record<string, string> = {
   'drawing-board': 'PenTool',
   'portrait-master': 'UserRoundCog',
   'pose-master': 'PersonStanding',
+  'panorama-3d': 'Globe2',
 };
 
 interface SidebarProps {

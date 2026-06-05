@@ -4,6 +4,7 @@ import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { useHasAutoOutput } from './useHasAutoOutput';
+import SmartImage from '../SmartImage';
 
 /**
  * ImageOpNode - 图像变换节点的通用外壳
@@ -165,13 +166,13 @@ export function ImageOpFrame(props: ImageOpNodeProps) {
 
       {outImg && !hasAutoOutput && (
         <div className="border-t border-white/10 p-2">
-          <img src={outImg} alt="结果" className="w-full rounded object-contain" />
+          <SmartImage src={outImg} alt="结果" className="w-full rounded object-contain" thumbSize={720} />
         </div>
       )}
       {outUrls.length > 0 && !hasAutoOutput && (
         <div className="border-t border-white/10 p-2 grid grid-cols-3 gap-1">
           {outUrls.map((u, i) => (
-            <img key={i} src={u} alt={`#${i}`} className="w-full rounded object-cover" />
+            <SmartImage key={i} src={u} alt={`#${i}`} className="w-full rounded object-cover" thumbSize={240} />
           ))}
         </div>
       )}

@@ -12,9 +12,11 @@ const {
   buildAiWatermarkPlan,
   commandCandidates,
   invisibleArgs,
+  normalizeInvisiblePipeline,
   normalizeMode,
   normalizeRegions,
   redactCommandArgs,
+  versionAtLeast,
   visibleArgs,
 } = require('../backend/src/tools/aiWatermark/runner.js');
 
@@ -110,7 +112,52 @@ test('invisible keeps enough steps and strength for at least one diffusion times
   assert.equal(args[strengthIndex + 1], 0.25);
 });
 
-test('invisible protection flags use 0.8.7 opt-in CLI arguments', () => {
+test('invisible pipeline names are version-aware for 0.8.9 controlnet migration', () => {
+  assert.equal(versionAtLeast('0.8.9', '0.8.9'), true);
+  assert.equal(versionAtLeast('0.8.7', '0.8.9'), false);
+  assert.equal(normalizeInvisiblePipeline('ctrlregen', '0.8.9'), 'controlnet');
+  assert.equal(normalizeInvisiblePipeline('controlnet', '0.8.7'), 'ctrlregen');
+});
+
+test('invisible 0.8.9 uses controlnet, auto, restore, polish and resolution options', () => {
+  const args = invisibleArgs('source.png', 'final.png', {
+    upstreamVersion: '0.8.9',
+    pipeline: 'ctrlregen',
+    minResolution: 1024,
+    controlnetScale: 1.2,
+    auto: true,
+    adaptivePolish: true,
+    restoreFaces: true,
+    restoreFacesWeight: 0.35,
+    unsharp: 0.4,
+    protectText: true,
+    protectFaces: true,
+  });
+
+  assert.ok(args.includes('--pipeline'));
+  assert.equal(args[args.indexOf('--pipeline') + 1], 'controlnet');
+  assert.equal(args[args.indexOf('--min-resolution') + 1], 1024);
+  assert.equal(args[args.indexOf('--controlnet-scale') + 1], 1.2);
+  assert.ok(args.includes('--auto'));
+  assert.ok(args.includes('--adaptive-polish'));
+  assert.ok(args.includes('--restore-faces'));
+  assert.equal(args[args.indexOf('--restore-faces-weight') + 1], 0.35);
+  assert.equal(args[args.indexOf('--unsharp') + 1], 0.4);
+  assert.equal(args.includes('--protect-text'), false);
+  assert.equal(args.includes('--protect-faces'), false);
+});
+
+test('invisible auto does not force the default pipeline so upstream can choose it', () => {
+  const args = invisibleArgs('source.png', 'final.png', {
+    upstreamVersion: '0.8.9',
+    pipeline: 'default',
+    auto: true,
+  });
+  assert.ok(args.includes('--auto'));
+  assert.equal(args.includes('--pipeline'), false);
+});
+
+test('legacy invisible protection flags are only sent to 0.8.7 runtimes', () => {
   const defaultArgs = invisibleArgs('source.png', 'final.png', {});
   assert.equal(defaultArgs.includes('--no-protect-text'), false);
   assert.equal(defaultArgs.includes('--no-protect-faces'), false);
@@ -118,11 +165,13 @@ test('invisible protection flags use 0.8.7 opt-in CLI arguments', () => {
   assert.equal(defaultArgs.includes('--protect-faces'), false);
 
   const protectedArgs = invisibleArgs('source.png', 'final.png', {
+    upstreamVersion: '0.8.7',
     protectText: true,
     protectFaces: true,
   });
   assert.ok(protectedArgs.includes('--protect-text'));
   assert.ok(protectedArgs.includes('--protect-faces'));
+  assert.equal(protectedArgs[protectedArgs.indexOf('--pipeline') + 1], 'default');
 });
 
 test('non-image media is limited to metadata operations', () => {

@@ -38,6 +38,9 @@
     "prepack:enc": "npm run build && npm run encrypt",
     "dist:dir": "npm run prepack:enc && electron-builder --win --x64 --dir && node electron/_post_build.cjs",
     "dist": "npm run prepack:enc && electron-builder --win --x64 && node electron/_post_build.cjs",
+    "dist:release": "node scripts/dist-release.cjs",
+    "release:github": "node scripts/release-github.cjs",
+    "release:verify": "node scripts/verify-github-release.cjs",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -49,12 +52,15 @@
     "@xyflow/react": "^12.10.0",
     "bytenode": "^1.5.7",
     "cors": "^2.8.5",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.3",
     "express": "^4.21.0",
     "lucide-react": "^0.468.0",
     "multer": "^2.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sharp": "^0.34.5",
+    "three": "^0.184.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
@@ -127,6 +133,13 @@
         ]
       },
       {
+        "from": "shared",
+        "to": "shared",
+        "filter": [
+          "achievementManifest.json"
+        ]
+      },
+      {
         "from": "tools/remove-ai-watermarks-runtime",
         "to": "tools/remove-ai-watermarks",
         "filter": [
@@ -141,6 +154,28 @@
           "ffmpeg",
           "README.md"
         ]
+      },
+      {
+        "from": "tools/parsehub-bridge",
+        "to": "tools/parsehub-bridge",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "tools/parsehub-pythonlibs",
+        "to": "tools/parsehub-pythonlibs",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "T8mars",
+        "repo": "T8-penguin-canvas",
+        "releaseType": "release"
       }
     ],
     "win": {

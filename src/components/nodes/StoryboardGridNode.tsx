@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import { LayoutGrid, Plus, X } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
+import SmartImage from '../SmartImage';
 
 /**
  * StoryboardGridNode - 分镜网格
@@ -116,7 +117,7 @@ const StoryboardGridNode = (p: NodeProps) => {
                 onClick={() => fillFromUpstream(f.id)}
               >
                 {f.imageUrl ? (
-                  <img src={f.imageUrl} alt={`scene ${i + 1}`} className="w-full h-full object-cover rounded" />
+                  <SmartImage src={f.imageUrl} alt={`scene ${i + 1}`} className="w-full h-full object-cover rounded" thumbSize={240} />
                 ) : (
                   <span>S{i + 1}</span>
                 )}

@@ -5,6 +5,8 @@ import { useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
 import MentionPromptInput from './MentionPromptInput';
+import SmartImage from '../SmartImage';
+import PromptTextarea from '../PromptTextarea';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import QiniuImageTab from '../../integrations/qiniu/QiniuImageTab';
 import { ratioToQiniuSize } from '../../integrations/qiniu/sizeMap';
@@ -1032,6 +1034,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
                                   {target && <span className="text-cyan-200/50">{target}</span>}
                                 </span>
                                 <MentionPromptInput
+                                  title="ComfyUI 正向 Prompt"
                                   value={promptValue}
                                   mentions={promptMentions}
                                   materials={mentionMaterials}
@@ -1064,9 +1067,10 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
                                   <span>{label}</span>
                                   {target && <span className="text-cyan-200/50">{target}</span>}
                                 </span>
-                                <textarea
+                                <PromptTextarea
+                                  title="ComfyUI 负向 Prompt"
                                   value={negativeValue}
-                                  onChange={(e) => patchProviderParams({ negative: e.target.value, negativePrompt: e.target.value })}
+                                  onValueChange={(value) => patchProviderParams({ negative: value, negativePrompt: value })}
                                   placeholder={String(comfyFieldDefault(field) || '填写 ComfyUI 负向 Prompt')}
                                   rows={3}
                                   style={{ background: '#18181b', color: '#ffffff' }}
@@ -1473,11 +1477,12 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             </div>
             <div>
               <label className="text-[10px] text-white/50 block mb-1">System Prompt (可选)</label>
-              <input
-                type="text"
+              <PromptTextarea
+                title="图像扩展模型 System Prompt"
                 value={nbSysPrompt}
-                onChange={(e) => update({ nbSysPrompt: e.target.value })}
+                onValueChange={(value) => update({ nbSysPrompt: value })}
                 placeholder="可选系统指令"
+                rows={2}
                 style={{ background: '#18181b', color: '#ffffff' }}
                 className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
               />
@@ -1638,7 +1643,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
               <div className="flex flex-wrap gap-1.5">
                 {mjSrefImages.map((url, i) => (
                   <div key={i} className="relative w-12 h-12 rounded overflow-hidden border border-purple-300/30">
-                    <img src={url} alt={`sref-${i}`} className="w-full h-full object-cover" />
+                    <SmartImage src={url} alt={`sref-${i}`} className="w-full h-full object-cover" thumbSize={160} />
                     <button
                       onClick={() => removeMjRef('sref', i)}
                       className="absolute top-0 right-0 w-4 h-4 bg-red-500/80 hover:bg-red-500 flex items-center justify-center rounded-bl"
@@ -1665,7 +1670,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
               <div className="flex flex-wrap gap-1.5">
                 {mjOrefImages.map((url, i) => (
                   <div key={i} className="relative w-12 h-12 rounded overflow-hidden border border-purple-300/30">
-                    <img src={url} alt={`oref-${i}`} className="w-full h-full object-cover" />
+                    <SmartImage src={url} alt={`oref-${i}`} className="w-full h-full object-cover" thumbSize={160} />
                     <button
                       onClick={() => removeMjRef('oref', i)}
                       className="absolute top-0 right-0 w-4 h-4 bg-red-500/80 hover:bg-red-500 flex items-center justify-center rounded-bl"
@@ -1739,6 +1744,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         {!isComfyExternal && <div>
           <label className="text-[10px] text-white/50 block mb-1">本地 Prompt(可选,优先取上游 text)</label>
           <MentionPromptInput
+            title="图像 Prompt"
             value={localPrompt}
             mentions={promptMentions}
             materials={mentionMaterials}
@@ -1778,10 +1784,11 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       {/* 结果展示：仅在未外挂 OutputNode 时在节点内预览，避免与下游 OutputNode 重复 */}
       {imageUrl && !hasAutoOutput && (
         <div className="border-t border-white/10 p-2">
-          <img
+          <SmartImage
             src={imageUrl}
             alt="生成结果"
             className="w-full rounded object-cover"
+            thumbSize={720}
             data-drag-source
             data-drag-kind="image"
             data-drag-url={imageUrl}

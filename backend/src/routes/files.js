@@ -6,10 +6,17 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const sharp = require('sharp');
 const config = require('../config');
 const { tryDecodeDuckPayload } = require('../utils/duckPayload');
 
 const router = express.Router();
+const THUMBNAIL_IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp|avif|tiff?)(?:$|\?)/i;
+const MAX_THUMBNAIL_JOBS = Math.max(1, Math.min(4, Number.parseInt(process.env.T8PC_THUMBNAIL_CONCURRENCY || '2', 10) || 2));
+const thumbnailInflight = new Map();
+const thumbnailQueue = [];
+let activeThumbnailJobs = 0;
 
 // 配置 multer
 const storage = multer.diskStorage({
@@ -108,6 +115,96 @@ function resolveLocalFileUrl(url) {
   if (resolved !== base && !resolved.startsWith(base + path.sep)) return null;
   return resolved;
 }
+
+function clampThumbnailSize(value) {
+  const raw = Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(raw)) return config.THUMBNAIL_SIZE || 320;
+  return Math.max(96, Math.min(1024, raw));
+}
+
+function thumbnailCacheFile(sourcePath, stat, size) {
+  const key = crypto
+    .createHash('sha1')
+    .update(`${sourcePath}|${stat.size}|${Math.round(stat.mtimeMs)}|${size}`)
+    .digest('hex')
+    .slice(0, 28);
+  return path.join(config.THUMBNAILS_DIR, `preview_${size}_${key}.webp`);
+}
+
+function pumpThumbnailQueue() {
+  while (activeThumbnailJobs < MAX_THUMBNAIL_JOBS && thumbnailQueue.length > 0) {
+    const job = thumbnailQueue.shift();
+    activeThumbnailJobs += 1;
+    Promise.resolve()
+      .then(job.task)
+      .then(job.resolve, job.reject)
+      .finally(() => {
+        activeThumbnailJobs -= 1;
+        pumpThumbnailQueue();
+      });
+  }
+}
+
+function queueThumbnailJob(task) {
+  return new Promise((resolve, reject) => {
+    thumbnailQueue.push({ task, resolve, reject });
+    pumpThumbnailQueue();
+  });
+}
+
+async function ensureThumbnailFile(sourcePath, target, size) {
+  if (fs.existsSync(target)) return target;
+  const inflight = thumbnailInflight.get(target);
+  if (inflight) return inflight;
+  const promise = queueThumbnailJob(async () => {
+    if (fs.existsSync(target)) return target;
+    await sharp(sourcePath, { animated: false, limitInputPixels: false })
+      .rotate()
+      .resize({
+        width: size,
+        height: size,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .webp({ quality: config.THUMBNAIL_QUALITY || 78, effort: 4 })
+      .toFile(target);
+    return target;
+  }).finally(() => {
+    thumbnailInflight.delete(target);
+  });
+  thumbnailInflight.set(target, promise);
+  return promise;
+}
+
+// GET /api/files/thumbnail?url=/files/input/x.png&size=360
+// 用于画布内预览：只为本地 input/output 图片生成轻量 webp 缩略图。
+router.get('/thumbnail', async (req, res) => {
+  try {
+    const url = String(req.query?.url || '').trim();
+    if (!url || !THUMBNAIL_IMAGE_RE.test(url.split('?')[0].split('#')[0])) {
+      return res.status(400).json({ success: false, error: '不支持的图片预览地址' });
+    }
+    const sourcePath = resolveLocalFileUrl(url);
+    if (!sourcePath) {
+      return res.status(400).json({ success: false, error: '只支持本地 input/output 图片缩略图' });
+    }
+    if (!fs.existsSync(sourcePath)) {
+      return res.status(404).json({ success: false, error: '源图片不存在' });
+    }
+    const stat = fs.statSync(sourcePath);
+    const size = clampThumbnailSize(req.query?.size);
+    const target = thumbnailCacheFile(sourcePath, stat, size);
+    if (!fs.existsSync(config.THUMBNAILS_DIR)) {
+      fs.mkdirSync(config.THUMBNAILS_DIR, { recursive: true });
+    }
+    await ensureThumbnailFile(sourcePath, target, size);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.type('image/webp');
+    return res.sendFile(target);
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e?.message || String(e) });
+  }
+});
 
 function safeDuckExt(ext) {
   const clean = String(ext || 'bin')

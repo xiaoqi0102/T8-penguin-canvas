@@ -3,6 +3,7 @@ import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import { Plus, Settings2, Trash2, RefreshCw } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useThemeStore } from '../../stores/theme';
+import SmartImage from '../SmartImage';
 
 /**
  * RhConfigNode 条目
@@ -233,10 +234,11 @@ const RhConfigNode = ({ id, data, selected }: NodeProps) => {
                     }`}
                   />
                   {/\.(png|jpe?g|webp|gif|bmp)$/i.test(item.fieldValue) && (
-                    <img
+                    <SmartImage
                       src={item.fieldValue}
                       alt="预览"
                       className="w-full max-h-24 object-contain rounded border border-white/10"
+                      thumbSize={360}
                     />
                   )}
                   <div className="text-[9px] text-white/30">

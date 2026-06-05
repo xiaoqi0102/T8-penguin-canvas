@@ -410,6 +410,7 @@ const AudioNode = ({ id, data, selected }: NodeProps) => {
         <div>
           <label className="text-[10px] text-white/50 block mb-1">歌词 / 提示词</label>
           <MentionPromptInput
+            title="音频歌词 / 提示词"
             value={localPrompt}
             mentions={promptMentions}
             materials={mentionMaterials}

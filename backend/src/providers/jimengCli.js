@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 const { spawn, spawnSync } = require('child_process');
 const config = require('../config');
-const { resolveMediaRef, mimeFromPath } = require('./mediaResolver');
+const { mediaRefToAbsoluteUrl, resolveMediaRef, mimeFromPath } = require('./mediaResolver');
 
 function cleanExecutablePath(provider) {
   return String(provider?.jimengConfig?.executablePath || '').trim();
@@ -12,11 +13,47 @@ function cleanExecutablePath(provider) {
 function pollSeconds(provider) {
   const n = Number(provider?.jimengConfig?.pollSeconds || 3600);
   const seconds = Number.isFinite(n) ? Math.round(n) : 3600;
-  return Math.max(3600, Math.min(3600, seconds));
+  return Math.max(0, Math.min(3600, seconds));
 }
 
-function commandExists(command) {
+function shQuote(value) {
+  return `'${String(value || '').replace(/'/g, "'\\''")}'`;
+}
+
+function isBareCommand(command) {
+  const text = String(command || '').trim();
+  return !!text && !/[\\/]/.test(text);
+}
+
+function wslExecutablePath(provider, command = cleanExecutablePath(provider)) {
+  const value = String(command || 'dreamina').trim();
+  return isBareCommand(value) ? value : wslPath(provider, value);
+}
+
+function wslCommandExists(command, provider) {
+  const exe = wslExecutablePath(provider, command);
+  if (!exe) return false;
+  const distro = String(provider?.jimengConfig?.wslDistro || '').trim();
+  const testLine = isBareCommand(exe)
+    ? `command -v ${shQuote(exe)} >/dev/null 2>&1`
+    : `test -x ${shQuote(exe)}`;
+  const result = spawnSync('wsl.exe', [
+    ...(distro ? ['-d', distro] : []),
+    '-e',
+    'sh',
+    '-lc',
+    testLine,
+  ], {
+    encoding: 'utf-8',
+    timeout: 5000,
+    windowsHide: true,
+  });
+  return result.status === 0;
+}
+
+function commandExists(command, provider) {
   if (!command) return false;
+  if (provider?.jimengConfig?.useWsl) return wslCommandExists(command, provider);
   if (path.isAbsolute(command)) return fs.existsSync(command);
   const checker = process.platform === 'win32' ? 'where' : 'which';
   const result = spawnSync(checker, [command], {
@@ -25,6 +62,13 @@ function commandExists(command) {
     windowsHide: true,
   });
   return result.status === 0;
+}
+
+async function providerCommandExists(command, provider, options = {}) {
+  if (typeof options.commandExists === 'function') {
+    return !!(await options.commandExists(command, provider));
+  }
+  return commandExists(command, provider);
 }
 
 function selectedModel(requested, models, fallback) {
@@ -93,6 +137,31 @@ function videoRatio(value) {
   return new Set(['1:1', '3:4', '16:9', '4:3', '9:16', '21:9']).has(ratio) ? ratio : '';
 }
 
+function videoMode(input = {}) {
+  const params = input.providerParams && typeof input.providerParams === 'object' ? input.providerParams : {};
+  const raw = String(params.frameMode || params.jimengMode || input.frameMode || input.jimengMode || '').trim().toLowerCase();
+  if (['first', 'image', 'image2video', 'first_frame', 'first-frame'].includes(raw)) return 'first';
+  if (['firstlast', 'first_last', 'first-last', 'frames', 'frames2video'].includes(raw)) return 'firstlast';
+  if (['multiframe', 'multi-frame', 'smart', 'smart-multiframe', 'intelligent', 'intelligent-multiframe'].includes(raw)) return 'multiframe';
+  if (['omni', 'all', 'all-around', 'allaround', 'multimodal', 'reference', 'ref', 'auto', ''].includes(raw)) return 'omni';
+  return 'omni';
+}
+
+function appendVideoModelResolutionArgs(args, command, model, resolution) {
+  // dreamina multiframe2video infers ratio/model/resolution from the frames and rejects these flags.
+  if (command === 'multiframe2video') return;
+  const modelVersion = videoModelVersion(model);
+  if (modelVersion) args.push(`--model_version=${modelVersion}`);
+  args.push(`--video_resolution=${videoResolution(model, resolution).toLowerCase()}`);
+}
+
+function transitionDuration(totalDuration, transitionCount) {
+  const count = Math.max(1, Number(transitionCount) || 1);
+  const total = Number(totalDuration || 5);
+  const each = (Number.isFinite(total) ? total : 5) / count;
+  return Math.max(0.5, Math.min(8, each));
+}
+
 function wslPath(provider, value) {
   if (!provider?.jimengConfig?.useWsl) return value;
   const text = String(value || '').replace(/\\/g, '/');
@@ -108,7 +177,7 @@ function cliCommand(provider) {
     command: 'wsl.exe',
     argsPrefix: [...(distro ? ['-d', distro] : []), '-e', 'sh', '-lc'],
     shell: true,
-    dreamina: exe || 'dreamina',
+    dreamina: wslExecutablePath(provider, exe || 'dreamina'),
   };
 }
 
@@ -202,7 +271,7 @@ async function runCli(provider, args, options = {}, extraTimeout = 120) {
   if (!exe) throw new Error('请先填写 dreamina / 即梦 CLI 可执行路径。');
   if (provider?.jimengConfig?.useWsl) {
     const prefix = cliCommand(provider);
-    const line = `${prefix.dreamina || 'dreamina'} ${args.map((arg) => `'${String(arg).replace(/'/g, "'\\''")}'`).join(' ')}`;
+    const line = `${shQuote(prefix.dreamina || 'dreamina')} ${args.map((arg) => shQuote(arg)).join(' ')}`;
     return spawnCli(prefix.command, [...prefix.argsPrefix, line], (pollSeconds(provider) + extraTimeout) * 1000);
   }
   return spawnCli(exe, args, (pollSeconds(provider) + extraTimeout) * 1000);
@@ -304,10 +373,84 @@ function outputExtFromMime(mime, fallback) {
   if (text.includes('mp4')) return '.mp4';
   if (text.includes('webm')) return '.webm';
   if (text.includes('quicktime')) return '.mov';
+  if (text.includes('mpeg') || text.includes('mp3')) return '.mp3';
+  if (text.includes('wav')) return '.wav';
+  if (text.includes('ogg')) return '.ogg';
+  if (text.includes('flac')) return '.flac';
   if (text.includes('jpeg')) return '.jpg';
   if (text.includes('webp')) return '.webp';
   if (text.includes('png')) return '.png';
   return fallback;
+}
+
+function defaultExtForKind(kind) {
+  if (kind === 'video') return '.mp4';
+  if (kind === 'audio') return '.mp3';
+  return '.png';
+}
+
+function outputExtFromUrl(url, fallback) {
+  try {
+    const parsed = new URL(url);
+    const ext = path.extname(parsed.pathname).toLowerCase();
+    if (ext) return ext;
+  } catch {
+    // ignore non-url values
+  }
+  return fallback;
+}
+
+function writeTempMedia(buffer, ext, options = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 't8-jimeng-ref-'));
+  const filePath = path.join(dir, `media${ext || '.bin'}`);
+  fs.writeFileSync(filePath, buffer);
+  if (Array.isArray(options.tempPaths)) {
+    options.tempPaths.push(filePath);
+    options.tempPaths.push(dir);
+  }
+  return filePath;
+}
+
+async function mediaRefToTempFile(value, kind, options = {}) {
+  const fallbackExt = defaultExtForKind(kind);
+  const resolved = await resolveMediaRef(value, {
+    target: 'url',
+    baseUrl: options.baseUrl,
+  });
+
+  if (resolved.kind === 'data-url' && resolved.base64) {
+    const ext = outputExtFromMime(resolved.mime, fallbackExt);
+    return writeTempMedia(Buffer.from(resolved.base64, 'base64'), ext, options);
+  }
+
+  const url = resolved.url || mediaRefToAbsoluteUrl(value, options);
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error(`无法解析本地媒体路径：${String(value || '').slice(0, 160)}`);
+  }
+
+  const fetchImpl = options.fetchImpl || fetch;
+  const response = await fetchImpl(url);
+  if (!response.ok) {
+    throw new Error(`即梦参考素材下载失败：HTTP ${response.status}`);
+  }
+  const contentType = typeof response.headers?.get === 'function' ? response.headers.get('content-type') : '';
+  const ext = outputExtFromMime(contentType, outputExtFromUrl(url, fallbackExt));
+  return writeTempMedia(Buffer.from(await response.arrayBuffer()), ext, options);
+}
+
+function cleanupTempPaths(paths) {
+  for (const item of Array.isArray(paths) ? [...paths].reverse() : []) {
+    try {
+      if (!item) continue;
+      if (fs.existsSync(item)) {
+        const stat = fs.statSync(item);
+        if (stat.isDirectory()) fs.rmSync(item, { recursive: true, force: true });
+        else fs.unlinkSync(item);
+      }
+    } catch {
+      // best effort cleanup
+    }
+  }
 }
 
 const MEDIA_EXTS_BY_KIND = {
@@ -366,11 +509,20 @@ async function defaultStoreOutput(value, kind, options = {}) {
 
 async function resolveLocalMedia(value, kind, provider, options = {}) {
   if (options.resolveLocalMedia) return options.resolveLocalMedia(value, kind);
-  const resolved = await resolveMediaRef(value, {
-    target: 'local-path',
-    baseUrl: options.baseUrl,
-  });
-  return wslPath(provider, resolved.path);
+  try {
+    const resolved = await resolveMediaRef(value, {
+      target: 'local-path',
+      baseUrl: options.baseUrl,
+    });
+    return wslPath(provider, resolved.path);
+  } catch (err) {
+    try {
+      const tempPath = await mediaRefToTempFile(value, kind, options);
+      return wslPath(provider, tempPath);
+    } catch (downloadErr) {
+      throw downloadErr?.message ? downloadErr : err;
+    }
+  }
 }
 
 async function queryResult(provider, id, kind, options = {}) {
@@ -499,19 +651,23 @@ async function generateImage(provider, input = {}, options = {}) {
   const model = selectedModel(input.providerModel || input.model, provider.imageModels, 'jimeng-image-2k');
   const refs = Array.isArray(input.images) ? input.images : [];
   const args = [];
-  if (refs.length) {
-    const refPath = await resolveLocalMedia(refs[0], 'image', provider, options);
-    args.push('image2image', `--images=${refPath}`, `--prompt=${prompt}`);
-  } else {
-    args.push('text2image', `--prompt=${prompt}`, `--ratio=${ratioFromSize(input.size || '1024x1024')}`);
-  }
-  args.push(`--resolution_type=${imageResolution(model, input.size || '1024x1024')}`, `--poll=${pollSeconds(provider)}`);
+  const tempPaths = [];
+  const mediaOptions = { ...options, tempPaths };
   try {
+    if (refs.length) {
+      const refPath = await resolveLocalMedia(refs[0], 'image', provider, mediaOptions);
+      args.push('image2image', `--images=${refPath}`, `--prompt=${prompt}`);
+    } else {
+      args.push('text2image', `--prompt=${prompt}`, `--ratio=${ratioFromSize(input.size || '1024x1024')}`);
+    }
+    args.push(`--resolution_type=${imageResolution(model, input.size || '1024x1024')}`, `--poll=${pollSeconds(provider)}`);
     const raw = await runCli(provider, args, options, 120);
     const imageUrls = await storeOutputs(raw, 'image', provider, options);
     return { ok: true, kind: 'image', code: 'completed', providerId: provider.id, protocol: 'jimeng-cli', model, imageUrls, taskId: submitId(raw), raw };
   } catch (e) {
     return { ok: false, code: 'cli_failed', providerId: provider.id, protocol: 'jimeng-cli', error: e?.message || '即梦 CLI 调用失败。' };
+  } finally {
+    cleanupTempPaths(tempPaths);
   }
 }
 
@@ -524,45 +680,58 @@ async function generateVideo(provider, input = {}, options = {}) {
   const audios = Array.isArray(input.audios) ? input.audios : [];
   const duration = videoDuration(input.duration);
   const ratio = videoRatio(input.aspect_ratio || input.ratio);
-  const frameMode = String(input.providerParams?.frameMode || input.frameMode || '').trim();
   const args = [];
-  if (videos.length || audios.length) {
-    const imagePaths = await resolveLocalMediaList(refs.slice(0, 9), 'image', provider, options);
-    const videoPaths = await resolveLocalMediaList(videos.slice(0, 3), 'video', provider, options);
-    const audioPaths = await resolveLocalMediaList(audios.slice(0, 3), 'audio', provider, options);
-    if (!imagePaths.length && !videoPaths.length) {
-      return { ok: false, code: 'jimeng_missing_visual_reference', providerId: provider.id, protocol: 'jimeng-cli', error: '即梦 CLI 的音频参考需要同时提供至少一张图片或一个视频。' };
-    }
-    args.push('multimodal2video', `--prompt=${prompt}`, `--duration=${duration}`);
-    if (ratio) args.push(`--ratio=${ratio}`);
-    for (const p of imagePaths) args.push(`--image=${p}`);
-    for (const p of videoPaths) args.push(`--video=${p}`);
-    for (const p of audioPaths) args.push(`--audio=${p}`);
-  } else if (frameMode === 'firstlast' && refs.length >= 2) {
-    const firstPath = await resolveLocalMedia(refs[0], 'image', provider, options);
-    const lastPath = await resolveLocalMedia(refs[1], 'image', provider, options);
-    args.push('frames2video', `--first=${firstPath}`, `--last=${lastPath}`, `--prompt=${prompt}`, `--duration=${duration}`);
-  } else if (refs.length >= 2) {
-    const paths = [];
-    for (const ref of refs.slice(0, 9)) paths.push(await resolveLocalMedia(ref, 'image', provider, options));
-    args.push('multiframe2video', `--images=${paths.join(',')}`, `--prompt=${prompt}`, `--duration=${duration}`);
-  } else if (refs.length === 1) {
-    const refPath = await resolveLocalMedia(refs[0], 'image', provider, options);
-    args.push('multimodal2video', `--image=${refPath}`, `--prompt=${prompt}`, `--duration=${duration}`);
-    if (ratio) args.push(`--ratio=${ratio}`);
-  } else {
-    args.push('text2video', `--prompt=${prompt}`, `--duration=${duration}`, `--ratio=${ratio || '16:9'}`);
-  }
-  const modelVersion = videoModelVersion(model);
-  if (modelVersion) args.push(`--model_version=${modelVersion}`);
-  args.push(`--video_resolution=${videoResolution(model, input.resolution).toLowerCase()}`);
-  args.push(`--poll=${pollSeconds(provider)}`);
+  const mode = videoMode(input);
+  const tempPaths = [];
+  const mediaOptions = { ...options, tempPaths };
   try {
+    if (videos.length || audios.length || (mode === 'omni' && refs.length)) {
+      const imagePaths = await resolveLocalMediaList(refs.slice(0, 9), 'image', provider, mediaOptions);
+      const videoPaths = await resolveLocalMediaList(videos.slice(0, 3), 'video', provider, mediaOptions);
+      const audioPaths = await resolveLocalMediaList(audios.slice(0, 3), 'audio', provider, mediaOptions);
+      if (!imagePaths.length && !videoPaths.length) {
+        return { ok: false, code: 'jimeng_missing_visual_reference', providerId: provider.id, protocol: 'jimeng-cli', error: '即梦 CLI 全能参考需要至少一张图片或一个视频。' };
+      }
+      args.push('multimodal2video', `--prompt=${prompt}`, `--duration=${duration}`);
+      if (ratio) args.push(`--ratio=${ratio}`);
+      appendVideoModelResolutionArgs(args, 'multimodal2video', model, input.resolution);
+      for (const p of imagePaths) args.push(`--image=${p}`);
+      for (const p of videoPaths) args.push(`--video=${p}`);
+      for (const p of audioPaths) args.push(`--audio=${p}`);
+    } else if (mode === 'firstlast' && refs.length >= 2) {
+      const firstPath = await resolveLocalMedia(refs[0], 'image', provider, mediaOptions);
+      const lastPath = await resolveLocalMedia(refs[1], 'image', provider, mediaOptions);
+      args.push('frames2video', `--first=${firstPath}`, `--last=${lastPath}`, `--prompt=${prompt}`, `--duration=${duration}`);
+      appendVideoModelResolutionArgs(args, 'frames2video', model, input.resolution);
+    } else if (mode === 'multiframe' && refs.length >= 2) {
+      const paths = [];
+      for (const ref of refs.slice(0, 9)) paths.push(await resolveLocalMedia(ref, 'image', provider, mediaOptions));
+      args.push('multiframe2video', `--images=${paths.join(',')}`);
+      if (paths.length === 2) {
+        args.push(`--prompt=${prompt}`, `--duration=${transitionDuration(duration, 1)}`);
+      } else {
+        const each = transitionDuration(duration, paths.length - 1);
+        for (let i = 0; i < paths.length - 1; i += 1) {
+          args.push(`--transition-prompt=${prompt}`);
+          args.push(`--transition-duration=${each}`);
+        }
+      }
+    } else if (refs.length >= 1) {
+      const refPath = await resolveLocalMedia(refs[0], 'image', provider, mediaOptions);
+      args.push('image2video', `--image=${refPath}`, `--prompt=${prompt}`, `--duration=${duration}`);
+      appendVideoModelResolutionArgs(args, 'image2video', model, input.resolution);
+    } else {
+      args.push('text2video', `--prompt=${prompt}`, `--duration=${duration}`, `--ratio=${ratio || '16:9'}`);
+      appendVideoModelResolutionArgs(args, 'text2video', model, input.resolution);
+    }
+    args.push(`--poll=${pollSeconds(provider)}`);
     const raw = await runCli(provider, args, options, 180);
     const videoUrls = await storeOutputs(raw, 'video', provider, options);
     return { ok: true, kind: 'video', code: 'completed', providerId: provider.id, protocol: 'jimeng-cli', model, videoUrls, taskId: submitId(raw), raw };
   } catch (e) {
     return { ok: false, code: 'cli_failed', providerId: provider.id, protocol: 'jimeng-cli', error: e?.message || '即梦 CLI 调用失败。' };
+  } finally {
+    cleanupTempPaths(tempPaths);
   }
 }
 
@@ -577,7 +746,7 @@ async function testProvider(provider, options = {}) {
       error: '请先填写 dreamina / 即梦 CLI 可执行路径。',
     };
   }
-  if (!commandExists(executablePath)) {
+  if (!(await providerCommandExists(executablePath, provider, options))) {
     return {
       ok: false,
       code: 'cli_not_found',

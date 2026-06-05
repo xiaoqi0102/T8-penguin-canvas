@@ -12,6 +12,7 @@ import { useUpdateNodeData } from './useUpdateNodeData';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { useThemeStore } from '../../stores/theme';
 import { useUpstreamMaterials } from './useUpstreamMaterials';
+import SmartImage from '../SmartImage';
 
 /**
  * FramePairNode - 「首尾帧获取」工具节点
@@ -419,11 +420,12 @@ const FramePairNode = (p: NodeProps) => {
             }}
           >
             {firstUrl ? (
-              <img
+              <SmartImage
                 src={firstUrl}
                 alt="首帧"
                 className="w-full h-full object-cover"
                 draggable={false}
+                thumbSize={320}
               />
             ) : (
               <span className="text-[9px]" style={{ color: subColor }}>
@@ -455,11 +457,12 @@ const FramePairNode = (p: NodeProps) => {
             }}
           >
             {lastUrl ? (
-              <img
+              <SmartImage
                 src={lastUrl}
                 alt="尾帧"
                 className="w-full h-full object-cover"
                 draggable={false}
+                thumbSize={320}
               />
             ) : (
               <span className="text-[9px]" style={{ color: subColor }}>

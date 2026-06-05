@@ -38,6 +38,10 @@ router.get('/status', async (_req, res) => {
           lama: false,
           detect: false,
           trustmark: false,
+          restore: false,
+          auto: false,
+          controlnet: false,
+          adaptivePolish: false,
         },
         setupHints: [
           '推荐: pipx install remove-ai-watermarks',

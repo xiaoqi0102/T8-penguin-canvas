@@ -13,6 +13,11 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
+const PACKAGE_JSON = require(path.join(ROOT, 'package.json'));
+const APP_VERSION = PACKAGE_JSON.version;
+const PRODUCT_NAME = PACKAGE_JSON.build && PACKAGE_JSON.build.productName
+  ? PACKAGE_JSON.build.productName
+  : 'T8-PenguinCanvas';
 const UNPACKED = path.join(ROOT, 'dist_electron', 'win-unpacked');
 const RES = path.join(UNPACKED, 'resources');
 let missingCount = 0;
@@ -146,6 +151,57 @@ function checkFfmpegRuntime() {
   ok(ffmpeg);
 }
 
+function checkParseHubRuntime() {
+  const bridge = path.join(RES, 'tools', 'parsehub-bridge', 'parsehub_bridge.py');
+  const libsRoot = path.join(RES, 'tools', 'parsehub-pythonlibs');
+  const parsehubPkg = path.join(libsRoot, 'parsehub');
+  const strict = process.env.T8_REQUIRE_PARSEHUB_RUNTIME === '1';
+
+  checkFile(bridge);
+  if (fs.existsSync(parsehubPkg)) {
+    ok(parsehubPkg);
+    return;
+  }
+
+  const message = 'ParseHub python dependencies not bundled; aggregate parser will require T8_PARSEHUB_LIB_PATHS or system/site installed parsehub';
+  if (strict) failSecurity(message, libsRoot);
+  console.log('  ⚠️ ', message);
+  console.log('     Refresh with: tools\\remove-ai-watermarks-runtime\\python\\python.exe -m pip install --upgrade --target tools\\parsehub-pythonlibs .\\ParseHub');
+}
+
+function checkUpdateArtifacts() {
+  const distDir = path.join(ROOT, 'dist_electron');
+  const installerName = `${PRODUCT_NAME}-Setup-${APP_VERSION}.exe`;
+  const installer = path.join(distDir, installerName);
+  const blockmap = path.join(distDir, `${installerName}.blockmap`);
+  const latest = path.join(distDir, 'latest.yml');
+  const strict = process.env.T8_REQUIRE_UPDATE_ARTIFACTS === '1';
+  const hasAnyArtifact = fs.existsSync(installer) || fs.existsSync(blockmap) || fs.existsSync(latest);
+
+  if (!hasAnyArtifact && !strict) {
+    console.log('  ⚠️  NSIS update artifacts not present; skipping installer/latest.yml checks for dir build');
+    return;
+  }
+
+  checkFile(installer);
+  checkFile(blockmap);
+  checkFile(latest);
+
+  if (fs.existsSync(latest)) {
+    const text = fs.readFileSync(latest, 'utf-8');
+    if (!new RegExp(`version:\\s*${APP_VERSION.replace(/\./g, '\\.')}`).test(text)) {
+      missingCount += 1;
+      console.error(`  ❌ latest.yml version mismatch, expected ${APP_VERSION}`);
+    } else {
+      ok(latest);
+    }
+    if (!text.includes(installerName)) {
+      missingCount += 1;
+      console.error(`  ❌ latest.yml does not reference ${installerName}`);
+    }
+  }
+}
+
 function checkNoRhToolboxMaker() {
   const forbiddenDirs = [
     path.join(RES, 'tools', 'rh-toolbox-maker'),
@@ -197,6 +253,9 @@ function main() {
   checkFile(path.join(RES, 'backend-enc', 'routes', 'eagle.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'aiWatermark.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'cloudUploads.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'routes', 'parseHub.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'routes', 'achievements.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'achievements', 'store.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'cloudUploads', 'settings.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'cloudUploads', 'uploader.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'providers', 'registry.t8c'));
@@ -211,10 +270,12 @@ function main() {
   checkFile(path.join(RES, 'backend-enc', 'tools', 'aiWatermark', 'runner.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'tools', 'aiWatermark', 'media.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'utils', 'duckPayload.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'utils', 'parseHubBridge.t8c'));
 
   console.log('\n[2] 前端 dist:');
   checkFile(path.join(RES, 'frontend', 'index.html'));
   checkFile(path.join(RES, 'frontend', 'assets'));
+  checkFile(path.join(RES, 'shared', 'achievementManifest.json'));
   checkFrontendAsset('classic-one-summer-day-', '.mp3');
   checkFrontendAsset('pixel-theme-of-sss-', '.mp3');
   checkFrontendAsset('op-battle-scars-', '.mp3');
@@ -229,17 +290,22 @@ function main() {
 
   console.log('\n[3] 清除可能混入的明文后端源码:');
   nukePlainBackend();
-
   console.log('\n[4] 去AI水印 sidecar runtime:');
   checkAiWatermarkRuntime();
 
   console.log('\n[5] ffmpeg sidecar runtime:');
   checkFfmpegRuntime();
 
-  console.log('\n[6] RH工具箱制作器分发检查:');
+  console.log('\n[6] ParseHub bridge/runtime:');
+  checkParseHubRuntime();
+
+  console.log('\n[7] RH工具箱制作器分发检查:');
   checkNoRhToolboxMaker();
 
-  console.log('\n[7] resources/ 完整结构:');
+  console.log('\n[8] GitHub 自动更新资产:');
+  checkUpdateArtifacts();
+
+  console.log('\n[9] resources/ 完整结构:');
   listDir(RES);
 
   if (missingCount > 0) {

@@ -8,6 +8,7 @@ const {
   summarizeCloudUploadTargets,
 } = require('../cloudUploads/settings');
 const {
+  classifyCloudUploadError,
   uploadCloudAsset,
   validateTargetConfig,
 } = require('../cloudUploads/uploader');
@@ -75,9 +76,10 @@ router.post('/test', (req, res) => {
 });
 
 router.post('/upload', async (req, res) => {
+  let target = null;
   try {
     const targets = loadNormalizedTargets();
-    const target = findTarget(targets, req.body?.targetId);
+    target = findTarget(targets, req.body?.targetId);
     if (!target) {
       return res.status(404).json({ success: false, error: '云端目标不存在' });
     }
@@ -101,7 +103,15 @@ router.post('/upload', async (req, res) => {
       },
     });
   } catch (e) {
-    res.status(400).json({ success: false, error: e?.message || String(e) });
+    const classified = classifyCloudUploadError(target, e);
+    res.status(400).json({
+      success: false,
+      error: classified.message,
+      data: {
+        ok: false,
+        ...classified,
+      },
+    });
   }
 });
 

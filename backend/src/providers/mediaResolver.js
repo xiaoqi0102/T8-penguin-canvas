@@ -75,8 +75,80 @@ function decodeUrlPathPart(value) {
   }
 }
 
-function resolveT8LocalMediaPath(value) {
+function readSettingsResourceLibraryPath() {
+  try {
+    if (!fs.existsSync(config.SETTINGS_FILE)) return '';
+    const settings = JSON.parse(fs.readFileSync(config.SETTINGS_FILE, 'utf-8'));
+    return String(settings.resourceLibraryPath || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function resourceLibraryRoot(options = {}) {
+  return String(
+    options.resourceLibraryPath
+    || readSettingsResourceLibraryPath()
+    || config.DEFAULT_RESOURCE_LIBRARY_DIR
+    || '',
+  ).trim();
+}
+
+function readResourceLibraryDb(root) {
+  if (!root) return null;
+  try {
+    const file = path.join(root, 'resource_library.json');
+    if (!fs.existsSync(file)) return null;
+    const db = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return db && typeof db === 'object' ? db : null;
+  } catch {
+    return null;
+  }
+}
+
+function findResourceItem(db, id) {
+  const cleanId = String(id || '').trim();
+  if (!cleanId || !Array.isArray(db?.items)) return null;
+  return db.items.find((item) => String(item?.id || '') === cleanId) || null;
+}
+
+function resolveResourceLibraryMediaPath(value, options = {}) {
   const text = String(value || '').trim().split(/[?#]/)[0];
+  const fileMatch = /^\/api\/resources\/file\/([^/?#]+)/.exec(text);
+  const setFileMatch = /^\/api\/resources\/set-file\/([^/?#]+)\/(\d+)/.exec(text);
+  if (!fileMatch && !setFileMatch) return null;
+
+  const root = resourceLibraryRoot(options);
+  const db = readResourceLibraryDb(root);
+  if (!db) return null;
+
+  if (fileMatch) {
+    const item = findResourceItem(db, decodeUrlPathPart(fileMatch[1]));
+    if (!item?.fileRel) return null;
+    const filePath = safeJoinInside(root, item.fileRel);
+    return filePath ? {
+      path: filePath,
+      mime: item.mime || mimeFromPath(filePath),
+    } : null;
+  }
+
+  const item = findResourceItem(db, decodeUrlPathPart(setFileMatch[1]));
+  const index = Number(setFileMatch[2]);
+  const child = item?.kind === 'set' && Array.isArray(item.materialSetItems)
+    ? item.materialSetItems[index]
+    : null;
+  if (!child?.fileRel) return null;
+  const filePath = safeJoinInside(root, child.fileRel);
+  return filePath ? {
+    path: filePath,
+    mime: child.mime || mimeFromPath(filePath),
+  } : null;
+}
+
+function resolveT8LocalMediaPath(value, options = {}) {
+  const text = String(value || '').trim().split(/[?#]/)[0];
+  const resourcePath = resolveResourceLibraryMediaPath(text, options);
+  if (resourcePath?.path) return resourcePath.path;
   const rules = [
     ['/files/input/', config.INPUT_DIR],
     ['/input/', config.INPUT_DIR],
@@ -148,7 +220,8 @@ async function resolveMediaRef(value, options = {}) {
     };
   }
 
-  const t8Path = resolveT8LocalMediaPath(text);
+  const resourcePath = resolveResourceLibraryMediaPath(text, options);
+  const t8Path = resourcePath?.path || resolveT8LocalMediaPath(text, options);
   const localPath = t8Path || resolveDirectLocalPath(text);
 
   if (target === 'local-path') {
@@ -157,7 +230,7 @@ async function resolveMediaRef(value, options = {}) {
         kind: 'local-path',
         source: text,
         path: localPath,
-        mime: mimeFromPath(localPath),
+        mime: resourcePath?.mime || mimeFromPath(localPath),
       };
     }
     throw new Error(`无法解析本地媒体路径：${text.slice(0, 160)}`);
@@ -206,5 +279,6 @@ module.exports = {
   mediaRefToAbsoluteUrl,
   mimeFromPath,
   resolveMediaRef,
+  resolveResourceLibraryMediaPath,
   resolveT8LocalMediaPath,
 };

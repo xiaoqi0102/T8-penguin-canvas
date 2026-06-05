@@ -5,6 +5,7 @@ import { useUpdateNodeData } from './useUpdateNodeData';
 import ResizableCorners from './ResizableCorners';
 import { getCornerResizeBehavior } from '../../utils/nodeResizeBehavior';
 import { normalizeRhNodeId } from '../../utils/rhTextBinding';
+import PromptTextarea from '../PromptTextarea';
 
 /**
  * 文本节点 - 提示词输入
@@ -131,13 +132,14 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
       </div>
 
       <div className={`p-2.5 flex flex-col ${size.h ? 'flex-1 min-h-0' : ''}`}>
-        <textarea
+        <PromptTextarea
+          title="文本节点 Prompt"
           value={text}
-          onChange={(e) => update({ prompt: e.target.value })}
+          onValueChange={(value) => update({ prompt: value })}
           placeholder="输入提示词..."
-          spellCheck={false}
           autoCorrect="off"
           autoCapitalize="off"
+          containerClassName={`relative ${size.h ? 'flex flex-col flex-1 min-h-0' : ''}`}
           className={`w-full resize-none rounded-md bg-white/5 border border-white/10 px-2 py-1.5 text-xs text-white outline-none focus:border-white/30 placeholder:text-white/30 nodrag nowheel ${
             size.h ? 'flex-1 min-h-[72px]' : 'h-24'
           }`}

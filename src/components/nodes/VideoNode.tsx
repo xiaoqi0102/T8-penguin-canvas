@@ -35,6 +35,7 @@ import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
 import MentionPromptInput from './MentionPromptInput';
 import LoopingVideo from '../LoopingVideo';
+import SmartImage from '../SmartImage';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
@@ -67,12 +68,27 @@ const VIDEO_MAX_POLL = Math.ceil((VIDEO_POLL_TIMEOUT_SECONDS * 1000) / VIDEO_POL
 const VIDEO_FAL_POLL_INTERVAL_MS = 6000;
 const VIDEO_FAL_MAX_POLL = Math.ceil((VIDEO_POLL_TIMEOUT_SECONDS * 1000) / VIDEO_FAL_POLL_INTERVAL_MS);
 const JIMENG_SEEDANCE_LIMITS = { images: 9, videos: 3, audios: 3 };
+type JimengSeedanceMode = 'omni' | 'first' | 'firstlast' | 'multiframe';
+const JIMENG_SEEDANCE_MODE_OPTIONS: Array<{ value: JimengSeedanceMode; label: string }> = [
+  { value: 'omni', label: '全能参考' },
+  { value: 'first', label: '首帧图生视频' },
+  { value: 'firstlast', label: '首尾帧生视频' },
+  { value: 'multiframe', label: '智能多帧' },
+];
 
 const splitGrokFalRefUrls = (raw: string): string[] =>
   String(raw || '')
     .split(/[\n,，]+/)
     .map((s) => s.trim())
     .filter(Boolean);
+
+const normalizeJimengSeedanceMode = (value: unknown): JimengSeedanceMode => {
+  const text = String(value || '').trim().toLowerCase();
+  if (text === 'first') return 'first';
+  if (text === 'firstlast' || text === 'first_last' || text === 'frames2video') return 'firstlast';
+  if (text === 'multiframe' || text === 'smart' || text === 'smart-multiframe') return 'multiframe';
+  return 'omni';
+};
 
 const VideoNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
@@ -88,6 +104,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   const isPixel = themeStyle === 'pixel';
 
   const d = data as any;
+  const providerParams = (d?.providerParams && typeof d.providerParams === 'object') ? d.providerParams : {};
   const advancedProviders = useApiKeysStore((s) => s.settings.advancedProviders);
   const videoAdvancedProviders = useMemo(
     () => advancedProvidersForNode(advancedProviders, 'video'),
@@ -109,6 +126,8 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
   const externalProviderModel = providerSelection.providerModel || externalModelOptions[0] || '';
   const isJimengCliSelected = isExternalSelected && providerSelection.provider?.protocol === 'jimeng-cli';
   const isJimengSeedanceSelected = isJimengCliSelected && /seedance|jimeng-video|video/i.test(externalProviderModel);
+  const jimengSeedanceMode = normalizeJimengSeedanceMode(providerParams.frameMode ?? d?.jimengFrameMode);
+  const updateProviderParams = (patch: Record<string, any>) => update({ providerParams: { ...providerParams, ...patch } });
   // 主模型 id (对应 VIDEO_MODELS 项)
   const rawModel = typeof d?.model === 'string' ? d.model : '';
   const isLegacySora2Model = /^sora-2(?:-\d{4}-\d{2}-\d{2})?$/.test(rawModel);
@@ -457,7 +476,9 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           images: refs,
           videos: videoRefs,
           audios: audioRefs,
-          providerParams: d?.providerParams,
+          providerParams: isJimengSeedanceSelected
+            ? { ...providerParams, frameMode: jimengSeedanceMode }
+            : providerParams,
         });
         const nextVideoUrl = r.videoUrls[0];
         if (!nextVideoUrl) throw new Error('扩展平台没有返回视频。');
@@ -964,6 +985,33 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
           </>
         )}
 
+        {isJimengSeedanceSelected && (
+          <div className="rounded border border-white/10 bg-white/5 p-1.5 space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-[10px] text-white/50">即梦模式</label>
+              <span className="text-[9px] text-white/35">图9 / 视3 / 音3</span>
+            </div>
+            <select
+              value={jimengSeedanceMode}
+              onChange={(e) => updateProviderParams({ frameMode: e.target.value })}
+              className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-xs text-white outline-none focus:border-white/30"
+            >
+              {JIMENG_SEEDANCE_MODE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value} className="bg-zinc-900">{item.label}</option>
+              ))}
+            </select>
+            <div className="text-[10px] text-white/40 leading-relaxed">
+              {jimengSeedanceMode === 'omni'
+                ? '全能参考支持图片、视频和音频混合输入；纯多图也会走全能参考。'
+                : jimengSeedanceMode === 'first'
+                  ? '只取第 1 张图作为首帧。'
+                  : jimengSeedanceMode === 'firstlast'
+                    ? '取第 1 张为首帧，第 2 张为尾帧。'
+                    : '仅使用图片序列生成智能多帧。'}
+            </div>
+          </div>
+        )}
+
         {/* 比例(非 FAL 时显示原始控件) */}
         {showGenericVideoControls && (
         <div className="grid grid-cols-2 gap-1.5">
@@ -1082,7 +1130,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
               <div className="flex gap-1 flex-wrap">
                 {localRefImages.map((u, i) => (
                   <div key={`img-${i}`} className="relative w-10 h-10">
-                    <img
+                    <SmartImage
                       src={u}
                       alt=""
                       data-drag-source
@@ -1092,6 +1140,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
                       data-drag-node-id={id}
                       onMouseDown={(e) => beginMaterialDrag(e, { kind: 'image', url: u, sourceNodeId: id, previewUrl: u })}
                       className="w-10 h-10 object-cover rounded border border-white/10 cursor-grab"
+                      thumbSize={160}
                     />
                     <button
                       onClick={() => update({ localRefImages: localRefImages.filter((x) => x !== u) })}
@@ -1161,6 +1210,7 @@ const VideoNode = ({ id, data, selected }: NodeProps) => {
         <div>
           <label className="text-[10px] text-white/50 block mb-1">本地 Prompt(可选)</label>
           <MentionPromptInput
+            title="视频 Prompt"
             value={localPrompt}
             mentions={promptMentions}
             materials={mentionMaterials}

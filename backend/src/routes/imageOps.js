@@ -240,6 +240,15 @@ function normalizeHexColor(v, fallback = '#111827') {
   return fallback;
 }
 
+function escapeSvgText(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function normalizeGridComposeInput(body = {}) {
   const rows = Math.max(1, Math.min(12, parseInt(body.rows) || 3));
   const cols = Math.max(1, Math.min(12, parseInt(body.cols) || 3));
@@ -249,6 +258,7 @@ function normalizeGridComposeInput(body = {}) {
   const gap = Math.max(0, Math.min(160, maxReasonableGap, parseInt(body.gap) || 0));
   const total = rows * cols;
   const rawCells = Array.isArray(body.cells) ? body.cells : [];
+  const captionHeight = Math.max(24, Math.min(240, parseInt(body.captionHeight) || 56));
   return {
     rows,
     cols,
@@ -258,11 +268,16 @@ function normalizeGridComposeInput(body = {}) {
     background: normalizeHexColor(body.background),
     fit: normalizeGridComposeFit(body.fit),
     showIndexes: Boolean(body.showIndexes),
+    showCaptions: Boolean(body.showCaptions),
+    captionHeight,
+    captionTextColor: normalizeHexColor(body.captionTextColor, '#fff7ed'),
+    captionBackground: normalizeHexColor(body.captionBackground, '#111827'),
     cells: Array.from({ length: total }, (_, index) => {
       const cell = rawCells[index];
       const imageUrl = typeof cell?.imageUrl === 'string' ? cell.imageUrl.trim() : '';
       if (!imageUrl) return null;
-      return { imageUrl, fit: normalizeGridComposeFit(cell.fit || body.fit) };
+      const caption = typeof cell?.caption === 'string' ? cell.caption.trim().slice(0, 140) : '';
+      return { imageUrl, fit: normalizeGridComposeFit(cell.fit || body.fit), caption };
     }),
   };
 }
@@ -284,6 +299,18 @@ function makeIndexBadgeSvg(index) {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="24" viewBox="0 0 ${width} 24">
       <rect x="0.5" y="0.5" width="${width - 1}" height="23" rx="6" fill="rgba(17,24,39,.78)" stroke="rgba(255,255,255,.74)"/>
       <text x="${width / 2}" y="16" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#fff7ed">${text}</text>
+    </svg>`,
+  );
+}
+
+function makeCaptionBarSvg(caption, width, height, textColor, backgroundColor) {
+  const text = escapeSvgText(String(caption || '').trim().slice(0, 80));
+  const fontSize = Math.max(12, Math.min(34, Math.floor(height * 0.42)));
+  const maxTextWidth = Math.max(1, width - 24);
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect width="${width}" height="${height}" fill="${backgroundColor}"/>
+      <text x="${width / 2}" y="${Math.round(height / 2 + fontSize * 0.34)}" text-anchor="middle" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="${fontSize}" font-weight="700" fill="${textColor}" textLength="${maxTextWidth}" lengthAdjust="spacingAndGlyphs">${text}</text>
     </svg>`,
   );
 }
@@ -317,14 +344,34 @@ async function composeGridImage(input) {
     const h = rowHeights[row];
     const buf = await fetchImageBuffer(cell.imageUrl);
     const sharpFit = cell.fit === 'adaptive' ? 'contain' : cell.fit;
+    const hasCaption = input.showCaptions && cell.caption && h >= 32;
+    const captionHeight = hasCaption ? Math.min(input.captionHeight, Math.max(16, Math.floor(h * 0.45)), h - 1) : 0;
+    const imageHeight = Math.max(1, h - captionHeight);
     let cellImage = await sharp(buf)
-      .resize(w, h, {
+      .resize(w, imageHeight, {
         fit: sharpFit,
         background: input.background,
       })
       .ensureAlpha()
       .png({ compressionLevel: 3, effort: 1 })
       .toBuffer();
+    if (hasCaption) {
+      const captionBar = makeCaptionBarSvg(cell.caption, w, captionHeight, input.captionTextColor, input.captionBackground);
+      cellImage = await sharp({
+        create: {
+          width: w,
+          height: h,
+          channels: 4,
+          background: input.background,
+        },
+      })
+        .composite([
+          { input: cellImage, left: 0, top: 0 },
+          { input: captionBar, left: 0, top: imageHeight },
+        ])
+        .png({ compressionLevel: 3, effort: 1 })
+        .toBuffer();
+    }
     if (input.showIndexes) {
       cellImage = await sharp(cellImage)
         .composite([{ input: makeIndexBadgeSvg(index + 1), left: 6, top: 6 }])
@@ -622,7 +669,7 @@ router.post('/grid-crop', async (req, res) => {
 });
 
 // ========== POST /api/image/grid-compose — 多图宫格拼接 ==========
-// body: { rows, cols, width, height, gap, background, fit, showIndexes, cells:[{imageUrl, fit?}|null] }
+// body: { rows, cols, width, height, gap, background, fit, showIndexes, showCaptions, captionHeight, cells:[{imageUrl, fit?, caption?}|null] }
 router.post('/grid-compose', async (req, res) => {
   try {
     const input = normalizeGridComposeInput(req.body || {});

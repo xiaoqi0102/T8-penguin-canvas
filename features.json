@@ -1,25 +1,137 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
   "version": "2.1.0",
-  "lastUpdated": "2026-06-04-merge-upstream-v1.9.7-fork-v2.1.0",
+  "lastUpdated": "2026-06-05-merge-upstream-v2.0.5-fork-v2.1.0",
+  "firstTierRoadmapContinuation": {
+    "version": "2.0.5",
+    "status": "implemented",
+    "notesFile": "docs/roadmap-priority-notes.md",
+    "description": "按 roadmap.md 第一梯队继续收口：全局提示词大编辑器第二阶段、3D 全景体验、成就系统轻量留存、聚合解析授权助手。",
+    "scope": [
+      "提示词大编辑器支持 JSON / 行列表两类配置型长文本，并接入 API 设置、ComfyUI 应用制作、RH 工具箱制作与 RH 工具编辑弹窗。",
+      "3D 全景节点在贴图加载后做接缝/比例轻量质量检测，给用户展示接缝分数、比例提示和修正建议。",
+      "成就系统补齐资源库保存、工作流保存事件，重复入库不刷计数；成就抽屉新增导入 JSON 与今日主题建议。",
+      "聚合解析节点授权区域升级为三步式向导，桌面端明确说明官方登录页授权后回到节点检测，无需用户理解或手动复制 Cookie。"
+    ],
+    "promptEditorContract": {
+      "components": [
+        "src/components/PromptExpandModal.tsx",
+        "src/components/PromptTextarea.tsx"
+      ],
+      "editorKinds": ["text", "json", "lines"],
+      "developerRule": "后续新增 prompt、workflow JSON、模型列表、排除规则、字段映射等长文本输入，必须优先使用 PromptTextarea 或 MentionPromptInput 的放大编辑能力；JSON/行列表类字段要显式传 editorKind，避免用户在窄输入框里编辑复杂配置。"
+    },
+    "panorama3dContract": {
+      "qualityUtil": "src/utils/panorama3d.ts::estimatePanoramaImageQuality",
+      "developerRule": "3D 全景只做轻量客户端质量提示，不阻断用户继续使用；保存资源库仍必须保留原图 URL、panorama metadata 和全景分类，接缝检测失败时要给 unknown 状态而不是报错。"
+    },
+    "achievementRetentionContract": {
+      "events": ["resource.saved", "workflow.saved"],
+      "ui": ["成就导入 JSON", "今日主题建议"],
+      "developerRule": "新增留存事件只能记录非内容字段，例如 kind/category/nodeType/计数；严禁记录 prompt、短链、Cookie、完整文件名、资源 URL 或用户正文。重复保存、重复导入、重复运行导致的刷计数必须有去重或业务 guard。"
+    },
+    "aggregateParserAuthContract": {
+      "ui": "src/components/nodes/AggregateParserNode.tsx::authSteps",
+      "developerRule": "聚合解析授权体验默认面向不懂 Cookie 的普通用户：优先引导打开官方登录页、回到节点检测授权、直接解析或保存授权；Web 模式只提供手动兜底，不得暗示可以自动读取浏览器 Cookie。"
+    },
+    "verification": [
+      "node --test tests\\promptEditor.test.ts tests\\panorama3d.test.ts tests\\achievements.test.ts tests\\aggregateParser.test.ts",
+      "npm run type-check",
+      "npm run build"
+    ]
+  },
+  "secondTierComfyUiContinuation": {
+    "version": "2.0.5",
+    "status": "implemented",
+    "notesFile": "docs/roadmap-priority-notes.md",
+    "description": "第二梯队第一块收口：ComfyUI 本地 API 简化接入、ComfyUI 超市和应用制作工具的新手体验增强。",
+    "scope": [
+      "内置基础文生图 API Workflow 样例，ComfyUI 超市打开即可看到可学习模板。",
+      "API 设置页 ComfyUI 区和 ComfyUI 应用制作工具均支持一键载入样例。",
+      "新增 ComfyUI 导入检查清单，提示 API Workflow 格式、Prompt、负向、尺寸、模型字段和输出节点状态。",
+      "ComfyUI 超市运行前检查上游素材数量，缺图片/视频/音频时直接提示用户连接素材。",
+      "后端 ComfyUI adapter 将缺模型、缺自定义节点、ComfyUI 未启动、workflow 校验失败和超时转成可执行中文提示。"
+    ],
+    "sourceFiles": [
+      "src/utils/comfyuiWorkflow.ts",
+      "src/data/comfyuiAppManifest.ts",
+      "src/components/ApiSettings.tsx",
+      "src/components/nodes/ComfyUIAppMakerNode.tsx",
+      "src/components/nodes/ComfyUIStoreNode.tsx",
+      "backend/src/providers/comfyui.js"
+    ],
+    "developerRule": "后续新增 ComfyUI 样例或应用必须走 t8-comfyui-app-manifest 与 analyzer 映射，不给单个 workflow 写节点组件专用分支；后端错误提示必须保持可执行，优先告诉用户启动 ComfyUI、安装自定义节点或把模型名改成本机文件名。",
+    "next": [
+      "ControlNet / OpenPose / Mask / Video 专用映射来源",
+      "从 ComfyUI 历史任务导入当前 prompt/workflow",
+      "更多经过标注的内置样例应用"
+    ],
+    "verification": [
+      "node --test tests\\comfyuiProvider.test.ts tests\\comfyuiAppNodes.test.ts tests\\apiSettingsTheme.test.ts tests\\advancedProviders.test.ts tests\\advancedProviderFrontend.test.ts",
+      "node -c backend\\src\\providers\\comfyui.js",
+      "npm run type-check",
+      "npm run build"
+    ]
+  },
+  "remainingRoadmapContinuation": {
+    "version": "2.0.5",
+    "status": "implemented",
+    "notesFile": "docs/roadmap-priority-notes.md",
+    "description": "继续收口除暂缓项外的剩余 roadmap：云端上传 COS/OSS 可诊断性、RH 工具箱快捷入口底座、宫格编辑字幕条。",
+    "scope": [
+      "云端上传新增 classifyCloudUploadError，将 COS/OSS 签名/密钥、Bucket/Region/Endpoint、权限、网络和素材解析错误转成可执行中文提示，并由上传路由返回 code/hint/statusCode。",
+      "RH 工具箱新增 buildRhToolboxQuickActions，按 image/video/text/audio surface 生成快捷入口矩阵；节点内显示快捷接入位，启用工具可跳转运行，未配置模板显示待配置。",
+      "宫格编辑新增字幕条第一版：节点支持字幕开关、字幕高度、条底色、字色和单格字幕输入；后端 grid-compose 为单格预留字幕区并输出带字幕 PNG。"
+    ],
+    "sourceFiles": [
+      "backend/src/cloudUploads/uploader.js",
+      "backend/src/routes/cloudUploads.js",
+      "src/utils/rhToolbox.ts",
+      "src/components/nodes/RHToolboxNode.tsx",
+      "src/utils/gridEditor.ts",
+      "src/components/nodes/GridEditorNode.tsx",
+      "backend/src/routes/imageOps.js"
+    ],
+    "developerRule": "后续继续做非暂缓项时，优先复用本轮底座：云上传错误统一走 classifyCloudUploadError；图像/视频/文本/音频节点接 RH 快捷按钮时走 buildRhToolboxQuickActions，不按工具名硬编码；宫格编辑新增标题/模板时继续扩展 gridEditor utils 与 grid-compose 协议，不在节点和后端写两套字段。",
+    "next": [
+      "图像/视频/文本/音频节点内真正嵌入 RH 快捷按钮，并处理替换/追加输出策略。",
+      "云端上传批量上传、上传结果写入资源库 metadata、预签名/Markdown 复制。",
+      "宫格编辑单格裁切/平移/旋转、分镜标题、资源库模板。"
+    ],
+    "verification": [
+      "node --test tests\\cloudUploads.test.ts tests\\rhToolbox.test.ts tests\\gridEditor.test.ts",
+      "node -c backend\\src\\cloudUploads\\uploader.js",
+      "node -c backend\\src\\routes\\cloudUploads.js",
+      "node -c backend\\src\\routes\\imageOps.js",
+      "npm run type-check",
+      "npm run build"
+    ]
+  },
   "packaging": {
     "description": "Electron NSIS 桌面端打包链路(v1.2.1 起标准化, 严禁未明确指令主动打包)。完整产物拓扑: app.asar(electron/{main,loader,preload}.cjs + node_modules) + app.asar.unpacked(node_modules/sharp + @img) + resources/backend-enc/*.t8c(extraResources, asar 外) + resources/frontend(extraResources, asar 外)。前端版本号由 vite define 注入 __APP_VERSION__、Sidebar 左下角自动同步。",
     "scripts": {
       "encrypt": "cross-env ELECTRON_RUN_AS_NODE=1 electron electron/encrypt.cjs (必须用 Electron 内置 Node, 否则 V8 字节码版本不匹配)",
       "prepack:enc": "npm run build && npm run encrypt (vite 前端产物 + bytenode .jsc + T8ENC1 加密 → build/backend-enc/*.t8c)",
       "dist:dir": "npm run prepack:enc && electron-builder --win --x64 --dir && node electron/_post_build.cjs (只出 win-unpacked 目录, 不打 NSIS)",
-      "dist": "npm run prepack:enc && electron-builder --win --x64 && node electron/_post_build.cjs (出最终 T8-PenguinCanvas-Setup-${version}.exe)"
+      "dist": "npm run prepack:enc && electron-builder --win --x64 && node electron/_post_build.cjs (出最终 T8-PenguinCanvas-Setup-${version}.exe)",
+      "dist:release": "node scripts/dist-release.cjs (注入 T8_REQUIRE_AI_WATERMARK_RUNTIME=1、T8_REQUIRE_PARSEHUB_RUNTIME=1 与 T8_REQUIRE_UPDATE_ARTIFACTS=1，本地构建并上传 GitHub Release 自动更新资产)",
+      "release:github": "node scripts/release-github.cjs (复用当前 dist_electron 产物创建/更新 GitHub Release)",
+      "release:verify": "node scripts/verify-github-release.cjs (校验 GitHub Release 是否包含 installer/blockmap/latest.yml)"
     },
     "runtimeEnvVars": {
       "T8PC_PACKAGED": "1=打包模式 / 0=开发模式 (由 main.cjs 在 startBackend 注入)",
       "T8PC_USER_DATA": "app.getPath('userData') 路径 = %APPDATA%/t8-penguin-canvas, 后端数据/输入/输出/缩略图全部位于此",
       "T8PC_FRONTEND_DIST": "打包模式 = path.join(process.resourcesPath, 'frontend'); 开发模式 = <project>/dist",
-      "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>"
+      "T8PC_RES": "打包模式 = process.resourcesPath; 开发模式 = <project>",
+      "T8_PARSEHUB_PYTHON": "可选，覆盖聚合解析节点使用的 Python 3.12 解释器路径",
+      "T8_PARSEHUB_LIB_PATHS": "可选，覆盖 ParseHub Python 依赖搜索路径；正式包默认使用 resources/tools/parsehub-pythonlibs"
     },
     "version": "2.1.0",
     "semverVersion": "2.1.0",
-    "versionNote": "v2.1.0 fork 合并 upstream v1.9.2→v1.9.7：吸收宫格编辑节点、扩展平台与即梦 CLI 生成链路、ModelScope LoRA、RH工具箱与制作器、ComfyUI 本地工作流/超市/制作工具、足球小将主题、云端上传目标、主生成节点 3600 秒轮询、LLM 视频输入增强、画布对齐防堆叠、即梦 CLI Seedance 多素材参考；upstream「Harden public release」删除充值功能（recharge.js / RechargeModal.tsx）fork 一并接受。fork 自有 Geeknow LLM/图像、七牛/Grsai/Geeknow 高级 Provider 迁移全部保留（顺延为 phase138→141）。按 fork 版本策略递增至 2.1.0（领先 upstream v1.9.7/v1.9.9）。",
+    "versionNumberPolicy": "T8 版本号仍采用 x.y.z 三段，但每一段只允许 0-9；任一段到 9 后下一次发布必须向左进位，禁止任一段出现两位数字。例：1.9.9 的下一版必须是 2.0.0。Fork 版本策略：fork 永远领先 upstream 至少一个版本号。",
+    "versionNote": "v2.1.0 fork 合并 upstream v1.9.2→v2.0.5：吸收宫格编辑节点、扩展平台与即梦 CLI 生成链路、ModelScope LoRA、RH工具箱与制作器、ComfyUI 本地工作流/超市/制作工具、足球小将主题、云端上传目标、主生成节点 3600 秒轮询、LLM 视频输入增强、画布对齐防堆叠、即梦 CLI Seedance 多素材参考；upstream v1.9.9~v2.0.5 新增内容：updater panorama + AggregateParser + Panorama3D + PortraitMaster 增强 + parseHubBridge.py + 应用更新检测 + Canvas 性能护栏 + SmartImage + DeletableEdge + PromptEditor 源码 + AggregateParser 鉴权 + parseAuth.ts + electron updater 扩展 + AI 水印 runtime 加固 + 成就系统 + ComfyUI Maker 扩展 + GridEditor/PortraitMaster 优化；upstream「Harden public release」删除充值功能（recharge.js / RechargeModal.tsx）fork 一并接受。fork 自有 Geeknow LLM/图像、七牛/Grsai/Geeknow 高级 Provider 迁移全部保留。按 fork 版本策略保持 2.1.0（领先 upstream v2.0.5）。",
     "installer": "本次为源码合并发布，未重新打包 Electron。如需离线安装包，执行 npm run dist 并遵循 fork-maintenance-guide.md 验收清单；正式用户包必须包含 tools/remove-ai-watermarks-runtime sidecar 与 tools/ffmpeg-runtime/ffmpeg.exe，并通过 _post_build.cjs 校验。",
+    "updaterInstallMode": "自动更新下载完成后不得静默安装：main.cjs 必须设置 autoInstallOnAppQuit=false，显式安装调用 quitAndInstall(false,true)；electron/build-resources/installer.nsh 通过 SetSilent normal 让新版 NSIS 安装器即使收到旧客户端传入的 /S 也尽量切回前台安装向导。",
     "publicReleasePolicy": {
       "github": "GitHub 公开源码只保留通用画布、生成节点、扩展平台、资源库、主题、ComfyUI/RH 工具箱、云端上传等能力；本地私有计费/支付/充值能力不得进入公开仓库。",
       "neverStage": [
@@ -41,17 +153,130 @@
       "运行 npm run encrypt 前确认已 npm install bytenode 且使用 Electron 内置 Node",
       "backend/src/ 任何文件修改后必须重新 npm run encrypt 再打包",
       "main.cjs 的窗口标题 / log 窗口 / IPC version 三处版本号，以及 backend/src/config.js APP_VERSION 必须与 package.json 同步",
-      "_post_build.cjs 验证后端 .t8c 必存在: server/config + routes/{canvas,settings,proxy,externalProviders,files,imageOps,resources,themes,eagle,aiWatermark,cloudUploads} + providers/{registry,mediaResolver,llmMedia,adapters,openaiCompatible,modelscope,volcengine,comfyui,jimengCli} + cloudUploads/{settings,uploader} + tools/aiWatermark/{runner,media} + utils/duckPayload",
+      "_post_build.cjs 验证后端 .t8c 必存在: server/config + routes/{canvas,settings,proxy,externalProviders,files,imageOps,resources,themes,eagle,aiWatermark,cloudUploads,parseHub,achievements} + achievements/store + providers/{registry,mediaResolver,llmMedia,adapters,openaiCompatible,modelscope,volcengine,comfyui,jimengCli} + cloudUploads/{settings,uploader} + tools/aiWatermark/{runner,media} + utils/duckPayload/parseHubBridge",
       "_post_build.cjs 必须验证 providers/llmMedia.t8c 与 resources/tools/ffmpeg/ffmpeg.exe；LLM 视频输入默认使用内置 ffmpeg sidecar 按整段视频均匀抽取可配置数量的关键帧发送给 LLM，native-base64 / compressed-base64 模式才缩放压缩后转原生 video_url Base64，用户包不得依赖系统 PATH 自带 ffmpeg",
       "_post_build.cjs 验证 resources/frontend/index.html + assets/ 必存在",
+      "_post_build.cjs 必须检查 resources/shared/achievementManifest.json；成就后端加密包会从该共享 manifest 读取规则，Electron extraResources 不能漏带 shared/achievementManifest.json",
       "_post_build.cjs 必须让 src/assets/theme-music/*.mp3 / *.mid 经 Vite 输出到 resources/frontend/assets，主题音乐默认静音且随前端资源一起打包",
       "_post_build.cjs 必须检查 resources/tools/remove-ai-watermarks sidecar runtime slot；普通源码构建缺少 runtime 时只警告，正式用户包设置 T8_REQUIRE_AI_WATERMARK_RUNTIME=1 后缺少 remove-ai-watermarks.exe / Scripts/remove-ai-watermarks.exe / python.exe 等入口必须失败",
+      "_post_build.cjs 必须检查 resources/tools/parsehub-bridge/parsehub_bridge.py、resources/tools/parsehub-pythonlibs/parsehub、backend-enc/routes/parseHub.t8c 与 backend-enc/utils/parseHubBridge.t8c；正式发布脚本设置 T8_REQUIRE_PARSEHUB_RUNTIME=1，缺少 ParseHub 依赖时必须失败",
       "_post_build.cjs 必须检查 RH工具箱制作器不得进入用户包；resources/frontend 内若出现 RHToolboxMakerNode、RH工具箱制作器 或 rh-toolbox-maker，打包后置检查必须失败",
       "去AI水印 full runtime 不提交 Git；如需离线用户包，先把 Python/Torch/remove-ai-watermarks[gpu,detect,trustmark,lama] sidecar 放入 tools/remove-ai-watermarks-runtime，再执行 npm run dist",
       "_post_build.cjs 自动清除任何意外混入的 resources/{app,backend}/src 明文目录",
       "GitHub 公开推送必须排除 roadmap.md、skill.md 与所有本地私有计费/支付/充值实现；执行 git add 前后都要用 publicReleasePolicy.prePushScan 的关键字检查 staged diff",
       "打包完成后必须实测启动 win-unpacked/T8-PenguinCanvas.exe 检查日志: 环境=production / 数据目录=AppData/t8-penguin-canvas / GET / 200",
       "打包成功后不上传 dist_electron 和 build 目录到 git (已在 .gitignore)"
+    ]
+  },
+  "canvasPerformance": {
+    "version": "2.0.5",
+    "description": "大画布启动、图片预览和拖动画布性能热修与后续开发规范。",
+    "imagePreviewPipeline": {
+      "frontend": "高频节点预览统一使用 SmartImage + previewImageUrl，本地 /files/input 与 /files/output 图片接近视口后才请求 /api/files/thumbnail，原始素材 URL 保留在 data-full-src 与拖拽/下载/下游数据中。",
+      "backend": "backend/src/routes/files.js 提供 GET /api/files/thumbnail?url=&size=，用 sharp 生成 webp 缩略图并缓存到 THUMBNAILS_DIR，Cache-Control=immutable；同一 target 通过 thumbnailInflight 去重，生成并发由 T8PC_THUMBNAIL_CONCURRENCY 控制，默认 2、最高 4。",
+      "exceptions": "裁剪、去水印框选、图片编辑、图片对比等依赖原图像素或细节的视图继续使用原图。"
+    },
+    "edgeMotion": {
+      "themes": ["soccer-hero", "slamdunk"],
+      "policy": "体育主题连线动画在视口拖动、节点拖动或边数达到阈值时写入 data-t8-edge-motion=reduced，禁用 edge path 动画、filter 与运动球 SVG；DeletableEdge 只在当前体育主题且边数较低时渲染对应运动球。"
+    },
+    "startup": {
+      "devStrictMode": "开发环境默认不包 React StrictMode，设置 VITE_T8_STRICT_MODE=1 可恢复双挂载诊断。",
+      "appShellLazyLoad": "src/App.tsx 必须懒加载 Canvas 与非首屏弹窗/抽屉，Canvas 内 nodeTypes 通过 lazyCanvasNode 动态导入节点组件；首屏只加载外壳、侧栏、Canvas 骨架和当前画布实际出现的节点类型。",
+      "viteDevWarmup": "vite.config.ts 对 react/react-dom/@xyflow/react/lucide-react/zustand 做 optimizeDeps.include，并用 server.warmup 预热 main/App/Canvas 与 Image/Upload/Output 常用节点，避免第一次打开页面才集中 transform。",
+      "autosave": "节点拖动期间自动保存跳过中间帧，拖动结束后触发一次最终快照保存；加载画布时只做一次基线 JSON.stringify，旧快照节点数单独缓存，避免重复 parse/stringify 大画布。"
+    },
+    "developmentContract": {
+      "nodes": [
+        "新增节点只要在画布内展示本地图片预览，必须使用 SmartImage 或 previewImageUrl；只有裁剪、编辑、对比、去水印框选、像素测量等依赖原图细节或 naturalWidth/naturalHeight 的界面可直接加载原图。",
+        "节点 data 中必须保存原始素材 URL，缩略图 URL 只允许用于 img/src 展示；拖拽、下载、上传到云端、资源库入库、下游传递和生成请求不得把缩略图当原图。",
+        "图片列表默认 lazy/async，固定最大预览尺寸；不要在节点 render 中同步创建 Image、Canvas、Video、Audio 或执行大 JSON/stringify/排序/拓扑扫描。",
+        "新增业务节点必须在 Canvas.tsx 通过 lazyCanvasNode(() => import('./nodes/XxxNode')) 注册，除 PlaceholderNode、边、极少量基础壳组件外，禁止把重节点组件静态 import 到 Canvas 首屏模块图。",
+        "节点内部需要读取上游素材时优先复用 useUpstreamMaterials、useOrderedMaterials、MaterialPreviewSection 等现有聚合组件，避免每个 render 全量遍历 ReactFlow nodes/edges。",
+        "长任务、轮询、RAF、定时器、全局事件、ResizeObserver、MutationObserver 必须只在必要状态开启，并在 unmount/状态切换时清理；隐藏、未运行、未 ready 的节点不得持续占用 RAF。",
+        "节点拖动、画布移动、批量选择期间不得触发昂贵副作用；会改变节点尺寸的媒体加载应有稳定容器、aspect-ratio 或 max-height，避免加载后大面积布局抖动。"
+      ],
+      "themes": [
+        "主题动效必须可降级：边数多、viewportMoving、nodeDragging、prefers-reduced-motion 或 data-t8-edge-motion=reduced 时，必须停用无限动画、filter、drop-shadow、运动粒子和 SVG animateMotion。",
+        "主题 CSS 不得给所有节点、所有边或大面积背景套高成本 filter/backdrop-filter/box-shadow 动画；强风格效果应放在少量静态背景层或 hover/selected 状态。",
+        "画布背景水印、纹理和主题地图必须 pointer-events:none、低 z-index、轻量静态化；不得覆盖图片/视频/文本预览，也不得随每帧 transform 重绘复杂滤镜。",
+        "MiniMap、Controls、HUD、右键菜单和浮动条必须跟随全局变量适配主题；新增主题要在 100+ 节点、36+ 边、拖动画布、拖动节点场景检查不卡顿。",
+        "主题音乐、视频背景、粒子、运动球等装饰默认静音/静态/按需启用，不能在进入画布时批量解码大媒体或创建大量动画实例。"
+      ],
+      "verification": [
+        "新增节点含图片预览时必须补或更新 tests/imageLoadingPerformance.test.ts，锁定 SmartImage/previewImageUrl 使用。",
+        "新增重节点、弹窗或抽屉时必须补或更新 tests/imageLoadingPerformance.test.ts，锁定 App/Canvas 的 lazy 边界，避免开发环境首屏重新退化为全量模块加载。",
+        "新增主题动效必须至少在足球小将/灌篮高手同类压力下验证 data-t8-edge-motion=reduced 生效，并检查 prefers-reduced-motion。",
+        "发布前至少跑 node --test tests\\imageLoadingPerformance.test.ts、npm run type-check、npm run build；若改 3D/Three.js 还要跑 tests\\panorama3d.test.ts。"
+      ]
+    },
+    "verification": [
+      "node --test tests\\imageLoadingPerformance.test.ts",
+      "node --test tests\\panorama3d.test.ts",
+      "node -c backend\\src\\routes\\files.js",
+      "npm run type-check",
+      "npm run build"
+    ]
+  },
+  "achievementSystem": {
+    "version": "2.0.4",
+    "status": "first-stage-implemented",
+    "description": "九套系统主题独立成就、有效创作时长、隐藏模式勋章与奖励影片占位系统。奖励影片素材暂未提供，影片馆使用“待解锁 / 影片素材待提供”占位文案。",
+    "manifest": {
+      "sharedJson": "shared/achievementManifest.json",
+      "frontendWrapper": "src/data/achievementManifest.ts",
+      "themeTracks": ["tech", "pixel", "op", "rh", "naruto", "eva", "yyh", "slamdunk", "soccer-hero"],
+      "perThemeRules": "每个主题 5 条时长线(10m/1h/3h/10h/30h) + 3 条首批特色成就；定义由 manifest 展开，前后端共用同一 JSON，避免规则漂移。"
+    },
+    "storage": {
+      "file": "data/achievements.json",
+      "route": "/api/achievements",
+      "privacy": "只保存主题、节点类型、隐藏模式 kind、计数与最近摘要事件；不得保存 prompt、分享链接、资源 URL 或用户输入全文。"
+    },
+    "frontend": {
+      "store": "src/stores/achievements.ts",
+      "tracker": "src/components/AchievementTracker.tsx",
+      "entry": "src/components/AchievementButton.tsx",
+      "drawer": "src/components/AchievementDrawer.tsx",
+      "toast": "src/components/AchievementToast.tsx",
+      "effectiveTimePolicy": "应用前台、document visible、窗口 focus、最近 90 秒内有 pointer/key/wheel/drag 操作才每 15 秒上报 theme.active_tick；单次最多累计 30 秒。"
+    },
+    "events": [
+      "theme.active_tick",
+      "theme.switched",
+      "node.created",
+      "node.run_success",
+      "panorama.generated",
+      "parsehub.resolved",
+      "hidden_mode.enabled",
+      "hidden_mode.used",
+      "resource.saved",
+      "workflow.saved"
+    ],
+    "hiddenModes": {
+      "rh-duck": "NodeActionBar 长按 RUN 开启；UploadNode 鸭鸭解码成功产出时记录 used。",
+      "yyh-portrait": "NodeActionBar 长按 RUN 开启；PortraitMasterNode 隐藏模式成功输出 Prompt 时记录 used，不能绕过现有未成年保护。"
+    },
+    "filmPlaceholders": {
+      "implemented": true,
+      "lockedText": "待解锁",
+      "unavailableText": "影片素材待提供",
+      "nextPhase": "用户提供影片后再接 scripts/pack-achievement-films.cjs、tools/achievement-media/films、后端解密缓存与 Range 播放接口。"
+    },
+    "developmentContract": [
+      "新增系统主题必须在 shared/achievementManifest.json 增加主题轨道、时长线可自动展开，特色成就必须用 condition 配置表达，避免散落 if 分支。",
+      "新增隐藏模式必须同时补 hidden_mode.enabled 与 hidden_mode.used 两个真实事件源；开启事件只在切到启用状态时记录，关闭不刷成就。",
+      "新增节点若要参与特色成就，只记录 nodeType / kind / category 等非内容字段；严禁把 prompt、短链、Cookie、资源 URL、用户文件名全文写入 achievements.json。",
+      "成就 UI 必须保持轻量：顶部入口、右侧抽屉、小 toast，不弹全屏强打断，不阻塞节点运行或批量运行。",
+      "修改成就规则、事件、UI 或后端路由后至少跑 node --test tests\\achievements.test.ts、node -c backend\\src\\achievements\\store.js、node -c backend\\src\\routes\\achievements.js、npm run type-check、npm run build。"
+    ],
+    "verification": [
+      "node --test tests\\achievements.test.ts",
+      "node -c backend\\src\\achievements\\store.js",
+      "node -c backend\\src\\routes\\achievements.js",
+      "node -c backend\\src\\server.js",
+      "npm run type-check",
+      "npm run build"
     ]
   },
   "layout": {
@@ -99,6 +324,9 @@
         "强风格官方主题可为 light/dark 分别提供水印资产；若深色水印包含黑底终端、警告面板或厚重贴片，浅色模式必须改用透明底线稿 / 印章 / HUD 版本，避免浅色画布出现突兀深色块",
         "框选/节点右键菜单、空白右键快速添加菜单、拖线候选菜单和选中节点右上角 RUN/关闭浮动条都属于全局主题控件，必须使用 t8-context-menu / t8-node-action-bar 语义类和 visuals.style 作为视觉判断来源，禁止仅按 legacyStyle=像素/科技分支导致 OP、火影、EVA 等主题残留白底或绿色按钮",
         "全局菜单新增动作时必须检查 light/dark 与九套官方主题的可读性；小图标和菜单图标仍需固定尺寸，避免 OP/像素风胶囊按钮把资源库、图像对比、批量下载等入口撑大",
+        "主题动效必须接入画布 busy/reduced 状态：当 html[data-t8-edge-motion='reduced']、.t8-viewport-moving、.t8-node-dragging 或 prefers-reduced-motion 生效时，必须关闭无限边动画、filter、drop-shadow、粒子、运动球与 SVG animateMotion",
+        "新增强风格主题必须做大画布性能验收：至少 100 个节点、36 条连线、拖动画布、拖动节点、MiniMap 与 Controls 可见场景；不得让装饰层、背景水印、连线动效或媒体预加载造成明显卡顿",
+        "主题背景、水印和地图纹理必须优先静态化、轻量化和低成本绘制；禁止对全画布或所有边/节点持续应用高成本 backdrop-filter、blur、drop-shadow、mix-blend-mode 动画",
         "节点 NodeID 徽标属于 ReactFlow 节点外层通用浮层，必须使用 .t8-node-serial-badge 全局样式；位置必须由 useNodeSerialBadgeAnchor() 测量真实可见节点卡片右上角并写入 --t8-node-serial-anchor-left/top，主题只能覆盖 --t8-node-serial-offset-x/y，禁止按标题图标宽度硬编码 left/top 或直接依赖 ReactFlow 外层宽度，避免不同节点、不同主题、长标题和 ResizeObserver 测量差异导致角标遮挡或漂离节点。"
       ],
       "music": {
@@ -275,12 +503,12 @@
   "repository": "https://github.com/T8mars/T8-penguin-canvas",
   "aiWatermarkRuntime": {
     "upstream": "https://github.com/wiltodelta/remove-ai-watermarks",
-    "upstreamVersion": "0.8.7",
-    "upstreamCommit": "b25276c",
+    "upstreamVersion": "0.8.9",
+    "upstreamCommit": "4a6cd71",
     "upstreamLicense": "MIT",
     "nodeType": "remove-ai-watermark",
     "category": "auxiliary",
-    "fullInstall": "remove-ai-watermarks[gpu,detect,trustmark,lama]",
+    "fullInstall": "remove-ai-watermarks[gpu,detect,trustmark,lama,restore]",
     "runtimeResolutionOrder": [
       "T8_REMOVE_AI_WATERMARKS_RUNTIME sidecar root",
       "Electron resources/tools/remove-ai-watermarks",
@@ -308,12 +536,133 @@
       "不要复制上游算法源码到 T8；通过 CLI/Python 包能力探测消费上游。",
       "上游新增 mark 时优先依赖 watermark_registry.mark_keys() 动态暴露，前端只补充显示文案或兜底。",
       "上游新增 mode/options 时扩展 runner 参数映射、节点 UI 和 tests/aiWatermarkRunner.test.ts，不破坏旧画布数据字段。",
-      "0.8.7 起 invisible 的文字/人脸保护改为 opt-in：T8 只在用户开启时发送 --protect-text / --protect-faces，禁止再发送旧 --no-protect-* 参数。",
-      "0.8.7 起未填写 strength 时由上游按 C2PA/SynthID 来源自适应 OpenAI/Google/未知强度，T8 UI 默认留空，不再诱导用户固定 0.30。",
+      "0.8.9 起 invisible 的文字/人脸保真改为 --pipeline controlnet + --restore-faces；T8 UI 不再暴露旧 protectText/protectFaces 主路径，但 runner 对 0.8.7 runtime 继续版本感知兼容旧 --protect-text / --protect-faces。",
+      "0.8.9 起 T8 透出 --auto、--adaptive-polish、--min-resolution、--controlnet-scale、--unsharp 与 GFPGAN restore-faces；auto 模式下不强行发送默认 --pipeline，让上游按内容自动选择。",
+      "未填写 strength 时由上游按 C2PA/SynthID 来源自适应 OpenAI/Google/未知强度，T8 UI 默认留空，不再诱导用户固定 0.30。",
       "每次同步上游后必须重新跑 status/capability、代表性 process smoke、node --test tests/*.test.ts、npm run build 和 Electron 打包后置检查。"
     ]
   },
-  "totalNodes": 46,
+  "parseHubRuntime": {
+    "upstream": "https://github.com/z-mio/parsehub",
+    "upstreamVersion": "2.0.24",
+    "upstreamLicense": "MIT",
+    "nodeType": "aggregate-parser",
+    "category": "toolbox",
+    "supportedPlatforms": [
+      "Twitter / X",
+      "Instagram",
+      "YouTube",
+      "Facebook",
+      "Threads",
+      "Bilibili",
+      "抖音",
+      "TikTok",
+      "微博",
+      "小红书",
+      "贴吧",
+      "微信公众号",
+      "快手",
+      "酷安",
+      "皮皮虾",
+      "最右",
+      "小黑盒"
+    ],
+    "runtimeResolutionOrder": [
+      "T8_PARSEHUB_PYTHON + T8_PARSEHUB_LIB_PATHS",
+      "Electron resources/tools/parsehub-runtime",
+      "Electron resources/tools/remove-ai-watermarks/python/python.exe + resources/tools/parsehub-pythonlibs",
+      "开发环境 tools/remove-ai-watermarks-runtime/python/python.exe + tools/parsehub-pythonlibs",
+      "系统 python / py -3.12 + 本地 ParseHub/src"
+    ],
+    "electronPackaging": {
+      "bridgeSlot": "tools/parsehub-bridge",
+      "dependencySlot": "tools/parsehub-pythonlibs",
+      "packagedBridge": "resources/tools/parsehub-bridge",
+      "packagedDependencies": "resources/tools/parsehub-pythonlibs",
+      "strictEnv": "T8_REQUIRE_PARSEHUB_RUNTIME=1",
+      "refreshCommand": "tools\\remove-ai-watermarks-runtime\\python\\python.exe -m pip install --upgrade --target tools\\parsehub-pythonlibs .\\ParseHub"
+    },
+    "complianceRule": [
+      "前端节点必须保留合规确认复选框和免责提醒；后端 /api/parsehub/resolve 必须要求 acceptedCompliance=true。",
+      "聚合解析默认使用 download 模式保存到本地 output/parsehub；parse 只解析远端地址作为高级/调试模式保留。",
+      "抖音等平台返回的远端 CDN 地址可能带防盗链、Cookie 或临时签名，浏览器直接打开 403 不一定代表解析错误；面向普通用户应优先使用本地输出 URL。",
+      "Cookie / 代理为可选高级项，不写入日志，不自动保存到全局设置。"
+    ],
+    "upstreamUpdateRule": [
+      "ParseHub/ 是本地外部上游 clone，默认不 stage / commit / push。",
+      "上游更新后先同步 ParseHub clone，再重新执行 refreshCommand 刷新 tools/parsehub-pythonlibs。",
+      "若 ParseHub 返回结构变化，优先只改 tools/parsehub-bridge/parsehub_bridge.py 与 backend/src/utils/parseHubBridge.js 的归一化层，不改画布节点协议。",
+      "每次更新至少跑 bridge status 自检、node --test tests/aggregateParser.test.ts、npm run type-check、npm run build；正式发布还需 dist:release 后置检查通过。"
+    ]
+  },
+  "achievementSystemRoadmap": {
+    "status": "planned",
+    "reference": "roadmap.md::主题成就 / 勋章 / 加密影片解锁系统路线（规划中，2026-06-04）",
+    "scope": "九套系统主题分别累计有效使用时长、隐藏模式探索、节点运行、资源库沉淀，并解锁主题勋章与影片馆内容。",
+    "themeTracks": [
+      "tech",
+      "pixel",
+      "op",
+      "rh",
+      "naruto",
+      "eva",
+      "yyh",
+      "slamdunk",
+      "soccer-hero"
+    ],
+    "dataModel": {
+      "localFile": "data/achievements.json",
+      "manifest": "src/data/achievementManifest.ts",
+      "profile": "本机匿名 profileId，仅本地使用；默认不接账号云同步。",
+      "themeStatsFields": [
+        "activeSeconds",
+        "lastActiveAt",
+        "sessions",
+        "nodesCreated",
+        "runsSucceeded",
+        "resourcesSaved",
+        "hiddenModeActivations"
+      ],
+      "unlockState": [
+        "unlockedAchievements",
+        "claimedMedals",
+        "unlockedFilms",
+        "preferences"
+      ]
+    },
+    "activeTimeRule": [
+      "只在应用窗口前台、document visible、最近 90 秒有 pointer/key/drag/wheel/canvas 操作时累计有效时长。",
+      "心跳建议 15-30 秒合并上报，单次最多累计 30 秒，避免睡眠或后台一次补刷。",
+      "切换主题时先结算旧 themeTrack，再进入新主题。"
+    ],
+    "hiddenModeHooks": [
+      "RH 主题 UploadNode 鸭鸭解码隐藏模式：长按 RUN 开启，解码成功后记录 hidden_mode.used。",
+      "幽游白书主题肖像大师隐藏模式：长按 RUN 开启，成功输出隐藏肖像 prompt 后记录 hidden_mode.used。",
+      "成就事件只记录类型、主题、计数和节点类型，不记录用户链接、Cookie、完整 prompt 或隐私内容。"
+    ],
+    "filmUnlockPlan": {
+      "sourcePolicy": "影片原始文件放 private/achievement-films-src/ 并保持 ignored，不进入公开仓库。",
+      "encryptedSlot": "tools/achievement-media/films/*.t8film + manifest.json",
+      "packScript": "scripts/pack-achievement-films.cjs",
+      "encryption": "AES-256-GCM，manifest 记录 filmId、主题、解锁规则、sha256、mime、时长与封面。",
+      "playback": "解锁后后端解密到用户数据目录临时缓存，并复用 Range 播放逻辑供 video 标签拖动进度条。",
+      "strictPackagingEnv": "T8_REQUIRE_ACHIEVEMENT_MEDIA=1"
+    },
+    "retentionIdeas": [
+      "今日主题任务：每个主题给 1-3 个轻任务，只奖励成就经验，不阻塞画布。",
+      "周常创作护照：一周内在 3 个不同主题各完成一次创作，解锁跨主题勋章或影片碎片。",
+      "影片碎片机制：高价值影片用主题时长 + 特色成就 + 连续使用组合解锁，降低纯挂机收益。",
+      "本地创作回顾：用户打开成就页时生成周报，展示主题时长、产出数量、常用节点和已获勋章。"
+    ],
+    "acceptance": [
+      "九套主题分别累计时长，后台/无焦点/无交互不刷时长。",
+      "每个主题至少 5 个时长成就、3 个特色成就、1 个主题大师勋章。",
+      "未解锁影片无法播放；解锁后可播放、拖动进度条、继续播放和清缓存。",
+      "加密影片原始素材不得进入 git、build 明文目录或 Electron resources。",
+      "自动更新到带新影片的版本后，旧成就数据仍能解锁并播放新资源。"
+    ]
+  },
+  "totalNodes": 48,
   "phases": {
     "phase0": {
       "label": "基础设施",
@@ -938,7 +1287,7 @@
       "label": "创作资源库 (v1.3.4)",
       "status": "complete",
       "items": [
-        "新增顶部「资源库」入口，打开右侧抽屉；图像 / 视频 / 音频三类独立 Tab、独立分类、搜索、收藏筛选与资源卡片管理",
+        "新增顶部「资源库」入口，打开右侧抽屉；图像 / 视频 / 音频 / 全景等类型独立 Tab、独立分类、搜索、收藏筛选与资源卡片管理",
         "任意上传或生成素材预览右键新增「加入资源库」菜单，可选择现有分类或新建分类；入库时复制一份到资源库目录，不依赖原 input/output 文件长期存在",
         "设置页新增 resourceLibraryPath，默认 D:\\zhenzhen\\resources；资源文件与 resource_library.json 元数据都保存在该路径，路径不存在时自动创建，方便更换版本后继续读取",
         "后端新增 backend/src/routes/resources.js，提供 /api/resources/categories、/api/resources/items、/api/resources/file/:id、/api/resources/thumb/:id；支持本地 input/output 复制、远端 URL 拉取、sha256 去重、删除资源库副本与图片缩略图生成",
@@ -1698,7 +2047,7 @@
         "资源库抽屉新增「工作流」TAB，支持独立分类、新建分类、搜索、收藏、重命名、改分类、删除和一键插入当前画布；工作流卡片显示节点数、连线数、主要节点类型和轻量拓扑预览。",
         "插入工作流复用节点片段实例化逻辑，会重映射节点 id / 连线 id、保持相对布局、避开已有节点，并按当前画布 nextNodeSerialId 重新分配 NodeID，避免复用来源画布编号。",
         "带内部连线的多节点发送现在会默认并自动优先使用 node-fragment；发送历史不会再把这类工作流选择恢复成 output/material-set/upload 等素材模式，避免 3 个节点发到目标画布变成 2 个输出素材节点。",
-        "新增 src/utils/workflowResource.ts、src/utils/sendMode.ts、tests/workflowResource.test.ts 和 tests/sendMode.test.ts，规范 t8-workflow-fragment 清洗/摘要/恢复、拓扑预览与发送模式优先级；ResourceKind 扩展为 image / video / audio / set / pose / workflow，ResourceMediaKind 仍只允许普通媒体。",
+        "新增 src/utils/workflowResource.ts、src/utils/sendMode.ts、tests/workflowResource.test.ts 和 tests/sendMode.test.ts，规范 t8-workflow-fragment 清洗/摘要/恢复、拓扑预览与发送模式优先级；ResourceKind 扩展为 image / video / audio / panorama / set / pose / workflow，ResourceMediaKind 仍只允许普通媒体。",
         "验证：node --test tests/sendMode.test.ts tests/workflowResource.test.ts、node --check backend/src/routes/resources.js、npm run build 通过。"
       ]
     },
@@ -1791,10 +2140,10 @@
       "items": [
         "remove-ai-watermark 节点固定桥接 wiltodelta/remove-ai-watermarks，上游算法不复制到 T8；T8 负责画布节点、媒体解析、CLI/Python 调用、输出转存和错误文案。",
         "后端 runner 优先探测 T8_REMOVE_AI_WATERMARKS_RUNTIME、Electron resources/tools/remove-ai-watermarks sidecar、T8_REMOVE_AI_WATERMARKS_BIN、T8_REMOVE_AI_WATERMARKS_SRC、开发期 _external clone，再 fallback PATH CLI。",
-        "状态接口动态返回 upstream version、markKeys 与 optionalFeatures(invisible/lama/detect/trustmark)，前端 mark 列表必须以动态结果为准并以 auto/gemini/doubao/jimeng 兜底。",
-        "完整能力依赖 remove-ai-watermarks[gpu,detect,trustmark,lama]、CUDA Torch、OpenCV 兼容版本和 LaMA/invisible 可选模型；缺依赖时后端必须优雅显示未安装或能力不可用，不允许炸后端。",
+        "状态接口动态返回 upstream version、markKeys 与 optionalFeatures(invisible/lama/detect/trustmark/restore/auto/controlnet/adaptivePolish)，前端 mark 列表必须以动态结果为准并以 auto/gemini/doubao/jimeng 兜底。",
+        "完整能力依赖 remove-ai-watermarks[gpu,detect,trustmark,lama,restore]、CUDA Torch、OpenCV 兼容版本和 LaMA/invisible/GFPGAN 可选模型；缺依赖时后端必须优雅显示未安装或能力不可用，不允许炸后端。",
         "隐形水印参数在 T8 层钳制安全边界：steps 至少 4，非 0 maxResolution 至少 256，strength 至少保证一个 diffusion timestep，避免上游 diffusers 空 latent 崩溃。",
-        "已同步上游 0.8.7：visible/identify 动态覆盖 Gemini、豆包、即梦可见标记；invisible 默认走上游来源自适应强度，文字/人脸保护为实验 opt-in，仅开启时发送 --protect-text / --protect-faces。",
+        "已同步上游 0.8.9：visible/identify 动态覆盖 Gemini、豆包、即梦可见标记；invisible 默认走上游来源自适应强度，并支持 auto、controlnet、min-resolution、adaptive-polish、unsharp 与 GFPGAN restore-faces；旧 0.8.7 runtime 仍版本感知兼容 protect flags。",
         "Electron 用户包若要开箱可用，必须准备 tools/remove-ai-watermarks-runtime sidecar runtime，electron-builder 会复制到 resources/tools/remove-ai-watermarks；正式发版可设置 T8_REQUIRE_AI_WATERMARK_RUNTIME=1 强制缺失即失败。",
         "上游仓库更新后只同步 registry、命令参数、mark/mode/options 与能力探测适配；新增能力必须补 tests/aiWatermarkRunner.test.ts 并更新 README/features/skill 的 MIT attribution 与打包说明。"
       ]
@@ -2099,6 +2448,161 @@
         "按 fork 版本策略递增至 2.1.0（领先 upstream v1.9.7/v1.9.9）；8 处版本号同步：package.json、vite.config.ts、backend/src/config.js、electron/main.cjs（窗口标题/日志窗/IPC version）、features.json、README.md。",
         "upstream「Harden public release」删除充值功能（backend/src/routes/recharge.js、src/components/RechargeModal.tsx）fork 侧一并接受，公开仓库不再包含计费/支付/充值实现。"
       ]
+    },
+    "phase143": {
+      "label": "Electron GitHub Release 自动更新 (upstream v1.9.8)",
+      "status": "complete",
+      "items": [
+        "Electron 主进程接入 electron-updater，打包版本启动后从 GitHub Release 检查最新版本；autoDownload 关闭，由用户在顶栏手动下载，下载完成后再重启安装。",
+        "preload 只暴露 t8pc.updater 的 status/check/download/install/onStatus 受控 IPC；渲染层不会接触 GitHub token 或本地发布脚本。",
+        "顶栏新增桌面更新入口，支持检查、发现新版本、下载进度、已下载、重启安装和错误状态；Web/开发模式不会显示无效桌面更新流程。",
+        "package.json 增加 GitHub publish 配置和 dist:release / release:github / release:verify 脚本；发布前校验 installer、.blockmap 与 latest.yml，上传后再从 GitHub Release 拉取校验。",
+        "本次版本同步到 1.9.8，并保留 3D 全景节点、肖像大师保存到资源库、即梦 CLI Seedance 多素材参考、本地私有充值 overlay 打包安全策略。"
+      ]
+    },
+    "phase144": {
+      "label": "3D 全景开发白屏与大画布图片加载热修 (upstream v1.9.9)",
+      "status": "complete",
+      "items": [
+        "修复 3D 全景节点从 /public/vendor/js/three-0.160.0.module.js 动态 import 导致 Vite 开发环境白屏 overlay 的问题；节点现在通过项目依赖 import('three') 按需加载 Three.js，避免 public 目录资源被源代码直接 import。",
+        "3D 全景自动旋转只在贴图 ready 且用户开启 panoramaAutoRotate 时启动 requestAnimationFrame，未就绪或未开启时不再持续占用渲染循环。",
+        "MaterialThumbnail、UploadNode、OutputNode 与 3D 全景导出预览图片统一增加 loading=\"lazy\" 与 decoding=\"async\"，降低大画布启动时全量缩略图同步请求和解码造成的白屏/图片迟迟不显示问题。",
+        "Electron 更新下载完成后的重启安装曾在 v1.9.9 改为 quitAndInstall(true, true) 静默安装；该策略已被 v2.0.3 前台安装向导规范覆盖，后续不得继续使用静默安装。",
+        "新增 tests/imageLoadingPerformance.test.ts 与 panorama3d 回归断言，锁定 Three.js 依赖加载方式和关键图片预览懒加载策略。",
+        "公开版本同步到 1.9.9：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次按规范打包 Electron 并作为 v1.9.8 自动更新基线的跨版本验收包。"
+      ]
+    },
+    "phase145": {
+      "label": "工具箱聚合解析节点 · ParseHub 桥接 (upstream v1.9.9)",
+      "status": "complete",
+      "items": [
+        "工具箱分类新增「聚合解析」节点，类型 aggregate-parser；用户可粘贴短链、作品链接、分享码或完整分享文案，也可连接上游 text 节点自动取分享文本。",
+        "节点 UI 强制合规确认，清晰提示版权、平台条款、隐私、DRM/付费内容与 Cookie 风险；后端 /api/parsehub/resolve 同样要求 acceptedCompliance=true，避免绕过前端直接解析。",
+        "解析能力通过 ParseHub 2.0.24 提供，覆盖 Twitter/X、Instagram、YouTube、Facebook、Threads、Bilibili、抖音、TikTok、微博、小红书、贴吧、微信公众号、快手、酷安、皮皮虾、最右、小黑盒等 17 个平台。",
+        "新增 Python bridge：tools/parsehub-bridge/parsehub_bridge.py 只读 stdin JSON、只写 stdout JSON；Node 后端 backend/src/utils/parseHubBridge.js 负责 Python runtime 发现、PYTHONPATH 注入、超时控制、结果归一和本地 output URL 映射。",
+        "新增后端路由 backend/src/routes/parseHub.js：GET /api/parsehub/status 检查运行时与平台，POST /api/parsehub/resolve 支持 parse 与 download 两种模式；后续 v2.0.3 起默认 download 保存到 output/parsehub，parse 仅作为远端地址高级模式保留。",
+        "新增前端服务 src/services/parseHub.ts 与节点组件 src/components/nodes/AggregateParserNode.tsx；运行成功后写出 outputText/textSegments/imageUrls/videoUrls/audioUrls，并为文本摘要创建或更新下游 OutputNode，媒体仍走通用 autoOutput。",
+        "Electron 打包增加 tools/parsehub-bridge 与 tools/parsehub-pythonlibs extraResources；scripts/dist-release.cjs 注入 T8_REQUIRE_PARSEHUB_RUNTIME=1，electron/_post_build.cjs 校验 bridge、parsehub 依赖、parseHub 路由和 parseHubBridge 工具的加密产物。",
+        "新增 tests/aggregateParser.test.ts，覆盖节点注册、端口、前端合规 UI、后端挂载、Electron 打包资源和 ParseHub 结果归一；已验证 bridge status 返回 ParseHub 2.0.24 / Python 3.12.9 / 17 平台，npm run type-check 与 npm run build 通过。"
+      ]
+    },
+    "phase146": {
+      "label": "主题成就 / 勋章 / 加密影片解锁系统规划 (planned)",
+      "status": "planned",
+      "items": [
+        "roadmap.md 已在本地新增主题成就路线：九套系统主题分别拥有独立使用时长、成就、勋章和影片解锁轨道；公开仓库通过 features.json.achievementSystemRoadmap 记录摘要，roadmap.md 仍按项目规则不随 GitHub 推送。",
+        "第一版成就数据建议落在 data/achievements.json，规则走 src/data/achievementManifest.ts，事件由统一 AchievementProvider / useAchievementStore 汇总，避免节点组件直接写成就状态。",
+        "有效时长只在窗口前台、页面可见、近期有用户交互时累计；心跳合并上报且单次最多累计 30 秒，避免后台、睡眠和挂机刷时长。",
+        "隐藏模式成就优先接入两条现有能力：RH 主题 UploadNode 鸭鸭解码隐藏模式、幽游白书主题肖像大师隐藏模式；事件只记录类型、主题和计数，不记录用户链接、Cookie、完整 prompt 或隐私内容。",
+        "影片由用户后续提供，原始文件规划放入 private/achievement-films-src/ 并 ignored；加密产物规划为 tools/achievement-media/films/*.t8film + manifest，打包时可通过 T8_REQUIRE_ACHIEVEMENT_MEDIA=1 严格校验。",
+        "解锁影片第一版建议后端解密到用户数据目录临时缓存，并复用资源库 Range 播放逻辑；该方案是轻量本地解锁保护，不宣称 DRM 级防破解。",
+        "留存增强规划包括今日主题任务、周常创作护照、影片碎片、主题代表作、主题大师外观奖励和本地创作回顾；所有提醒必须可关闭或弱化，不打断画布主流程。"
+      ]
+    },
+    "phase147": {
+      "label": "3D 全景节点内置 GPT Image 2 生成 (upstream dev)",
+      "status": "implemented",
+      "items": [
+        "3D 全景节点新增「连接预览 / 文生全景 / 图生全景」分段入口；连接预览优先显示上游图片，生成模式优先显示节点内生成贴图。",
+        "文生全景和图生全景统一调用现有 /api/proxy/image 异步图像链路，模型固定 gpt-image-2，比例固定 21:9，尺寸开放 1K / 2K 且默认 1K，不新增独立后端路由或 API Key。",
+        "节点内固定保留 720 度 VR 全景提示词，并在发送前写入 panoramaPromptFinal；文生模式要求用户补充场景提示词，图生模式允许只接上游或上传参考图。",
+        "生成成功后写回 panoramaSourceUrl / panoramaGeneratedUrl / panoramaPrompt / panoramaPromptFinal / panoramaGenerationMode / panoramaSizeLevel / imageUrl / imageUrls / urls，并保留最近 3 次生成历史。",
+        "节点提供复制实际提示词、下载完整全景贴图、导出当前视角、上传节点内参考图和保存到资源库「全景」类型等操作；全景资源默认带未分类、室内、室外等子分类，失败时保留旧预览不清空。",
+        "新增 panorama3d 测试覆盖固定提示词、21:9 请求结构、文生/图生校验、历史上限、组件生成入口、资源库动作和默认 21:9 / 1K data。"
+      ]
+    },
+    "phase148": {
+      "label": "全局提示词大编辑器与多媒体引用体验 (upstream v2.0.1)",
+      "status": "complete",
+      "items": [
+        "新增全局提示词大编辑器：PromptExpandModal 负责 Portal 浮层、主题适配、字数/行数、复制、完成/取消与快捷键提示；PromptTextarea 包装普通 textarea，统一放大按钮与 Alt+Enter 打开能力。",
+        "MentionPromptInput 新增 title / expandable 能力，图像、视频、SD2.0、音频、LLM、RunningHub、RH 工具箱、ComfyUI 应用商店、文本节点、预设图像节点和 3D 全景提示词框均接入放大编辑。",
+        "放大后的富文本编辑区撑满弹窗主体，保留 @ 图像 / 视频 / 音频素材候选、实际发送预览和 Ctrl+Enter 完成 / Esc 取消；候选弹窗层级高于大编辑器并按光标附近定位。",
+        "@ 素材 chip 改为固定 24px inline-block + 绝对定位 flex 内容层，图片、视频、音频三类引用在同一行基线对齐，不再因 img 或字体 glyph 产生高低错位。",
+        "新增 editor.expand-prompt 快捷键动作，默认 Alt+Enter，并纳入统一快捷键体系；后续新增提示词输入框必须优先使用 PromptTextarea 或 MentionPromptInput。",
+        "资源库全景 kind 已贯通：后端默认全景分类含未分类、室内、室外，3D 全景保存资源库写入 panorama 类型，资源库抽屉和跨画布发送按 image 媒体路径插入/发送。",
+        "即梦 CLI Seedance 修复继续保留：首帧、首尾帧、智能多帧与 9 图 / 3 视频 / 3 音频全能参考路径分流，避免全能多参误走智能多帧；相关媒体解析和测试已补。",
+        "公开版本同步到 2.0.1：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次按用户要求只推 GitHub 源码，不打包 Electron，不上传自动更新 Release 资产。"
+      ]
+    },
+    "phase149": {
+      "label": "聚合解析授权体验与 v2.0.2 自动更新包 (upstream)",
+      "status": "complete",
+      "items": [
+        "聚合解析节点把授权状态明确拆为浏览器手动模式与 Electron 桌面自动模式：普通 127.0.0.1 浏览器页面不会再暗示可跨站读取平台 Cookie，Electron 桌面端仍通过 t8pc:parse-auth IPC 使用隔离分区自动读取授权窗口 Cookie。",
+        "浏览器模式下按钮文案改为“打开平台官网 / 检查已粘贴 Cookie”，节点内提示说明 127.0.0.1 页面不能跨站读取 Cookie；保存授权会提示没有桌面端本机授权库，避免用户以为网页登录后可自动检测。",
+        "Electron 模式下保留“打开授权窗口 → 登录平台 → 检测授权 → 加密保存本机授权库 → 载入授权 / 清除 Cookie”的完整流程，授权 Cookie 不写入节点结果和日志。",
+        "聚合解析面板继续保留合规确认、Cookie 风险提示、免责警告和手动 Cookie 获取指南；Cookie 只用于本次请求或 Electron 本机授权库，不作为全局设置持久化。",
+        "新增测试锁定聚合解析节点注册、合规 UI、按钮交互区域、手动/自动授权文案、Electron IPC 暴露、ParseHub 错误分级和结果归一，避免后续迭代重新混淆手动与自动模式。",
+        "公开版本同步到 2.0.2：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次按规范打包 Electron 并发布 GitHub Release 自动更新资产。"
+      ]
+    },
+    "phase150": {
+      "label": "自动更新前台安装向导 (upstream v2.0.3)",
+      "status": "implemented",
+      "items": [
+        "自动更新下载完成后不再静默安装：electron/main.cjs 设置 autoInstallOnAppQuit=false，只有用户显式点击“打开安装向导”才触发安装。",
+        "显式安装调用 quitAndInstall(false,true)，让 NSIS 安装器以前台向导方式出现；状态文案改为“正在打开安装向导，请按提示完成安装”。",
+        "新增 electron/build-resources/installer.nsh，通过 customInit + SetSilent normal 让新版安装器即使收到旧客户端传入的 /S，也尽量恢复为前台安装向导。",
+        "顶部更新按钮把“重启安装”改为“打开安装向导”，减少用户误以为应用会后台自动完成安装的困惑。",
+        "公开版本同步到 2.0.3：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次仅修改源码，发布自动更新包需后续按 dist:release 流程执行。"
+      ]
+    },
+    "phase151": {
+      "label": "聚合解析默认保存到输出目录 (upstream v2.0.3)",
+      "status": "implemented",
+      "items": [
+        "聚合解析新建节点默认 aggregateParserMode='download'，后端 /api/parsehub/resolve 未传 mode 时也默认 download，避免普通用户拿到会过期或 403 的平台 CDN 远端地址。",
+        "旧画布中未记录用户手动选择的 aggregateParserMode='parse' 会自动迁移为 download；从 v2.0.3 起用户主动切到远端地址模式会写 aggregateParserModeUserSet=true 并保留高级选择。",
+        "保留“只解析远端地址”高级模式，但节点 UI 明确提示远端 CDN 链接可能需要平台请求头、Cookie 或临时签名，直接打开 403 不一定代表解析失败。",
+        "ParseHub 归一化层在存在 download.media 时优先输出 /files/output/parsehub 本地 URL，OutputNode 和下游 video/image/audio 字段不再优先使用 douyinvod 等临时远端地址。",
+        "结果摘要按模式区分“已保存到本地输出目录的媒体地址”和“解析到的远端媒体地址”，并在远端模式补充 403/防盗链提醒。"
+      ]
+    },
+    "phase152": {
+      "label": "去AI水印上游 0.8.9 同步 (upstream v2.0.4)",
+      "status": "implemented",
+      "items": [
+        "本地外部 clone E:/PenguinPravite/_external/remove-ai-watermarks 已快进到 wiltodelta/remove-ai-watermarks v0.8.9 / 4a6cd71，T8 仍只桥接 CLI/Python 包，不复制上游算法源码。",
+        "runner 按实际 runtime version 做 CLI 参数兼容：0.8.9+ 使用 --pipeline controlnet、--auto、--adaptive-polish、--min-resolution、--controlnet-scale、--unsharp 与 --restore-faces；旧 0.8.7 runtime 继续兼容 ctrlregen 与 --protect-text / --protect-faces。",
+        "去水印节点 UI 把旧文字/人脸保护开关升级为自动策略、ControlNet 结构强度、小图 min-resolution、humanize/unsharp、自适应细节抛光和 GFPGAN 脸部恢复，旧画布中的 ctrlregen 会显示为 controlnet。",
+        "状态接口 optionalFeatures 新增 restore、auto、controlnet、adaptivePolish；开发环境实测 resolver=local external clone、version=0.8.9、markKeys=gemini/doubao/jimeng。",
+        "验证通过 node --test tests/aiWatermarkRunner.test.ts、node -c backend/src/tools/aiWatermark/runner.js、node -c backend/src/routes/aiWatermark.js、npm run type-check、npm run build、全量 node --test tests/*.test.ts，并用临时 PNG 跑通 metadata-check 真实 CLI smoke。",
+        "公开版本同步到 2.0.4：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次按规范打包 Electron 并发布 GitHub Release 自动更新资产。"
+      ]
+    },
+    "phase153": {
+      "label": "v2.0.4 clean public Electron 自动更新发布 (upstream)",
+      "status": "implemented",
+      "items": [
+        "发布包必须从公开提交的 clean worktree 构建，不使用本地 dirty 工作区里的私有充值 overlay；skill.md、roadmap.md、public/vendor/js/three-0.160.0.module.js 和私有计费/支付/充值实现继续禁止进入公开源码与 release 源码包。",
+        "Electron 发布继续走 npm run dist:release：build、encrypt、electron-builder、_post_build、GitHub Release 上传与 release:verify 连续通过后，才算自动更新版本发布完成。",
+        "自动更新安装体验沿用 v2.0.3 前台安装向导规范：autoInstallOnAppQuit=false，显式安装调用 quitAndInstall(false,true)，NSIS customInit 尽量把旧客户端传入的 /S 切回可见向导。",
+        "打包后必须复验 dist_electron/latest.yml 版本、GitHub Release v2.0.4 资产、win-unpacked 启动冒烟和 packaged 日志中的更新检查路径。"
+      ]
+    },
+    "phase154": {
+      "label": "roadmap 继续收口源码发布 (upstream v2.0.5)",
+      "status": "implemented",
+      "items": [
+        "主题成就 / 有效时长系统第一版接入：共享成就 manifest、后端 profile/event/preferences/reset/export/import 路由、前端成就按钮/抽屉/Toast/Tracker，奖励影片素材未提供前显示待解锁占位。",
+        "全局提示词大编辑器继续增强为 text/json/lines 三类长文本编辑入口，接入 API 设置、ComfyUI 应用制作、RH 工具箱制作与 RH 工具编辑弹窗。",
+        "3D 全景节点新增轻量贴图质量提示；资源保存、工作流保存、全景生成和聚合解析成功会以非内容事件进入成就系统。",
+        "聚合解析授权助手升级为三步式引导；普通浏览器模式不暗示自动读取 Cookie，桌面端仍保留官方授权窗口检测与本机授权库能力。",
+        "ComfyUI 新增基础文生图样例、导入检查清单和更清晰的缺模型/缺节点/未启动/校验失败错误提示；RH 工具箱新增图像/视频/文本/音频快捷接入位底座。",
+        "云端上传新增 COS/OSS 错误分类与 code/hint/statusCode；宫格编辑新增字幕条、字幕颜色/高度和单格字幕输入，后端 grid-compose 输出带字幕 PNG。",
+        "公开版本同步到 2.0.5：package.json、package-lock.json、vite.config.ts/js、electron/main.cjs、backend/src/config.js APP_VERSION、features.json、README.md 同步；本次只推源码，不打包 Electron，不发布 GitHub Release 自动更新资产。"
+      ]
+    },
+    "phase155": {
+      "label": "fork v2.1.0 合并 upstream v2.0.5（2026-06-05）",
+      "status": "complete",
+      "items": [
+        "merge upstream/main b6006fd..46a86bc：吸收 upstream v1.9.8→v2.0.5 全部新功能（electron-updater + 3D 全景白屏修复 + ParseHub 聚合解析 + GPT Image 2 全景生成 + 全局提示词大编辑器 + 聚合解析授权助手 + 自动更新前台向导 + 默认下载到本地 + 去AI水印 0.8.9 同步 + 成就系统 + ComfyUI 样例/检查清单 + RH 工具箱快捷接入位 + 云端上传错误分类 + 宫格字幕条）。",
+        "fork 与 upstream phase 编号撞车，按 fork 顺延规则把 upstream 原 phase138~149 顺延为 phase143~154，保留 fork 原有 phase138~142；新增 phase155 anchor 记录本次合并。",
+        "按 fork 版本策略保持 2.1.0（领先 upstream v2.0.5），不递增版本号。8 处版本号文件维持 2.1.0：package.json、vite.config.ts、backend/src/config.js、electron/main.cjs（3 处）、features.json、README.md。",
+        "冲突解决：保留 fork vite.config.js 删除决定、保留 fork 三家中转站 Provider（Geeknow/七牛/Grsai）与 Geeknow LLM 节点、并入 upstream 新增能力（PromptEditor/Panorama3D/AggregateParser/Achievement/ComfyUI 样例/RHToolbox/云上传/宫格字幕）。"
+      ]
     }
   },
   "categories": {
@@ -2345,7 +2849,7 @@
         {
           "type": "remove-ai-watermark",
           "label": "去AI水印",
-          "description": "接入 wiltodelta/remove-ai-watermarks 0.8.7，可处理 Gemini / 豆包 / 即梦等已知可见 AI 水印、框选擦除(cv2/LaMA)、来源自适应隐形水印、AI 元数据清理与来源鉴别；支持本地 Python 包或 Electron sidecar runtime，视频/音频首阶段支持元数据检查和清理"
+          "description": "接入 wiltodelta/remove-ai-watermarks 0.8.9，可处理 Gemini / 豆包 / 即梦等已知可见 AI 水印、框选擦除(cv2/LaMA)、来源自适应隐形水印、ControlNet 结构保留、GFPGAN 脸部恢复、AI 元数据清理与来源鉴别；支持本地 Python 包或 Electron sidecar runtime，视频/音频首阶段支持元数据检查和清理"
         },
         {
           "type": "video-output",
@@ -2356,7 +2860,7 @@
     },
     "toolbox": {
       "label": "工具箱",
-      "count": 5,
+      "count": 6,
       "nodes": [
         {
           "type": "cinematic",
@@ -2382,6 +2886,22 @@
           "type": "pose-master",
           "label": "姿势大师",
           "description": "人体线稿姿态编辑器：可拖动关节点或抓取移动整个人物、套用常用姿势、MediaPipe 识别人物图、多人姿态、手部控制、A/B 关键帧、预览并输出线稿/OpenPose/COCO 参考图，同时导出 OpenPose/COCO keypoints JSON、prompt/text 与 metadata"
+        },
+        {
+          "type": "aggregate-parser",
+          "label": "聚合解析",
+          "description": "基于 ParseHub 的轻量自媒体聚合解析节点：输入短链、作品链接、分享码或分享文案，合规确认后默认保存到 output/parsehub；可选使用代理/Cookie，远端地址解析作为高级模式保留"
+        }
+      ]
+    },
+    "3d": {
+      "label": "3D",
+      "count": 1,
+      "nodes": [
+        {
+          "type": "panorama-3d",
+          "label": "3D全景",
+          "description": "Three.js 360 全景预览与取景导出，支持连接已有全景图，也可在节点内用 GPT Image 2 文生/图生 21:9 全景贴图；提供拖拽视角、缩放、比例控制、自动旋转、当前视角导出、完整贴图下载和保存到资源库「全景」类型"
         }
       ]
     }
@@ -2982,11 +3502,13 @@
     "loop",
     "pick-from-set",
     "drawing-board",
+    "panorama-3d",
     "cinematic",
     "video-motion",
     "multi-angle-visual",
     "portrait-master",
     "pose-master",
+    "aggregate-parser",
     "remove-ai-watermark"
   ],
   "nonExecutableNodeTypes": {

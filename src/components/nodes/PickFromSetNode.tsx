@@ -17,6 +17,7 @@ import { useThemeStore } from '../../stores/theme';
 import { useUpstreamMaterials, type MaterialKind } from './useUpstreamMaterials';
 import { PORT_COLOR } from '../../config/portTypes';
 import LoopingVideo from '../LoopingVideo';
+import SmartImage from '../SmartImage';
 
 /**
  * PickFromSetNode —「从合集获取」工具节点 (v1.2.8 新增)
@@ -397,7 +398,7 @@ const PickFromSetNode = (p: NodeProps) => {
             }}
           >
             {pickKind === 'image' && (
-              <img src={currentValue} alt="picked" style={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block' }} draggable={false} />
+              <SmartImage src={currentValue} alt="picked" style={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block' }} draggable={false} thumbSize={720} />
             )}
             {pickKind === 'video' && (
               <LoopingVideo src={currentValue} style={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block' }} muted />

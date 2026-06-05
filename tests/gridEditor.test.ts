@@ -32,6 +32,10 @@ test('grid editor normalizes layout config and preserves user ordering', async (
     background: 'not-a-color',
     fit: 'bad-fit',
     showIndexes: true,
+    showCaptions: true,
+    captionHeight: 999,
+    captionTextColor: '#ABCDEF',
+    captionBackground: 'bad-color',
   });
 
   assert.deepEqual(config, {
@@ -43,6 +47,10 @@ test('grid editor normalizes layout config and preserves user ordering', async (
     background: '#111827',
     fit: 'adaptive',
     showIndexes: true,
+    showCaptions: true,
+    captionHeight: 240,
+    captionTextColor: '#abcdef',
+    captionBackground: '#111827',
   });
 
   const items = buildGridEditorItems(
@@ -89,9 +97,11 @@ test('grid editor compose request keeps empty cells and split output keeps fille
     background: '#222222',
     fit: 'contain',
     showIndexes: true,
+    showCaptions: true,
+    captionHeight: 48,
   });
   const items = [
-    { id: 'a', url: '/files/input/a.png', title: 'A', origin: 'upstream' },
+    { id: 'a', url: '/files/input/a.png', title: 'A', caption: '第一格', origin: 'upstream' },
     { id: 'b', url: '/files/input/b.png', title: 'B', origin: 'local' },
   ];
 
@@ -106,6 +116,10 @@ test('grid editor compose request keeps empty cells and split output keeps fille
   ]);
   assert.equal(request.fit, 'contain');
   assert.equal(request.showIndexes, true);
+  assert.equal(request.showCaptions, true);
+  assert.equal(request.captionHeight, 48);
+  assert.equal(request.cells[0]?.caption, '第一格');
+  assert.equal(request.cells[1]?.caption, 'B');
   assert.deepEqual(splitGridEditorItems(items), ['/files/input/a.png', '/files/input/b.png']);
 });
 
@@ -154,6 +168,8 @@ test('grid editor keeps custom ratio selectable and avoids clamping active dimen
   assert.equal(gridEditorRatioSelectValue(1920, 1080, 'custom'), GRID_EDITOR_CUSTOM_RATIO_VALUE);
   assert.equal(gridEditorRatioSelectValue(1500, 1200), GRID_EDITOR_CUSTOM_RATIO_VALUE);
   assert.match(node, /gridDimensionDrafts/);
+  assert.match(node, /gridEditorCaptions/);
+  assert.match(node, /单格字幕/);
   assert.match(node, /commitGridDimensionDraft\('width'\)/);
   assert.match(node, /commitGridDimensionDraft\('height'\)/);
   assert.match(node, /value=\{ratioSelectValue\}/);
@@ -165,6 +181,8 @@ test('grid compose backend and service expose the compose endpoint', () => {
   const service = readFileSync(new URL('../src/services/imageOps.ts', import.meta.url), 'utf8');
 
   assert.match(backend, /router\.post\('\/grid-compose'/);
+  assert.match(backend, /makeCaptionBarSvg/);
+  assert.match(backend, /showCaptions/);
   assert.match(service, /opGridCompose/);
   assert.match(service, /'grid-compose'/);
 });

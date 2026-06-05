@@ -11,7 +11,8 @@ const config = require('../config');
 
 const router = express.Router();
 
-const KINDS = new Set(['image', 'video', 'audio', 'set', 'pose', 'workflow']);
+const KINDS = new Set(['image', 'video', 'audio', 'panorama', 'set', 'pose', 'workflow']);
+const ADD_RESOURCE_KINDS = new Set(['image', 'video', 'audio', 'panorama']);
 const MATERIAL_SET_KINDS = new Set(['text', 'image', 'video', 'audio']);
 const DB_FILE = 'resource_library.json';
 const THUMB_DIR = '_thumbs';
@@ -22,6 +23,7 @@ const DEFAULT_CATEGORY_NAMES = {
   image: ['未分类', '角色', '场景', '风格参考', '成品'],
   video: ['未分类', '镜头', '动作', '成片'],
   audio: ['未分类', '音乐', '人声', '音效'],
+  panorama: ['未分类', '室内', '室外', '自然', '城市', '奇幻'],
   set: ['未分类', '图像集', '视频集', '音频集', '文本集'],
   pose: ['未分类', '常用姿势', '动作参考', '分镜姿势'],
   workflow: ['未分类', '常用工作流', '图像流程', '视频流程', '工具链'],
@@ -303,6 +305,22 @@ function defaultCategories() {
   return out;
 }
 
+function isLegacyPanoramaCategoryName(name) {
+  const n = safeText(name).toLowerCase().replace(/\s+/g, '');
+  return n === '3d全景' || n === '全景' || n === 'vr全景' || n === '720全景';
+}
+
+function isLegacyPanoramaImageItem(item, legacyCategoryIds) {
+  const categoryId = safeText(item?.categoryId);
+  if (legacyCategoryIds.has(categoryId)) return true;
+  const title = safeText(item?.title || item?.originalName).toLowerCase();
+  if (/3d全景|全景贴图|720vr|panorama/.test(title)) return true;
+  const tags = Array.isArray(item?.tags)
+    ? item.tags.map((tag) => safeText(tag).toLowerCase().replace(/\s+/g, ''))
+    : [];
+  return tags.some((tag) => ['3d全景', '全景', 'panorama', 'vr', '720vr'].includes(tag));
+}
+
 function normalizeDb(raw) {
   const db = raw && typeof raw === 'object' ? raw : {};
   const defaults = defaultCategories();
@@ -329,12 +347,20 @@ function normalizeDb(raw) {
   const normalizedCategories = Array.from(catMap.values())
     .sort((a, b) => a.kind.localeCompare(b.kind) || (a.order || 0) - (b.order || 0))
     .map((c, idx) => ({ ...c, order: Number.isFinite(Number(c.order)) ? c.order : idx }));
-  const catIds = new Set(normalizedCategories.map((c) => c.id));
+  const categoryKindById = new Map(normalizedCategories.map((c) => [c.id, c.kind]));
+  const legacyPanoramaCategoryIds = new Set(
+    normalizedCategories
+      .filter((c) => c.kind === 'image' && isLegacyPanoramaCategoryName(c.name))
+      .map((c) => c.id),
+  );
   const normalizedItems = [];
   const seen = new Set();
 
   for (const item of items) {
-    const kind = normalizeKind(item?.kind);
+    let kind = normalizeKind(item?.kind);
+    if (kind === 'image' && isLegacyPanoramaImageItem(item, legacyPanoramaCategoryIds)) {
+      kind = 'panorama';
+    }
     const id = safeText(item?.id, genId('res')).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 96) || genId('res');
     if (!kind || seen.has(id)) continue;
     const fileRel = safeText(item?.fileRel);
@@ -350,7 +376,8 @@ function normalizeDb(raw) {
     const workflowPreview = kind === 'workflow' ? normalizeWorkflowTopologyPreview(item?.workflowPreview) : null;
     seen.add(id);
     const fallbackCat = `${kind}_uncategorized`;
-    const categoryId = catIds.has(item?.categoryId) ? item.categoryId : fallbackCat;
+    const requestedCategoryId = safeText(item?.categoryId);
+    const categoryId = categoryKindById.get(requestedCategoryId) === kind ? requestedCategoryId : fallbackCat;
     normalizedItems.push({
       id,
       kind,
@@ -379,11 +406,16 @@ function normalizeDb(raw) {
     });
   }
 
+  const usedCategoryIds = new Set(normalizedItems.map((item) => item.categoryId));
+  const finalCategories = normalizedCategories.filter((cat) => (
+    !(cat.kind === 'image' && legacyPanoramaCategoryIds.has(cat.id) && !usedCategoryIds.has(cat.id))
+  ));
+
   return {
     schema: 't8-resource-library',
     version: 1,
     updatedAt: safeText(db.updatedAt, new Date().toISOString()),
-    categories: normalizedCategories,
+    categories: finalCategories,
     items: normalizedItems,
   };
 }
@@ -722,9 +754,16 @@ router.post('/items/add', express.json({ limit: '4mb' }), async (req, res) => {
     const { root, db } = readDb();
     const src = await readSource(url, root, db);
     const ext = normalizeExt(path.extname(src.originalName)) || extFromMime(src.mime) || 'bin';
-    const kind = normalizeKind(req.body?.kind) || kindFromExt(ext) || kindFromExt(extFromMime(src.mime));
-    if (!kind || !['image', 'video', 'audio'].includes(kind)) {
-      return res.status(400).json({ success: false, error: '资源类型仅支持图像 / 视频 / 音频' });
+    const detectedKind = kindFromExt(ext) || kindFromExt(extFromMime(src.mime));
+    const kind = normalizeKind(req.body?.kind) || detectedKind;
+    if (!kind || !ADD_RESOURCE_KINDS.has(kind)) {
+      return res.status(400).json({ success: false, error: '资源类型仅支持图像 / 视频 / 音频 / 全景' });
+    }
+    if (kind === 'panorama' && detectedKind !== 'image') {
+      return res.status(400).json({ success: false, error: '全景资源只能保存图像文件' });
+    }
+    if (kind !== 'panorama' && detectedKind && detectedKind !== kind) {
+      return res.status(400).json({ success: false, error: `素材类型不匹配：需要 ${kind}` });
     }
     const sha256 = crypto.createHash('sha256').update(src.buffer).digest('hex');
     const existing = db.items.find((item) => item.kind === kind && item.sha256 === sha256);
@@ -743,7 +782,7 @@ router.post('/items/add', express.json({ limit: '4mb' }), async (req, res) => {
     const fileRel = path.join(kind, `${id}.${ext}`).replace(/\\/g, '/');
     const target = assertInside(root, path.join(root, fileRel));
     fs.writeFileSync(target, src.buffer);
-    const thumbRel = kind === 'image' ? await makeImageThumb(src.buffer, root, id) : '';
+    const thumbRel = kind === 'image' || kind === 'panorama' ? await makeImageThumb(src.buffer, root, id) : '';
     const fallbackCat = `${kind}_uncategorized`;
     const item = {
       id,

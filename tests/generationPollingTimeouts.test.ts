@@ -24,13 +24,17 @@ test('batch and loop execution waits do not undercut long generation polling', (
   assert.match(read('src/components/nodes/LoopNode.tsx'), /LOOP_NODE_WAIT_TIMEOUT_MS\s*=\s*60\s*\*\s*60\s*\*\s*1000/);
 });
 
-test('external image/video providers default to 3600s generation timeout', () => {
+test('external image/video providers default to 3600s generation timeout while preserving Jimeng poll config', () => {
   const { normalizeAdvancedProviders } = require('../backend/src/providers/registry.js');
   const providers = normalizeAdvancedProviders([
     { id: 'jimeng-cli', protocol: 'jimeng-cli', jimengConfig: { pollSeconds: 900 } },
   ]);
+  const defaults = normalizeAdvancedProviders([
+    { id: 'jimeng-cli', protocol: 'jimeng-cli', jimengConfig: {} },
+  ]);
 
-  assert.equal(providers.find((provider: any) => provider.id === 'jimeng-cli')?.jimengConfig?.pollSeconds, 3600);
+  assert.equal(providers.find((provider: any) => provider.id === 'jimeng-cli')?.jimengConfig?.pollSeconds, 900);
+  assert.equal(defaults.find((provider: any) => provider.id === 'jimeng-cli')?.jimengConfig?.pollSeconds, 3600);
   assert.match(read('backend/src/providers/modelscope.js'), /DEFAULT_IMAGE_TIMEOUT_MS\s*=\s*60\s*\*\s*60\s*\*\s*1000/);
   assert.match(read('backend/src/providers/comfyui.js'), /GENERATION_TIMEOUT_MS\s*=\s*60\s*\*\s*60\s*\*\s*1000/);
   assert.match(read('backend/src/providers/volcengine.js'), /GENERATION_TIMEOUT_MS\s*=\s*60\s*\*\s*60\s*\*\s*1000/);
