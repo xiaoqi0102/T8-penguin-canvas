@@ -4,7 +4,21 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const config = require('../config');
-const manifest = require('../../../shared/achievementManifest.json');
+
+function loadManifest() {
+  const candidates = [
+    process.env.T8PC_RES ? path.join(process.env.T8PC_RES, 'shared', 'achievementManifest.json') : '',
+    path.resolve(__dirname, '..', '..', '..', 'shared', 'achievementManifest.json'),
+    path.resolve(process.cwd(), 'shared', 'achievementManifest.json'),
+  ].filter(Boolean);
+
+  for (const file of candidates) {
+    if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'));
+  }
+  throw new Error('achievementManifest.json not found');
+}
+
+const manifest = loadManifest();
 
 const SCHEMA = 't8-achievements';
 const VERSION = 1;

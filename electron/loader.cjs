@@ -128,9 +128,10 @@ function registerLoader() {
       } catch (e) {
         // .t8c 文件在 resources/backend-enc/ 下(asar 外),
         // 其 module.paths 无法到达 app.asar/node_modules,
-        // 因此需要在获不到外部依赖时回退到 loader.cjs(在 asar 内)的 require。
-        // 这使得加密后端能访问主包 node_modules 里的 express/cors/multer/sharp 等。
-        if (e && e.code === 'MODULE_NOT_FOUND') {
+        // 因此只有 bare module（express/cors/multer/sharp 等）才回退到 loader.cjs 的 require。
+        // 相对路径失败必须保留原错误，否则子模块缺依赖会被伪装成“外层模块找不到”。
+        const isRelativeOrAbsolute = id.startsWith('./') || id.startsWith('../') || path.isAbsolute(id);
+        if (e && e.code === 'MODULE_NOT_FOUND' && !isRelativeOrAbsolute) {
           return require(id);
         }
         throw e;
