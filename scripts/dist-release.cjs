@@ -9,6 +9,7 @@ const env = {
   ...process.env,
   T8_REQUIRE_AI_WATERMARK_RUNTIME: process.env.T8_REQUIRE_AI_WATERMARK_RUNTIME || '1',
   T8_REQUIRE_PARSEHUB_RUNTIME: process.env.T8_REQUIRE_PARSEHUB_RUNTIME || '1',
+  T8_REQUIRE_RUNTIME_ARCHIVES: process.env.T8_REQUIRE_RUNTIME_ARCHIVES || '1',
   T8_REQUIRE_UPDATE_ARTIFACTS: process.env.T8_REQUIRE_UPDATE_ARTIFACTS || '1',
 };
 
@@ -45,6 +46,7 @@ function main() {
   );
 
   run('build + encrypt', command('npm'), ['run', 'prepack:enc']);
+  run('prepare runtime archives', command('npm'), ['run', 'prepack:runtimes']);
   run('electron-builder nsis', electronBuilder, ['--win', '--x64']);
   run('post-build checks', process.execPath, [path.join(ROOT, 'electron', '_post_build.cjs')]);
   run('github release upload + verify', process.execPath, [path.join(ROOT, 'scripts', 'release-github.cjs')]);

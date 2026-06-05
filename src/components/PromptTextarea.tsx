@@ -6,11 +6,13 @@ import {
   type MutableRefObject,
   type TextareaHTMLAttributes,
 } from 'react';
-import { Maximize2 } from 'lucide-react';
+import { Library, Maximize2 } from 'lucide-react';
 import { useThemeStore } from '../stores/theme';
 import { useShortcutStore } from '../stores/shortcuts';
 import { formatShortcutList, matchesAnyShortcut } from '../utils/keyboardShortcuts';
+import type { PromptTemplateKind } from '../data/promptTemplateLibrary';
 import PromptExpandModal, { type PromptExpandEditorKind } from './PromptExpandModal';
+import PromptTemplateLibraryModal from './PromptTemplateLibraryModal';
 
 interface PromptTextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange'> {
   value: string;
@@ -21,6 +23,7 @@ interface PromptTextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaEl
   isPixel?: boolean;
   mono?: boolean;
   editorKind?: PromptExpandEditorKind;
+  promptTemplateKind?: PromptTemplateKind | false;
 }
 
 const PromptTextarea = forwardRef<HTMLTextAreaElement, PromptTextareaProps>(function PromptTextarea({
@@ -32,21 +35,26 @@ const PromptTextarea = forwardRef<HTMLTextAreaElement, PromptTextareaProps>(func
   isPixel: propIsPixel,
   mono = false,
   editorKind = 'text',
+  promptTemplateKind = false,
   className,
+  style: textareaStyle,
   onKeyDown,
   placeholder,
   readOnly,
   ...rest
 }: PromptTextareaProps, forwardedRef) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const { theme, style } = useThemeStore();
+  const { theme, style: themeStyle } = useThemeStore();
   const shortcuts = useShortcutStore((s) => s.shortcuts);
   const expandCombos = shortcuts['editor.expand-prompt'];
   const isDark = propIsDark ?? theme === 'dark';
-  const isPixel = propIsPixel ?? style === 'pixel';
+  const isPixel = propIsPixel ?? themeStyle === 'pixel';
   const [expanded, setExpanded] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [draft, setDraft] = useState(value || '');
   const shortcutText = formatShortcutList(expandCombos);
+  const templateEnabled = promptTemplateKind !== false;
+  const effectiveTemplateKind = promptTemplateKind || 'image';
 
   const openExpanded = () => {
     setDraft(value || '');
@@ -99,8 +107,30 @@ const PromptTextarea = forwardRef<HTMLTextAreaElement, PromptTextareaProps>(func
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={className}
+        style={templateEnabled ? { ...textareaStyle, paddingRight: textareaStyle?.paddingRight ?? 64 } : textareaStyle}
         spellCheck={false}
       />
+      {templateEnabled && (
+        <button
+          type="button"
+          data-prompt-template-trigger
+          className={`nodrag nopan absolute top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center ${expandButtonCls}`}
+          style={{ right: 34 }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setTemplateOpen(true);
+          }}
+          title="提示词模板库"
+          aria-label="提示词模板库"
+        >
+          <Library size={12} />
+        </button>
+      )}
       <button
         type="button"
         data-prompt-expand-trigger
@@ -132,6 +162,20 @@ const PromptTextarea = forwardRef<HTMLTextAreaElement, PromptTextareaProps>(func
         readOnly={!!readOnly}
         mono={mono || editorKind === 'json'}
         editorKind={editorKind}
+      />
+      <PromptTemplateLibraryModal
+        open={templateOpen}
+        initialKind={effectiveTemplateKind}
+        value={value || ''}
+        onApply={(nextValue) => {
+          if (!readOnly) onValueChange(nextValue);
+        }}
+        onClose={() => {
+          setTemplateOpen(false);
+          window.setTimeout(() => textareaRef.current?.focus(), 0);
+        }}
+        isDark={isDark}
+        isPixel={isPixel}
       />
     </div>
   );

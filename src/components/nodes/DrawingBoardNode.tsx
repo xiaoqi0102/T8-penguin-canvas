@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   FolderPlus,
+  HelpCircle,
   ImagePlus,
   Layers,
   Loader2,
@@ -130,12 +131,13 @@ interface BoardLayer {
   elements: BoardElement[];
 }
 
-type BoardAction =
+type BoardAction = { recorded?: boolean } & (
   | { type: 'draw'; layerId: string; id: string }
   | { type: 'shape'; layerId: string; id: string }
   | { type: 'move'; layerId: string; id: string; start: Point; originals: BoardElement[] }
   | { type: 'resize'; layerId: string; id: string; corner: ResizeCorner; keepAspect: boolean; original: BoardElement }
-  | { type: 'rotate'; layerId: string; id: string; center: Point; startAngle: number; originalRotation: number };
+  | { type: 'rotate'; layerId: string; id: string; center: Point; startAngle: number; originalRotation: number }
+);
 
 const NODE_W = 1120;
 const NODE_H = 760;
@@ -162,6 +164,34 @@ const TOOL_LABEL: Record<BoardTool, string> = {
   'cutout-lasso': '套索',
   'cutout-pen': '钢笔',
 };
+
+const TOOL_SHORTCUTS: Array<{ tool: BoardTool; shortcut: string; key: string; shiftKey?: boolean }> = [
+  { tool: 'select', shortcut: 'S', key: 's' },
+  { tool: 'text', shortcut: 'T', key: 't' },
+  { tool: 'eraser', shortcut: 'E', key: 'e' },
+  { tool: 'pen', shortcut: 'B', key: 'b' },
+  { tool: 'arrow', shortcut: 'A', key: 'a' },
+  { tool: 'cutout-pen', shortcut: 'P', key: 'p' },
+  { tool: 'cutout-lasso', shortcut: 'L', key: 'l' },
+  { tool: 'circle', shortcut: 'R', key: 'r' },
+  { tool: 'rect', shortcut: 'Shift+S', key: 's', shiftKey: true },
+];
+
+const TOOL_SHORTCUT_BY_TOOL = TOOL_SHORTCUTS.reduce<Partial<Record<BoardTool, string>>>((acc, item) => {
+  acc[item.tool] = item.shortcut;
+  return acc;
+}, {});
+
+function toolShortcutFor(value: BoardTool) {
+  return TOOL_SHORTCUT_BY_TOOL[value] || '';
+}
+
+function toolFromShortcutEvent(event: Pick<KeyboardEvent | ReactKeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>): BoardTool | null {
+  if (event.ctrlKey || event.metaKey || event.altKey) return null;
+  const key = event.key.toLowerCase();
+  const item = TOOL_SHORTCUTS.find((candidate) => candidate.key === key && (!!candidate.shiftKey === !!event.shiftKey));
+  return item?.tool || null;
+}
 
 function uid(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -474,6 +504,12 @@ function normalizeShape(el: BoardElement): BoardElement {
   } as BoardElement;
 }
 
+function isDegenerateShapeElement(el: BoardElement) {
+  if (el.kind === 'arrow') return Math.hypot(el.w, el.h) < 8;
+  if (el.kind === 'rect' || el.kind === 'circle') return Math.abs(el.w) < 8 || Math.abs(el.h) < 8;
+  return false;
+}
+
 function drawArrowHead(ctx: CanvasRenderingContext2D, from: Point, to: Point, size: number) {
   const angle = Math.atan2(to.y - from.y, to.x - from.x);
   const len = Math.max(12, size * 4);
@@ -516,8 +552,28 @@ function isEditableEventTarget(target: EventTarget | null) {
   return !!el?.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
 }
 
+function isUndoShortcutEvent(event: Pick<KeyboardEvent | ReactKeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey'>) {
+  return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey;
+}
+
+function isRedoShortcutEvent(event: Pick<KeyboardEvent | ReactKeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey'>) {
+  const key = event.key.toLowerCase();
+  return (event.ctrlKey || event.metaKey) && ((key === 'z' && event.shiftKey) || key === 'y');
+}
+
 function isBoardRatio(value: unknown): value is BoardRatio {
   return value === 'free' || value === '1:1' || value === '16:9' || value === '9:16' || value === '4:3' || value === '3:4';
+}
+
+function cloneBoardLayers(layers: BoardLayer[]): BoardLayer[] {
+  return layers.map((layer) => ({
+    ...layer,
+    elements: layer.elements.map((el) => (
+      el.kind === 'path'
+        ? { ...el, points: el.points.map((point) => ({ ...point })) }
+        : { ...el }
+    )),
+  }));
 }
 
 function downloadJsonFile(filename: string, payload: unknown) {
@@ -549,6 +605,9 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   const autoImportSigRef = useRef('');
   const actionRef = useRef<BoardAction | null>(null);
   const cutoutDragRef = useRef<{ pointerId: number; sourceLayerId: string; sourceElementId: string } | null>(null);
+  const historyRef = useRef<BoardLayer[][]>([]);
+  const futureRef = useRef<BoardLayer[][]>([]);
+  const textEditHistoryRef = useRef<string | null>(null);
 
   const [layers, setLayers] = useState<BoardLayer[]>(() => initialLayersRef.current || [createBlankLayer(1)]);
   const [activeLayerId, setActiveLayerId] = useState<string>(() => {
@@ -569,6 +628,8 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   const [cutoutFeather, setCutoutFeather] = useState(Math.max(0, Number(d.boardCutoutFeather) || 0));
   const [cutoutInvert, setCutoutInvert] = useState(false);
   const [focusEditorOpen, setFocusEditorOpen] = useState(false);
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
+  const [selectedTextEditorOpen, setSelectedTextEditorOpen] = useState(false);
   const [focusZoom, setFocusZoom] = useState<'fit' | number>('fit');
   const [windowSize, setWindowSize] = useState(() => ({
     w: typeof window !== 'undefined' ? window.innerWidth : 1280,
@@ -596,6 +657,12 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     if (!isLayerEditable(layers, selectedElement.layer)) return null;
     return selectedElement as { layer: BoardLayer; element: ImageElement };
   }, [layers, selectedElement]);
+  const applyTool = useCallback((value: BoardTool) => {
+    actionRef.current = null;
+    cutoutDragRef.current = null;
+    setTool(value);
+    if (!isCutoutTool(value)) setCutoutDraft(null);
+  }, []);
   const boardHasKeyboardFocus = useCallback(() => {
     const root = rootRef.current;
     const focusOverlay = focusOverlayRef.current;
@@ -640,6 +707,40 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     [persistLayers],
   );
 
+  const pushHistorySnapshot = useCallback((snapshot: BoardLayer[] = layers) => {
+    historyRef.current = [...historyRef.current.slice(-59), cloneBoardLayers(snapshot)];
+    futureRef.current = [];
+  }, [layers]);
+
+  const restoreLayerSnapshot = useCallback((snapshot: BoardLayer[]) => {
+    const next = persistLayers(cloneBoardLayers(snapshot));
+    setLayers(next);
+    const selectedStillExists = selectedElementId
+      ? next.some((layer) => layer.kind === 'layer' && layer.elements.some((el) => el.id === selectedElementId))
+      : false;
+    if (!selectedStillExists) setSelectedElementId(null);
+    const activeStillExists = next.some((layer) => layer.id === activeLayerId && layer.kind === 'layer');
+    if (!activeStillExists) setActiveLayerId(firstEditableLayerId(next));
+  }, [activeLayerId, persistLayers, selectedElementId]);
+
+  const undoBoardHistory = useCallback(() => {
+    const previous = historyRef.current.pop();
+    if (!previous) return false;
+    futureRef.current = [...futureRef.current.slice(-59), cloneBoardLayers(layers)];
+    restoreLayerSnapshot(previous);
+    actionRef.current = null;
+    return true;
+  }, [layers, restoreLayerSnapshot]);
+
+  const redoBoardHistory = useCallback(() => {
+    const next = futureRef.current.pop();
+    if (!next) return false;
+    historyRef.current = [...historyRef.current.slice(-59), cloneBoardLayers(layers)];
+    restoreLayerSnapshot(next);
+    actionRef.current = null;
+    return true;
+  }, [layers, restoreLayerSnapshot]);
+
   useEffect(() => {
     if (layers.some((layer) => layer.id === activeLayerId && layer.kind === 'layer')) return;
     const nextActive = firstEditableLayerId(layers);
@@ -649,6 +750,10 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   useEffect(() => {
     if (activeLayerId) update({ activeBoardLayerId: activeLayerId });
   }, [activeLayerId, update]);
+
+  useEffect(() => {
+    textEditHistoryRef.current = null;
+  }, [selectedElementId]);
 
   useEffect(() => {
     if (!focusEditorOpen) return;
@@ -743,26 +848,29 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
         ctx.font = `600 ${el.size}px "Microsoft YaHei", "PingFang SC", sans-serif`;
         el.text.split(/\r?\n/).forEach((line, i) => ctx.fillText(line, el.x, el.y + i * el.size * 1.28));
       } else {
-        const x = el.x;
-        const y = el.y;
-        const w = el.w;
-        const h = el.h;
+        const b = boundsOf(el);
+        const center = centerOfBounds(b);
+        const rotation = rotationOf(el);
+        const start = { x: el.x - center.x, y: el.y - center.y };
+        const end = { x: el.x + el.w - center.x, y: el.y + el.h - center.y };
         ctx.strokeStyle = el.color;
         ctx.lineWidth = el.size;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+        ctx.translate(center.x, center.y);
+        ctx.rotate((rotation * Math.PI) / 180);
         if (el.kind === 'rect') {
-          ctx.strokeRect(x, y, w, h);
+          ctx.strokeRect(-b.w / 2, -b.h / 2, b.w, b.h);
         } else if (el.kind === 'circle') {
           ctx.beginPath();
-          ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+          ctx.ellipse(0, 0, Math.abs(b.w / 2), Math.abs(b.h / 2), 0, 0, Math.PI * 2);
           ctx.stroke();
         } else {
           ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineTo(x + w, y + h);
+          ctx.moveTo(start.x, start.y);
+          ctx.lineTo(end.x, end.y);
           ctx.stroke();
-          drawArrowHead(ctx, { x, y }, { x: x + w, y: y + h }, el.size);
+          drawArrowHead(ctx, start, end, el.size);
         }
       }
       ctx.restore();
@@ -971,12 +1079,13 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     });
   }, []);
 
-  const appendToActiveLayer = (el: BoardElement) => {
+  const appendToActiveLayer = (el: BoardElement, recordHistory = true) => {
     if (!activeLayer || !activeLayerWritable) {
       setError('当前图层不可编辑，请新建或解锁图层');
       return false;
     }
     setError(null);
+    if (recordHistory) pushHistorySnapshot();
     setSelectedElementId(el.id);
     patchLayers((prev) =>
       prev.map((layer) =>
@@ -989,6 +1098,11 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (event.button !== 0) {
+      actionRef.current = null;
+      cutoutDragRef.current = null;
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     rootRef.current?.focus();
@@ -1159,6 +1273,10 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     event.preventDefault();
     event.stopPropagation();
     const pos = clientToBoard(event);
+    if (!action.recorded && (action.type === 'move' || action.type === 'resize' || action.type === 'rotate')) {
+      pushHistorySnapshot();
+      action.recorded = true;
+    }
     patchLayers((prev) =>
       prev.map((layer) => {
         if (layer.id !== action.layerId || layer.kind !== 'layer') return layer;
@@ -1222,16 +1340,28 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     const action = actionRef.current;
     actionRef.current = null;
     if (!action) return;
+    let removedDegenerateShape = false;
     patchLayers((prev) =>
       prev.map((layer) =>
         layer.id === action.layerId && layer.kind === 'layer'
-          ? { ...layer, elements: layer.elements.map(normalizeShape) }
+          ? {
+            ...layer,
+            elements: layer.elements
+              .map(normalizeShape)
+              .filter((el) => {
+                const shouldRemove = action.type === 'shape' && el.id === action.id && isDegenerateShapeElement(el);
+                if (shouldRemove) removedDegenerateShape = true;
+                return !shouldRemove;
+              }),
+          }
           : layer,
       ),
     );
+    if (removedDegenerateShape) setSelectedElementId(null);
   };
 
   const addBlankLayer = () => {
+    pushHistorySnapshot();
     const next = createBlankLayer(layers.filter((layer) => layer.kind === 'layer').length + 1, activeLayer?.groupId || null);
     setActiveLayerId(next.id);
     setSelectedElementId(null);
@@ -1239,6 +1369,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   };
 
   const addLayerGroup = () => {
+    pushHistorySnapshot();
     const group = createGroup(layers.filter((layer) => layer.kind === 'group').length + 1);
     patchLayers((prev) => [...prev, group].map((layer) => (layer.id === activeLayerId ? { ...layer, groupId: group.id } : layer)));
   };
@@ -1273,6 +1404,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
         return layer;
       }));
 
+      pushHistorySnapshot();
       patchLayers((prev) => {
         const existing = new Set(flattenElements(prev).filter((el): el is ImageElement => el.kind === 'image').map((el) => el.url));
         const safeNewLayers = newLayers.filter((layer) => {
@@ -1287,7 +1419,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
         setSelectedElementId(null);
       }
     },
-    [boardH, boardW, layers, loadImage, patchLayers],
+    [boardH, boardW, layers, loadImage, patchLayers, pushHistorySnapshot],
   );
 
   const applyCutoutDraft = useCallback(async () => {
@@ -1376,10 +1508,10 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       };
       newLayer.name = `${source.name || '图片'} 抠图`;
       newLayer.elements = [newImage];
+      pushHistorySnapshot();
       setActiveLayerId(newLayer.id);
       setSelectedElementId(newImage.id);
-      setCutoutDraft(null);
-      setTool('select');
+      applyTool('select');
       patchLayers((prev) => {
         const sourceIndex = prev.findIndex((layer) => layer.id === sourceLayer.id);
         if (sourceIndex < 0) return [...prev, newLayer];
@@ -1391,7 +1523,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       setError(msg);
       setStatus('error');
     }
-  }, [cutoutDraft, cutoutFeather, cutoutInvert, cutoutSmooth, layers, loadImage, patchLayers]);
+  }, [applyTool, cutoutDraft, cutoutFeather, cutoutInvert, cutoutSmooth, layers, loadImage, patchLayers, pushHistorySnapshot]);
 
   const upstreamSig = useMemo(() => upstream.images.map((m) => m.url).join('|'), [upstream.images]);
 
@@ -1416,6 +1548,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
 
   const clearBoard = () => {
     if (elementCount(layers) > 0 && !window.confirm('清空当前画板？这会保留一个空白图层。')) return;
+    pushHistorySnapshot();
     const fresh = createBlankLayer(1);
     setActiveLayerId(fresh.id);
     setSelectedElementId(null);
@@ -1436,6 +1569,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   };
 
   const reorderLayer = (layerId: string, direction: -1 | 1) => {
+    pushHistorySnapshot();
     patchLayers((prev) => {
       const idx = prev.findIndex((layer) => layer.id === layerId);
       const nextIdx = idx + direction;
@@ -1447,14 +1581,17 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
   };
 
   const toggleLayerFlag = (layerId: string, key: 'hidden' | 'locked') => {
+    pushHistorySnapshot();
     patchLayers((prev) => prev.map((layer) => (layer.id === layerId ? { ...layer, [key]: !layer[key] } : layer)));
   };
 
   const toggleGroupCollapsed = (groupId: string) => {
+    pushHistorySnapshot();
     patchLayers((prev) => prev.map((layer) => (layer.id === groupId && layer.kind === 'group' ? { ...layer, collapsed: !layer.collapsed } : layer)));
   };
 
   const deleteLayer = (layerId: string) => {
+    pushHistorySnapshot();
     patchLayers((prev) => {
       const target = prev.find((layer) => layer.id === layerId);
       if (!target) return prev;
@@ -1487,6 +1624,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
 
   const moveLayerToGroup = (layerId: string, groupId: string | null) => {
     if (!layerId) return;
+    pushHistorySnapshot();
     patchLayers((prev) =>
       prev.map((layer) =>
         layer.id === layerId && layer.kind === 'layer' ? { ...layer, groupId } : layer,
@@ -1499,6 +1637,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     if (!selectedElementId) return false;
     const exists = layers.some((layer) => layer.kind === 'layer' && layer.elements.some((el) => el.id === selectedElementId));
     if (!exists) return false;
+    pushHistorySnapshot();
     patchLayers((prev) =>
       prev.map((layer) =>
         layer.kind === 'layer'
@@ -1508,10 +1647,56 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     );
     setSelectedElementId(null);
     return true;
-  }, [layers, patchLayers, selectedElementId]);
+  }, [layers, patchLayers, pushHistorySnapshot, selectedElementId]);
+
+  const beginSelectedTextEdit = useCallback(() => {
+    if (!selectedElementId || selectedElement?.element.kind !== 'text') return;
+    if (textEditHistoryRef.current === selectedElementId) return;
+    pushHistorySnapshot();
+    textEditHistoryRef.current = selectedElementId;
+  }, [pushHistorySnapshot, selectedElement, selectedElementId]);
+
+  const updateSelectedTextElement = useCallback((patch: Partial<Pick<TextElement, 'text' | 'size' | 'color'>>) => {
+    if (!selectedElementId) return;
+    patchLayers((prev) =>
+      prev.map((layer) => (
+        layer.kind === 'layer'
+          ? {
+            ...layer,
+            elements: layer.elements.map((el) => (
+              el.id === selectedElementId && el.kind === 'text'
+                ? { ...el, ...patch }
+                : el
+            )),
+          }
+          : layer
+      )),
+    );
+  }, [patchLayers, selectedElementId]);
 
   const handleRootKeyDownCapture = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (!isEditableEventTarget(event.target)) {
+        const handledHistory = isUndoShortcutEvent(event)
+          ? undoBoardHistory()
+          : isRedoShortcutEvent(event)
+            ? redoBoardHistory()
+            : false;
+        if (handledHistory) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation?.();
+          return;
+        }
+        const shortcutTool = toolFromShortcutEvent(event);
+        if (shortcutTool) {
+          applyTool(shortcutTool);
+          event.preventDefault();
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation?.();
+          return;
+        }
+      }
       if (cutoutDraft && !isEditableEventTarget(event.target)) {
         if (event.key === 'Escape') {
           cancelCutoutDraft();
@@ -1542,12 +1727,37 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       event.stopPropagation();
       event.nativeEvent.stopImmediatePropagation?.();
     },
-    [cancelCutoutDraft, closeCurrentCutoutDraft, cutoutDraft, deleteSelectedElement, removeLastCutoutPoint, selectedElementId],
+    [applyTool, cancelCutoutDraft, closeCurrentCutoutDraft, cutoutDraft, deleteSelectedElement, redoBoardHistory, removeLastCutoutPoint, selectedElementId, undoBoardHistory],
   );
 
   useEffect(() => {
-    if (!selected || (!selectedElementId && !cutoutDraft)) return;
+    if (!selected || selectedTextEditorOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      const keyboardActive = boardHasKeyboardFocus()
+        || document.activeElement === document.body
+        || document.activeElement === document.documentElement;
+      if (!keyboardActive) return;
+      if (!isEditableEventTarget(event.target)) {
+        const handledHistory = isUndoShortcutEvent(event)
+          ? undoBoardHistory()
+          : isRedoShortcutEvent(event)
+            ? redoBoardHistory()
+            : false;
+        if (handledHistory) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          return;
+        }
+        const shortcutTool = toolFromShortcutEvent(event);
+        if (shortcutTool) {
+          applyTool(shortcutTool);
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          return;
+        }
+      }
       if (cutoutDraft && !isEditableEventTarget(event.target)) {
         if (event.key === 'Escape') {
           cancelCutoutDraft();
@@ -1572,7 +1782,6 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
         }
       }
       if ((event.key !== 'Delete' && event.key !== 'Backspace') || isEditableEventTarget(event.target)) return;
-      if (!boardHasKeyboardFocus()) return;
       if (!deleteSelectedElement()) return;
       event.preventDefault();
       event.stopPropagation();
@@ -1580,7 +1789,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [boardHasKeyboardFocus, cancelCutoutDraft, closeCurrentCutoutDraft, cutoutDraft, deleteSelectedElement, removeLastCutoutPoint, selected, selectedElementId]);
+  }, [applyTool, boardHasKeyboardFocus, cancelCutoutDraft, closeCurrentCutoutDraft, cutoutDraft, deleteSelectedElement, redoBoardHistory, removeLastCutoutPoint, selected, selectedTextEditorOpen, undoBoardHistory]);
 
   const handleLocalImageChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1628,6 +1837,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
         const nextActive = nextLayers.some((layer) => layer.id === json?.activeBoardLayerId && layer.kind === 'layer')
           ? json.activeBoardLayerId
           : firstEditableLayerId(nextLayers);
+        pushHistorySnapshot();
         setRatio(nextRatio);
         setBoardW(nextW);
         setBoardH(nextH);
@@ -1647,7 +1857,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
         setError(e?.message || '导入画板 JSON 失败');
       }
     },
-    [update],
+    [pushHistorySnapshot, update],
   );
 
   const exportBoard = useCallback(async () => {
@@ -1690,24 +1900,22 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
 
   useRunTrigger(id, exportBoard);
 
-  const chooseTool = (value: BoardTool) => {
-    actionRef.current = null;
-    cutoutDragRef.current = null;
-    setTool(value);
-    if (!isCutoutTool(value)) setCutoutDraft(null);
-  };
+  const chooseTool = (value: BoardTool) => applyTool(value);
 
-  const toolButton = (value: BoardTool, icon: ReactNode) => (
-    <button
-      type="button"
-      className={`t8-btn min-h-8 min-w-0 px-1.5 text-[10px] ${tool === value ? 't8-btn-primary' : ''}`}
-      onClick={() => chooseTool(value)}
-      title={TOOL_LABEL[value]}
-    >
-      {icon}
-      <span className="hidden sm:inline">{TOOL_LABEL[value]}</span>
-    </button>
-  );
+  const toolButton = (value: BoardTool, icon: ReactNode) => {
+    const shortcut = toolShortcutFor(value);
+    return (
+      <button
+        type="button"
+        className={`t8-btn min-h-8 min-w-0 px-1.5 text-[10px] ${tool === value ? 't8-btn-primary' : ''}`}
+        onClick={() => chooseTool(value)}
+        title={`${TOOL_LABEL[value]}${shortcut ? ` (${shortcut})` : ''}`}
+      >
+        {icon}
+        <span className="hidden sm:inline">{TOOL_LABEL[value]}</span>
+      </button>
+    );
+  };
 
   const getCutoutToolbarPosition = useCallback((size: { w: number; h: number }) => {
     if (!cutoutDraft?.closed || cutoutDraft.points.length < 3) return null;
@@ -1725,11 +1933,20 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
 
   const activeLayerIndex = layers.findIndex((layer) => layer.id === activeLayerId);
   const numericFocusZoom = focusZoom === 'fit' ? focusStageSize.scale : focusZoom;
+  const selectedTextElement = selectedElement?.element.kind === 'text' ? selectedElement.element : null;
   const setFocusZoomStep = (next: number) => setFocusZoom(clampBoardZoom(next));
   const openFocusEditor = () => {
     setFocusEditorOpen(true);
     setFocusZoom('fit');
   };
+
+  useEffect(() => {
+    if (!selected) setShortcutHelpOpen(false);
+  }, [selected]);
+
+  useEffect(() => {
+    if (!selectedTextElement) setSelectedTextEditorOpen(false);
+  }, [selectedTextElement]);
 
   const renderCutoutQuickBar = (position: { left: number; top: number } | null) => (
     cutoutDraft?.closed && position ? (
@@ -1754,6 +1971,45 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
         <button type="button" className="t8-mini-icon-button" title="取消选区" onClick={cancelCutoutDraft}>
           <X size={13} />
         </button>
+      </div>
+    ) : null
+  );
+
+  const renderShortcutHelp = () => (
+    shortcutHelpOpen ? (
+      <div
+        className="nodrag nowheel absolute right-3 top-[54px] z-[80] w-72 rounded-lg border p-3 text-[11px] shadow-xl"
+        style={{
+          borderColor: 'var(--t8-border-strong, var(--t8-border, rgba(148,163,184,.45)))',
+          background: 'var(--t8-card, rgba(255,248,220,.98))',
+          color: 'var(--t8-text, #2b1f14)',
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 flex items-center gap-1.5 font-semibold">
+          <HelpCircle size={13} /> 画板快捷键
+          <button type="button" className="t8-mini-icon-button ml-auto h-6 w-6" title="关闭快捷键说明" onClick={() => setShortcutHelpOpen(false)}>
+            <X size={12} />
+          </button>
+        </div>
+        <div className="mb-2 rounded border px-2 py-1 leading-relaxed opacity-75" style={{ borderColor: 'var(--t8-border, rgba(148,163,184,.25))' }}>
+          仅在画板被选中，且焦点不在输入框、文字编辑框或下拉框时生效。矩形使用 Shift+S，S 保留给选择。
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {TOOL_SHORTCUTS.map((item) => (
+            <div
+              key={`${item.tool}-${item.shortcut}`}
+              className="flex items-center justify-between gap-2 rounded border px-2 py-1"
+              style={{ borderColor: 'var(--t8-border, rgba(148,163,184,.22))' }}
+            >
+              <span>{TOOL_LABEL[item.tool]}</span>
+              <kbd className="rounded border px-1.5 py-0.5 font-mono text-[10px]" style={{ borderColor: 'var(--t8-border-strong, rgba(148,163,184,.45))' }}>
+                {item.shortcut}
+              </kbd>
+            </div>
+          ))}
+        </div>
       </div>
     ) : null
   );
@@ -1855,7 +2111,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
                     onClick={() => {
                       if (layer.kind === 'layer') {
                         setActiveLayerId(layer.id);
-                        setTool('select');
+                        applyTool('select');
                       } else {
                         toggleGroupCollapsed(layer.id);
                       }
@@ -1904,6 +2160,50 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
               {activeLayerWritable ? '画笔和图形会写入当前图层。' : '当前图层隐藏或锁定，不能编辑。'}
               {selectedElement && <span> 选中：{labelForElement(selectedElement.element)}</span>}
             </div>
+            {selectedTextElement && (
+              <div className="space-y-1 rounded border border-dashed p-2 text-[10px]" style={{ borderColor: 'var(--t8-border, rgba(148,163,184,.32))' }}>
+                <div className="flex items-center gap-1 font-semibold">
+                  <Type size={12} /> 选中文字
+                  <button
+                    type="button"
+                    className="t8-mini-icon-button ml-auto h-6 w-6"
+                    title="放大编辑文字"
+                    aria-label="放大编辑文字"
+                    onClick={() => setSelectedTextEditorOpen(true)}
+                  >
+                    <Maximize2 size={12} />
+                  </button>
+                </div>
+                <textarea
+                  className="t8-input nodrag nowheel max-h-[78px] min-h-[44px] w-full resize-y px-2 py-1 text-[11px]"
+                  value={selectedTextElement.text}
+                  onFocus={beginSelectedTextEdit}
+                  onBlur={() => { textEditHistoryRef.current = null; }}
+                  onChange={(e) => updateSelectedTextElement({ text: e.target.value })}
+                  placeholder="编辑画板文字"
+                />
+                <div className="grid grid-cols-[38px_1fr_48px] items-center gap-2">
+                  <input
+                    type="color"
+                    className="nodrag h-7 w-full rounded border bg-transparent"
+                    value={selectedTextElement.color}
+                    title="文字颜色"
+                    onFocus={beginSelectedTextEdit}
+                    onChange={(e) => updateSelectedTextElement({ color: e.target.value })}
+                  />
+                  <input
+                    type="range"
+                    min={10}
+                    max={160}
+                    value={selectedTextElement.size}
+                    onFocus={beginSelectedTextEdit}
+                    onChange={(e) => updateSelectedTextElement({ size: Math.max(10, Number(e.target.value) || selectedTextElement.size) })}
+                    className="nodrag nowheel w-full accent-orange-400"
+                  />
+                  <span className="text-right opacity-70">{Math.round(selectedTextElement.size)}px</span>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="rounded border border-dashed p-4 text-center text-[11px] opacity-50">没有可编辑图层</div>
@@ -1911,6 +2211,83 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       </section>
     </>
   );
+
+  const renderSelectedTextEditor = () => {
+    if (!selectedTextEditorOpen || !selectedTextElement || typeof document === 'undefined') return null;
+    return createPortal(
+      <div
+        data-canvas-floating-ui="drawing-board-text-editor"
+        className="fixed inset-0 z-[10030] flex items-center justify-center bg-black/55 p-5 backdrop-blur-sm"
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onWheelCapture={(e) => e.stopPropagation()}
+        onKeyDownCapture={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            setSelectedTextEditorOpen(false);
+          }
+        }}
+      >
+        <div
+          className="t8-node flex h-[min(78vh,680px)] w-[min(920px,calc(100vw-40px))] flex-col overflow-hidden rounded-xl border"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="t8-node-header flex flex-none items-center gap-2 rounded-t-[inherit] px-3 py-2">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+              style={{ background: 'color-mix(in srgb, var(--t8-accent, #fb923c) 18%, transparent)', color: 'var(--t8-accent, #fb923c)' }}
+            >
+              <Type size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-base font-bold">选中文字 · 放大编辑</div>
+              <div className="truncate text-[11px] opacity-70">编辑完成后会同步回画板文字元素</div>
+            </div>
+            <button type="button" className="t8-mini-icon-button" title="关闭文字放大编辑" onClick={() => setSelectedTextEditorOpen(false)}>
+              <X size={14} />
+            </button>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+            <textarea
+              className="t8-input nodrag nowheel min-h-0 flex-1 resize-none px-3 py-2 text-[15px] leading-relaxed"
+              value={selectedTextElement.text}
+              autoFocus
+              onFocus={beginSelectedTextEdit}
+              onBlur={() => { textEditHistoryRef.current = null; }}
+              onChange={(e) => updateSelectedTextElement({ text: e.target.value })}
+              placeholder="编辑画板文字"
+            />
+            <div className="grid flex-none grid-cols-[52px_1fr_64px_auto] items-center gap-3">
+              <input
+                type="color"
+                className="nodrag h-9 w-full rounded border bg-transparent"
+                value={selectedTextElement.color}
+                title="文字颜色"
+                onFocus={beginSelectedTextEdit}
+                onChange={(e) => updateSelectedTextElement({ color: e.target.value })}
+              />
+              <input
+                type="range"
+                min={10}
+                max={160}
+                value={selectedTextElement.size}
+                onFocus={beginSelectedTextEdit}
+                onChange={(e) => updateSelectedTextElement({ size: Math.max(10, Number(e.target.value) || selectedTextElement.size) })}
+                className="nodrag nowheel w-full accent-orange-400"
+              />
+              <span className="text-right text-[12px] opacity-70">{Math.round(selectedTextElement.size)}px</span>
+              <button type="button" className="t8-btn t8-btn-primary min-h-9 px-4 text-[12px]" onClick={() => setSelectedTextEditorOpen(false)}>
+                完成
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  };
 
   const renderFocusEditor = () => {
     if (!focusEditorOpen || typeof document === 'undefined') return null;
@@ -2094,6 +2471,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
       <Handle type="source" position={Position.Right} style={{ background: PORT_COLOR.image, border: 0, zIndex: 40 }} />
       <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleLocalImageChange} />
       <input ref={boardJsonInputRef} type="file" accept="application/json,.json" className="hidden" onChange={handleBoardJsonChange} />
+      {renderShortcutHelp()}
 
       <div className="t8-node-header flex items-center gap-2 rounded-t-[inherit] px-3 py-2">
         <div
@@ -2108,6 +2486,15 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
             {boardW}×{boardH} · {layers.filter((layer) => layer.kind === 'layer').length} 图层 · {elementCount(layers)} 元素
           </div>
         </div>
+        <button
+          type="button"
+          className={`t8-mini-icon-button nodrag nopan ${shortcutHelpOpen ? 't8-btn-primary' : ''}`}
+          onClick={() => setShortcutHelpOpen((v) => !v)}
+          title="画板快捷键"
+          aria-label="画板快捷键"
+        >
+          <HelpCircle size={14} />
+        </button>
         <button type="button" className="t8-mini-icon-button nodrag nopan" onClick={clearBoard} title="清空画板">
           <RotateCcw size={14} />
         </button>
@@ -2373,6 +2760,7 @@ const DrawingBoardNode = ({ id, data, selected }: NodeProps) => {
         </section>
       </div>
       {renderFocusEditor()}
+      {renderSelectedTextEditor()}
     </div>
   );
 };

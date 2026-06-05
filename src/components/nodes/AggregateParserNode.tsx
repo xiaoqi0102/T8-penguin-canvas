@@ -255,7 +255,11 @@ const AggregateParserNode = (p: NodeProps) => {
     try {
       const data = await getAggregateParserStatus();
       setRuntimeStatus(data);
-      setMessage(data.available ? 'ParseHub 运行时可用' : data.error || 'ParseHub 运行时不可用');
+      setMessage(data.available
+        ? data.embeddedRuntimePending
+          ? '内置 ParseHub 运行时归档可用；首次解析会准备到本机缓存。'
+          : 'ParseHub 运行时可用'
+        : data.error || 'ParseHub 运行时不可用');
     } catch (err: any) {
       setRuntimeStatus({
         ok: false,
@@ -590,7 +594,7 @@ const AggregateParserNode = (p: NodeProps) => {
                 disabled={checking}
               >
                 {checking ? <Loader2 size={14} className="animate-spin" /> : <SearchCheck size={14} />}
-                {runtimeStatus ? (runtimeAvailable ? '可用' : '不可用') : '检查'}
+                {runtimeStatus ? (runtimeAvailable ? (runtimeStatus.embeddedRuntimePending ? '待准备' : '可用') : '不可用') : '检查'}
               </button>
             </div>
           </div>

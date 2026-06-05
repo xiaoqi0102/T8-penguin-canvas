@@ -8,8 +8,13 @@ import {
   advancedProviderModelOptions,
   resolveAdvancedProviderSelection,
   externalImageSizeFor,
+  distributeModelscopeLoraWeights,
+  MAX_MODELSCOPE_NODE_LORAS,
+  MODELSCOPE_LORA_TOTAL_WEIGHT,
+  modelscopeLoraWeightTotal,
   modelscopeLorasForModel,
   normalizeModelscopeLoraStrength,
+  normalizeModelscopeSelectedLoras,
   parseAdvancedProviderModelText,
   stringifyAdvancedProviderModels,
 } from '../src/utils/advancedProviders.ts';
@@ -144,8 +149,66 @@ test('modelscopeLorasForModel filters enabled LoRA entries for selected image mo
 
   assert.deepEqual(loras.map((lora) => lora.id), ['a/lora']);
   assert.equal(loras[0].strength, 0.75);
-  assert.equal(normalizeModelscopeLoraStrength(8), 2);
+  assert.equal(normalizeModelscopeLoraStrength(8), 1);
   assert.equal(normalizeModelscopeLoraStrength(-1), 0);
+});
+
+test('normalizeModelscopeSelectedLoras caps image node LoRA selection at five and keeps total weight within one', () => {
+  const available = Array.from({ length: 7 }, (_, index) => ({
+    id: `lora/${index + 1}`,
+    name: `LoRA ${index + 1}`,
+    targetModel: 'model-a',
+    strength: 0.8,
+    enabled: true,
+  }));
+
+  const selected = normalizeModelscopeSelectedLoras([
+    { id: 'lora/1', strength: 0.2 },
+    { id: 'lora/2', weight: 0.4 },
+    { id: 'lora/off', strength: 1, enabled: false },
+    { id: 'lora/3', scale: 1.4 },
+    { id: 'lora/4', loraStrength: 3 },
+    { id: 'lora/5', strength: -1 },
+    { id: 'lora/6', strength: 0.9 },
+  ], available as any);
+
+  assert.equal(MAX_MODELSCOPE_NODE_LORAS, 5);
+  assert.deepEqual(selected.map((item) => `${item.id}:${item.strength}`), [
+    'lora/1:0.0769',
+    'lora/2:0.1538',
+    'lora/3:0.3846',
+    'lora/4:0.3847',
+    'lora/5:0',
+  ]);
+  assert.equal(modelscopeLoraWeightTotal(selected), MODELSCOPE_LORA_TOTAL_WEIGHT);
+
+  const migrated = normalizeModelscopeSelectedLoras([], available as any, {
+    enabled: true,
+    id: 'lora/2',
+    strength: 1.25,
+  });
+  assert.deepEqual(migrated, [{ id: 'lora/2', strength: 1 }]);
+
+  assert.deepEqual(distributeModelscopeLoraWeights([
+    { id: 'a', strength: 0.1 },
+    { id: 'b', strength: 0.1 },
+    { id: 'c', strength: 0.1 },
+  ]), [
+    { id: 'a', strength: 0.3333 },
+    { id: 'b', strength: 0.3333 },
+    { id: 'c', strength: 0.3334 },
+  ]);
+});
+
+test('ImageNode makes ModelScope multi-LoRA total weight visible and bounded', () => {
+  const source = fs.readFileSync(new URL('../src/components/nodes/ImageNode.tsx', import.meta.url), 'utf8');
+
+  assert.match(source, /官方总权重/);
+  assert.match(source, /多个 LoRA 权重总和必须为 1\.00/);
+  assert.match(source, /还可分配/);
+  assert.match(source, /均分到 1\.00/);
+  assert.match(source, /总权重已满/);
+  assert.match(source, /max=\{rowMax\}/);
 });
 
 test('VideoNode keeps Jimeng Seedance media limits separate from Grok FAL controls', () => {

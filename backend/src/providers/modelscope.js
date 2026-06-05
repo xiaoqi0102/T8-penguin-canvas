@@ -6,6 +6,7 @@ const DEFAULT_CHAT_MODEL = 'Qwen/Qwen3-235B-A22B';
 const DEFAULT_CHAT_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_IMAGE_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_POLL_INTERVAL_MS = 1500;
+const MAX_LORAS_PER_REQUEST = 5;
 
 function generationTimeoutMs(value, fallback = DEFAULT_IMAGE_TIMEOUT_MS) {
   const n = Number(value);
@@ -72,39 +73,81 @@ function cleanLoraId(value) {
 function normalizeLoraStrength(value, fallback = 0.8) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
-  return Math.max(0, Math.min(2, n));
+  return Math.max(0, Math.min(1, n));
 }
 
-function normalizeLorasPayload(value) {
-  const out = {};
+function normalizeLoraItems(value) {
+  const out = [];
+  const seen = new Set();
+  const add = (rawId, rawStrength) => {
+    if (out.length >= 24) return;
+    const id = cleanLoraId(rawId);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push({ id, strength: normalizeLoraStrength(rawStrength, 0.8) });
+  };
   if (!value) return out;
+  if (typeof value === 'string') {
+    add(value, 1);
+    return out;
+  }
   if (Array.isArray(value)) {
     for (const raw of value) {
+      if (out.length >= 24) break;
+      if (typeof raw === 'string') {
+        add(raw, 1);
+        continue;
+      }
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
-      const id = cleanLoraId(raw.id || raw.loraId);
-      if (!id) continue;
-      out[id] = normalizeLoraStrength(raw.strength ?? raw.default_strength ?? raw.defaultStrength, 0.8);
+      if (raw.enabled === false) continue;
+      add(
+        raw.id || raw.loraId,
+        raw.strength ?? raw.loraStrength ?? raw.default_strength ?? raw.defaultStrength ?? raw.weight ?? raw.scale,
+      );
     }
     return out;
   }
   if (typeof value !== 'object') return out;
-  for (const [rawId, rawStrength] of Object.entries(value).slice(0, 8)) {
-    const id = cleanLoraId(rawId);
-    if (!id) continue;
-    out[id] = normalizeLoraStrength(rawStrength, 0.8);
+  for (const [rawId, rawStrength] of Object.entries(value)) {
+    if (out.length >= 24) break;
+    if (rawStrength && typeof rawStrength === 'object' && !Array.isArray(rawStrength)) {
+      add(rawId, rawStrength.strength ?? rawStrength.weight ?? rawStrength.scale ?? rawStrength.loraStrength);
+    } else {
+      add(rawId, rawStrength);
+    }
   }
+  return out;
+}
+
+function normalizeLorasPayload(value) {
+  const weighted = normalizeLoraItems(value).filter((item) => item.strength > 0).slice(0, MAX_LORAS_PER_REQUEST);
+  if (!weighted.length) return null;
+  if (weighted.length === 1) return weighted[0].id;
+
+  const total = weighted.reduce((sum, item) => sum + item.strength, 0);
+  if (!(total > 0)) return null;
+
+  const out = {};
+  let used = 0;
+  weighted.forEach((item, index) => {
+    const weight = index === weighted.length - 1
+      ? Math.max(0, Number((1 - used).toFixed(4)))
+      : Number((item.strength / total).toFixed(4));
+    out[item.id] = weight;
+    used += weight;
+  });
   return out;
 }
 
 function normalizeInputLoras(input = {}) {
   const params = input.providerParams && typeof input.providerParams === 'object' ? input.providerParams : {};
   const direct = normalizeLorasPayload(input.loras || params.loras || params.modelscopeLoras);
-  if (Object.keys(direct).length) return direct;
+  if (direct) return direct;
   if (params.modelscopeLoraEnabled === true) {
     const id = cleanLoraId(params.modelscopeLoraId);
-    if (id) return { [id]: normalizeLoraStrength(params.modelscopeLoraStrength, 0.8) };
+    if (id) return normalizeLorasPayload([{ id, strength: params.modelscopeLoraStrength }]);
   }
-  return {};
+  return null;
 }
 
 async function responseJson(res) {
@@ -189,7 +232,7 @@ async function generateImage(provider, input = {}, options = {}) {
   }
 
   const loras = normalizeInputLoras(input);
-  if (Object.keys(loras).length) payload.loras = loras;
+  if (loras) payload.loras = loras;
 
   const headers = {
     Authorization: `Bearer ${cleanProvider.apiKey}`,

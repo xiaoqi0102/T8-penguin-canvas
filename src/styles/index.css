@@ -9,6 +9,7 @@
 @import './theme-yyh.css';
 @import './theme-slamdunk.css';
 @import './theme-soccer.css';
+@import './theme-dragonball.css';
 
 @tailwind base;
 @tailwind components;

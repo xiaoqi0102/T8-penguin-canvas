@@ -586,6 +586,7 @@ const ComfyUIStoreNode = ({ id, data, selected }: NodeProps) => {
                       value={String(paramValues[param.key] ?? '')}
                       onValueChange={(value) => setParam(param.key, value)}
                       rows={param.rows || 4}
+                      promptTemplateKind="image"
                       className={`${inputCls} resize-y`}
                       style={inputStyle}
                       placeholder={param.placeholder}

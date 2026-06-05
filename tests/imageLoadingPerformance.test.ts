@@ -73,13 +73,15 @@ test('high-traffic node previews render through SmartImage', () => {
   }
 });
 
-test('sports theme edge motion degrades while the canvas is busy', () => {
+test('decorative theme edge motion degrades while the canvas is busy', () => {
   const canvas = read('../src/components/Canvas.tsx');
   const edge = read('../src/components/edges/DeletableEdge.tsx');
   const css = read('../src/styles/index.css');
+  const dragonCss = read('../src/styles/theme-dragonball.css');
   const main = read('../src/main.tsx');
 
   assert.match(canvas, /EDGE_MOTION_HEAVY_EDGE_COUNT/);
+  assert.match(canvas, /isDecorativeEdgeVisual = isSlamdunk \|\| isSoccer \|\| isDragonBall/);
   assert.match(canvas, /data-t8-edge-motion/);
   assert.match(canvas, /onMoveStart=\{handleViewportMoveStart\}/);
   assert.match(canvas, /if \(isDraggingRef\.current\) return;/);
@@ -92,6 +94,10 @@ test('sports theme edge motion degrades while the canvas is busy', () => {
   assert.match(edge, /\{shouldRenderSoccerBall && \(/);
 
   assert.match(css, /html\[data-t8-edge-motion="reduced"\]/);
+  assert.match(css, /theme-dragonball\.css/);
+  assert.match(dragonCss, /data-t8-edge-motion="reduced"/);
+  assert.match(dragonCss, /\.t8-viewport-moving/);
+  assert.match(dragonCss, /\.t8-node-dragging/);
   assert.match(css, /prefers-reduced-motion: reduce/);
   assert.match(main, /VITE_T8_STRICT_MODE/);
 });

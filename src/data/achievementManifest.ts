@@ -9,7 +9,8 @@ export type AchievementThemeStyle =
   | 'eva'
   | 'yyh'
   | 'slamdunk'
-  | 'soccer-hero';
+  | 'soccer-hero'
+  | 'dragon-ball';
 
 export type AchievementRarity = 'bronze' | 'silver' | 'gold' | 'master' | 'hidden';
 

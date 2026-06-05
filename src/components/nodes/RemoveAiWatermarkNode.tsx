@@ -350,7 +350,7 @@ function RemoveAiWatermarkNode({ id, data, selected }: { id: string; data: any; 
           </div>
         </div>
         <div className="text-[10px] font-bold" style={{ color: status?.installed ? 'var(--t8-accent)' : 'var(--t8-text-dim)' }}>
-          {statusLoading ? '检测中' : status?.installed ? `v${status.version || '?'}` : '未安装'}
+          {statusLoading ? '检测中' : status?.installed ? (status.runtimeArchivePending ? '内置运行时' : `v${status.version || '?'}`) : '未安装'}
         </div>
       </div>
 
@@ -368,6 +368,12 @@ function RemoveAiWatermarkNode({ id, data, selected }: { id: string; data: any; 
             {(status?.setupHints || ['pipx install remove-ai-watermarks']).slice(0, 3).map((hint) => (
               <div key={hint}>{hint}</div>
             ))}
+          </div>
+        )}
+
+        {status?.runtimeArchivePending && (
+          <div className="rounded-md border px-2 py-2 text-[10px]" style={{ borderColor: 'var(--t8-border)', color: 'var(--t8-text-muted)' }}>
+            已随安装包携带内置运行时归档；首次执行会准备到本机缓存，后续直接复用。
           </div>
         )}
 

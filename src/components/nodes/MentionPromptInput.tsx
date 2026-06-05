@@ -9,11 +9,13 @@ import {
   type Ref,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, AtSign, Image as ImageIcon, Maximize2, Music, Video as VideoIcon } from 'lucide-react';
+import { AlertTriangle, AtSign, Image as ImageIcon, Library, Maximize2, Music, Video as VideoIcon } from 'lucide-react';
 import SmartImage from '../SmartImage';
 import PromptExpandModal from '../PromptExpandModal';
+import PromptTemplateLibraryModal from '../PromptTemplateLibraryModal';
 import { useShortcutStore } from '../../stores/shortcuts';
 import { formatShortcutList, matchesAnyShortcut } from '../../utils/keyboardShortcuts';
+import type { PromptTemplateKind } from '../../data/promptTemplateLibrary';
 import type { Material } from './useUpstreamMaterials';
 import {
   getUnresolvedMentionCount,
@@ -38,6 +40,7 @@ interface Props {
   editorRef?: Ref<HTMLDivElement>;
   title?: string;
   expandable?: boolean;
+  promptTemplateKind?: PromptTemplateKind | false;
 }
 
 interface QueryState {
@@ -243,6 +246,7 @@ const MentionPromptInput = ({
   editorRef,
   title = '提示词编辑',
   expandable = true,
+  promptTemplateKind = false,
 }: Props) => {
   const localRef = useRef<HTMLDivElement | null>(null);
   const composingRef = useRef(false);
@@ -250,6 +254,7 @@ const MentionPromptInput = ({
   const expandShortcuts = useShortcutStore((s) => s.shortcuts['editor.expand-prompt']);
   const [isFocused, setIsFocused] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [draftValue, setDraftValue] = useState(value || '');
   const [draftMentions, setDraftMentions] = useState<MediaMention[]>(mentions || []);
   const [queryState, setQueryState] = useState<QueryState>({
@@ -260,6 +265,8 @@ const MentionPromptInput = ({
     activeIndex: 0,
   });
   const [popupRect, setPopupRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const templateEnabled = expandable && promptTemplateKind !== false;
+  const effectiveTemplateKind = promptTemplateKind || 'image';
 
   const mentionableMaterials = useMemo(
     () => materials.filter(isMentionableMaterial),
@@ -682,7 +689,7 @@ const MentionPromptInput = ({
             lineHeight: 1.45,
             caretColor: 'currentColor',
             cursor: 'text',
-            paddingRight: expandable ? 34 : style?.paddingRight,
+            paddingRight: expandable ? (templateEnabled ? 64 : 34) : style?.paddingRight,
           }}
         />
         {!value && !isFocused && placeholder && (
@@ -700,6 +707,27 @@ const MentionPromptInput = ({
           </div>
         )}
         {expandable && (
+          <>
+          {templateEnabled && (
+            <button
+              type="button"
+              data-prompt-template-trigger
+              className="nodrag nopan absolute right-[34px] top-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded border border-white/10 bg-black/45 text-white/70 shadow-sm hover:text-white"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setTemplateOpen(true);
+              }}
+              title="提示词模板库"
+              aria-label="提示词模板库"
+            >
+              <Library size={12} />
+            </button>
+          )}
           <button
             type="button"
             data-prompt-expand-trigger
@@ -718,6 +746,7 @@ const MentionPromptInput = ({
           >
             <Maximize2 size={12} />
           </button>
+          </>
         )}
       </div>
       {mentions.length > 0 && (
@@ -768,6 +797,7 @@ const MentionPromptInput = ({
           isPixel={isPixel}
           title={title}
           expandable={false}
+          promptTemplateKind={promptTemplateKind}
           className="h-full w-full rounded border px-3 py-2 text-sm leading-relaxed outline-none"
           style={{
             background: isPixel
@@ -784,6 +814,21 @@ const MentionPromptInput = ({
           }}
         />
       </PromptExpandModal>
+      <PromptTemplateLibraryModal
+        open={templateOpen}
+        initialKind={effectiveTemplateKind}
+        value={value || ''}
+        onApply={(nextValue) => {
+          const keepMentions = nextValue.startsWith(value || '');
+          onChange(nextValue, keepMentions ? mentions : []);
+        }}
+        onClose={() => {
+          setTemplateOpen(false);
+          window.setTimeout(() => localRef.current?.focus(), 0);
+        }}
+        isDark={isDark}
+        isPixel={isPixel}
+      />
     </div>
   );
 };

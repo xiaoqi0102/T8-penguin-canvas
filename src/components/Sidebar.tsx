@@ -235,6 +235,41 @@ const SOCCER_ICON_BY_TYPE: Record<string, string> = {
   'panorama-3d': 'Globe2',
 };
 
+const DRAGON_BALL_ICON_BY_TYPE: Record<string, string> = {
+  upload: 'PackagePlus',
+  output: 'Sparkles',
+  text: 'ScrollText',
+  image: 'Sun',
+  video: 'Clapperboard',
+  seedance: 'Film',
+  audio: 'Radio',
+  llm: 'BrainCircuit',
+  runninghub: 'Network',
+  'runninghub-wallet': 'BadgeDollarSign',
+  'rh-tools': 'Boxes',
+  'rh-toolbox': 'Wrench',
+  'frame-pair': 'ScanEye',
+  loop: 'Repeat2',
+  'pick-from-set': 'PackageOpen',
+  resize: 'MoveDiagonal',
+  combine: 'Layers3',
+  'grid-crop': 'Grid3x3',
+  'grid-editor': 'LayoutGrid',
+  idea: 'Lightbulb',
+  bp: 'NotebookTabs',
+  relay: 'ArrowRightLeft',
+  cinematic: 'Clapperboard',
+  'video-motion': 'Route',
+  'multi-angle-visual': 'Orbit',
+  'text-split': 'Scissors',
+  'image-compare': 'ScanSearch',
+  'material-set': 'Package',
+  'drawing-board': 'PenTool',
+  'portrait-master': 'UserRoundCog',
+  'pose-master': 'PersonStanding',
+  'panorama-3d': 'Radar',
+};
+
 interface SidebarProps {
   onAddNode: (type: NodeType) => void;
 }
@@ -308,6 +343,8 @@ export default function Sidebar({ onAddNode }: SidebarProps) {
         ? SLAMDUNK_ICON_BY_TYPE[n.type] || n.icon
       : visualStyle === 'soccer-hero'
         ? SOCCER_ICON_BY_TYPE[n.type] || n.icon
+      : visualStyle === 'dragon-ball'
+        ? DRAGON_BALL_ICON_BY_TYPE[n.type] || n.icon
         : n.icon;
     const Icon = (Icons as any)[themedIcon] || Icons.Box;
     const colorHex = COLOR_HEX[n.color] || COLOR_HEX.slate;

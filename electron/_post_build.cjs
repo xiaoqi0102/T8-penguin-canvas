@@ -117,6 +117,9 @@ function isSmallTextFile(p) {
 
 function checkAiWatermarkRuntime() {
   const runtimeRoot = path.join(RES, 'tools', 'remove-ai-watermarks');
+  const archiveRoot = path.join(RES, 'tools', 'runtime-archives');
+  const archive = path.join(archiveRoot, 'remove-ai-watermarks-runtime.zip');
+  const archiveManifest = path.join(archiveRoot, 'runtime-archives-manifest.json');
   const required = process.env.T8_REQUIRE_AI_WATERMARK_RUNTIME === '1';
   const candidates = [
     path.join(runtimeRoot, 'remove-ai-watermarks.exe'),
@@ -131,6 +134,15 @@ function checkAiWatermarkRuntime() {
     const manifest = path.join(runtimeRoot, 'runtime-manifest.json');
     if (fs.existsSync(manifest)) ok(manifest);
     else console.log('  ⚠️  optional runtime-manifest.json not found');
+    return;
+  }
+  if (fs.existsSync(archive)) {
+    ok(archive);
+    if (fs.existsSync(archiveManifest)) ok(archiveManifest);
+    else {
+      missingCount += 1;
+      bad(archiveManifest);
+    }
     return;
   }
   const message = 'remove-ai-watermarks sidecar runtime not bundled; packaged app will require PATH/env installed CLI';
@@ -155,6 +167,9 @@ function checkParseHubRuntime() {
   const bridge = path.join(RES, 'tools', 'parsehub-bridge', 'parsehub_bridge.py');
   const libsRoot = path.join(RES, 'tools', 'parsehub-pythonlibs');
   const parsehubPkg = path.join(libsRoot, 'parsehub');
+  const archiveRoot = path.join(RES, 'tools', 'runtime-archives');
+  const archive = path.join(archiveRoot, 'parsehub-pythonlibs.zip');
+  const archiveManifest = path.join(archiveRoot, 'runtime-archives-manifest.json');
   const strict = process.env.T8_REQUIRE_PARSEHUB_RUNTIME === '1';
 
   checkFile(bridge);
@@ -163,10 +178,20 @@ function checkParseHubRuntime() {
     return;
   }
 
+  if (fs.existsSync(archive)) {
+    ok(archive);
+    if (fs.existsSync(archiveManifest)) ok(archiveManifest);
+    else {
+      missingCount += 1;
+      bad(archiveManifest);
+    }
+    return;
+  }
+
   const message = 'ParseHub python dependencies not bundled; aggregate parser will require T8_PARSEHUB_LIB_PATHS or system/site installed parsehub';
   if (strict) failSecurity(message, libsRoot);
   console.log('  ⚠️ ', message);
-  console.log('     Refresh with: tools\\remove-ai-watermarks-runtime\\python\\python.exe -m pip install --upgrade --target tools\\parsehub-pythonlibs .\\ParseHub');
+  console.log('     Refresh with: tools\\remove-ai-watermarks-runtime\\python\\python.exe -m pip install --upgrade --target tools\\parsehub-pythonlibs .\\ParseHub, then npm run prepack:runtimes');
 }
 
 function checkUpdateArtifacts() {
@@ -255,6 +280,7 @@ function main() {
   checkFile(path.join(RES, 'backend-enc', 'routes', 'cloudUploads.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'parseHub.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'routes', 'achievements.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'routes', 'topaz.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'achievements', 'store.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'cloudUploads', 'settings.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'cloudUploads', 'uploader.t8c'));
@@ -269,8 +295,10 @@ function main() {
   checkFile(path.join(RES, 'backend-enc', 'providers', 'jimengCli.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'tools', 'aiWatermark', 'runner.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'tools', 'aiWatermark', 'media.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'tools', 'topaz', 'runner.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'utils', 'duckPayload.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'utils', 'parseHubBridge.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'utils', 'runtimeArchive.t8c'));
 
   console.log('\n[2] 前端 dist:');
   checkFile(path.join(RES, 'frontend', 'index.html'));
@@ -287,6 +315,7 @@ function main() {
   checkFrontendAsset('yyh-hidden-tonight-', '.mp3');
   checkFrontendAsset('slamdunk-kimi-ga-suki-', '.mp3');
   checkFrontendAsset('soccer-tsubasa-burning-hero-', '.mid');
+  checkFrontendAsset('dragonball-makafushigi-adventure-', '.mp3');
 
   console.log('\n[3] 清除可能混入的明文后端源码:');
   nukePlainBackend();

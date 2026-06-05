@@ -11,6 +11,19 @@ export interface ModelscopeLoraOption {
   note?: string;
 }
 
+export const MAX_MODELSCOPE_NODE_LORAS = 5;
+export const MODELSCOPE_LORA_TOTAL_WEIGHT = 1;
+const MODELSCOPE_LORA_WEIGHT_DECIMALS = 4;
+
+export interface ModelscopeSelectedLora {
+  id: string;
+  strength: number;
+}
+
+function roundModelscopeLoraWeight(value: number): number {
+  return Number(value.toFixed(MODELSCOPE_LORA_WEIGHT_DECIMALS));
+}
+
 export function parseAdvancedProviderModelText(value: string): string[] {
   const out: string[] = [];
   for (const raw of String(value || '').split(/[\n,]/)) {
@@ -31,7 +44,53 @@ export function stringifyAdvancedProviderModels(values?: string[]): string {
 export function normalizeModelscopeLoraStrength(value: unknown, fallback = 0.8): number {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
-  return Math.max(0, Math.min(2, n));
+  return Math.max(0, Math.min(MODELSCOPE_LORA_TOTAL_WEIGHT, n));
+}
+
+export function modelscopeLoraWeightTotal(values: ModelscopeSelectedLora[] = []): number {
+  return roundModelscopeLoraWeight(values.reduce((sum, item) => (
+    sum + normalizeModelscopeLoraStrength(item?.strength, 0)
+  ), 0));
+}
+
+export function normalizeModelscopeLoraWeightsTotal(
+  values: ModelscopeSelectedLora[] = [],
+): ModelscopeSelectedLora[] {
+  const normalized = values.map((item) => ({
+    ...item,
+    strength: normalizeModelscopeLoraStrength(item?.strength, 0),
+  }));
+  const total = modelscopeLoraWeightTotal(normalized);
+  if (total <= MODELSCOPE_LORA_TOTAL_WEIGHT || total <= 0) return normalized;
+
+  const positiveCount = normalized.filter((item) => item.strength > 0).length;
+  let positiveIndex = 0;
+  let used = 0;
+  return normalized.map((item) => {
+    if (item.strength <= 0) return item;
+    positiveIndex += 1;
+    const strength = positiveIndex === positiveCount
+      ? Math.max(0, roundModelscopeLoraWeight(MODELSCOPE_LORA_TOTAL_WEIGHT - used))
+      : roundModelscopeLoraWeight(item.strength / total);
+    used = roundModelscopeLoraWeight(used + strength);
+    return { ...item, strength };
+  });
+}
+
+export function distributeModelscopeLoraWeights(
+  values: ModelscopeSelectedLora[] = [],
+): ModelscopeSelectedLora[] {
+  const count = values.length;
+  if (!count) return [];
+  const base = roundModelscopeLoraWeight(MODELSCOPE_LORA_TOTAL_WEIGHT / count);
+  let used = 0;
+  return values.map((item, index) => {
+    const strength = index === count - 1
+      ? Math.max(0, roundModelscopeLoraWeight(MODELSCOPE_LORA_TOTAL_WEIGHT - used))
+      : base;
+    used = roundModelscopeLoraWeight(used + strength);
+    return { ...item, strength };
+  });
 }
 
 export function normalizeModelscopeLoras(values?: unknown[]): ModelscopeLoraOption[] {
@@ -73,6 +132,52 @@ export function modelscopeLorasForModel(
     lora.id &&
     lora.targetModel === target
   ));
+}
+
+export function normalizeModelscopeSelectedLoras(
+  value: unknown,
+  availableOptions: ModelscopeLoraOption[] = [],
+  legacy?: { enabled?: unknown; id?: unknown; strength?: unknown },
+): ModelscopeSelectedLora[] {
+  const out: ModelscopeSelectedLora[] = [];
+  const seen = new Set<string>();
+  const availableById = new Map(availableOptions.map((option) => [option.id, option]));
+  const allowAny = availableOptions.length === 0;
+  const add = (rawId: unknown, rawStrength: unknown) => {
+    if (out.length >= MAX_MODELSCOPE_NODE_LORAS) return;
+    const id = String(rawId || '').trim();
+    if (!id || seen.has(id)) return;
+    const option = availableById.get(id);
+    if (!allowAny && !option) return;
+    seen.add(id);
+    out.push({
+      id,
+      strength: normalizeModelscopeLoraStrength(rawStrength, option?.strength ?? 0.8),
+    });
+  };
+
+  if (Array.isArray(value)) {
+    for (const raw of value) {
+      if (out.length >= MAX_MODELSCOPE_NODE_LORAS) break;
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+      const item = raw as Record<string, any>;
+      if (item.enabled === false) continue;
+      add(
+        item.id || item.loraId,
+        item.strength ?? item.loraStrength ?? item.default_strength ?? item.defaultStrength ?? item.weight ?? item.scale,
+      );
+    }
+  } else if (value && typeof value === 'object') {
+    for (const [id, strength] of Object.entries(value as Record<string, any>)) {
+      if (out.length >= MAX_MODELSCOPE_NODE_LORAS) break;
+      add(id, strength);
+    }
+  }
+
+  if (!out.length && legacy?.enabled === true) {
+    add(legacy.id, legacy.strength);
+  }
+  return normalizeModelscopeLoraWeightsTotal(out);
 }
 
 export function hasAdvancedProviderSecret(value?: string): boolean {

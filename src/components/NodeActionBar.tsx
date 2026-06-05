@@ -38,6 +38,7 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   // v1.4.6: 工具箱文本节点也可点击 RUN 直接外挂 OutputNode
   'cinematic', 'video-motion',
   'portrait-master', 'pose-master', 'aggregate-parser',
+  'topaz-image-upscale', 'topaz-video-upscale',
   'remove-ai-watermark',
 ]);
 
@@ -52,6 +53,7 @@ const ACTION_COLORS: Record<string, { run: string; stop: string; close: string }
   eva: { run: '#78ff4d', stop: '#ff9d00', close: '#ff3046' },
   yyh: { run: '#52ff9a', stop: '#ffb84d', close: '#ff4f7b' },
   'soccer-hero': { run: '#1f9f4a', stop: '#f5d550', close: '#d64242' },
+  'dragon-ball': { run: '#ffb000', stop: '#38bdf8', close: '#dc2626' },
 };
 
 const NodeActionBar = () => {

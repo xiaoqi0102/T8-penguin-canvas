@@ -213,3 +213,12 @@ test('commandCandidates prefers explicit packaged sidecar runtime before generic
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('electron packaging uses runtime archive for bundled ai watermark runtime', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'));
+  const postBuild = fs.readFileSync(path.resolve('electron/_post_build.cjs'), 'utf8');
+  const resource = pkg.build.extraResources.find((item: any) => item.to === 'tools/runtime-archives');
+  assert.ok(resource);
+  assert.ok(resource.filter.includes('remove-ai-watermarks-runtime.zip'));
+  assert.match(postBuild, /remove-ai-watermarks-runtime\.zip/);
+});

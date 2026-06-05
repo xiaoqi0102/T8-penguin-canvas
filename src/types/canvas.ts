@@ -55,6 +55,8 @@ export type NodeType =
   | 'portrait-master'
   | 'pose-master'
   | 'aggregate-parser'
+  | 'topaz-image-upscale'
+  | 'topaz-video-upscale'
   // 3D (1)
   | 'panorama-3d'
   // Input/Output 素材 (2) - 上传素材(图像/视频/音频三合一) + 输出素材(文本/图像/视频/音频预览)

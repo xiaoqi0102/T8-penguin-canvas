@@ -73,6 +73,8 @@ export const NODE_DEFAULT_SIZE: Record<string, { w: number; h: number }> = {
   'portrait-master': { w: 560, h: 360 },
   'pose-master': { w: 900, h: 720 },
   'aggregate-parser': { w: 620, h: 680 },
+  'topaz-image-upscale': { w: 390, h: 620 },
+  'topaz-video-upscale': { w: 420, h: 720 },
   'panorama-3d': { w: 760, h: 900 },
   'remove-ai-watermark': { w: 380, h: 520 },
   groupBox: { w: 480, h: 320 },

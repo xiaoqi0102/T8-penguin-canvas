@@ -872,6 +872,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
             className="w-full h-36 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30 overflow-y-auto"
             isDark={isDark}
             isPixel={isPixel}
+            promptTemplateKind="image"
           />
         </div>
 
@@ -888,6 +889,7 @@ const LLMNode = ({ id, data, selected }: NodeProps) => {
             placeholder="备用:无上游连接时使用"
             isDark={isDark}
             isPixel={isPixel}
+            promptTemplateKind="image"
             className="w-full h-60 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30 overflow-y-auto"
           />
         </div>

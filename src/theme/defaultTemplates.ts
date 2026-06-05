@@ -12,6 +12,7 @@ export const yyhThemeMusicUrl = new URL('../assets/theme-music/yyh-unbalanced-ki
 export const yyhHiddenThemeMusicUrl = new URL('../assets/theme-music/yyh-hidden-tonight.mp3', import.meta.url).href;
 export const slamdunkThemeMusicUrl = new URL('../assets/theme-music/slamdunk-kimi-ga-suki.mp3', import.meta.url).href;
 export const soccerThemeMusicUrl = new URL('../assets/theme-music/soccer-tsubasa-burning-hero.mid', import.meta.url).href;
+export const dragonBallThemeMusicUrl = new URL('../assets/theme-music/dragonball-makafushigi-adventure.mp3', import.meta.url).href;
 
 export const DEFAULT_THEME_TEMPLATE_ID = 'pixel-candy';
 export const TECH_TEMPLATE_ID = 'tech-default';
@@ -23,6 +24,7 @@ export const EVA_TEMPLATE_ID = 'eva-style';
 export const YYH_TEMPLATE_ID = 'yyh-style';
 export const SLAMDUNK_TEMPLATE_ID = 'slamdunk-style';
 export const SOCCER_TEMPLATE_ID = 'soccer-hero-style';
+export const DRAGON_BALL_TEMPLATE_ID = 'dragon-ball-style';
 
 const techDark: ThemeTokens = {
   appBg: '#09090b',
@@ -682,6 +684,80 @@ const soccerDark: ThemeTokens = {
   portAudio: '#c4a7ff',
 };
 
+const dragonBallLight: ThemeTokens = {
+  appBg: '#f5b447',
+  canvasBg: '#e8942d',
+  panelBg: '#fff1bf',
+  panelBgElevated: '#fff8d9',
+  panelBgMuted: '#e9c46f',
+  nodeBg: '#fff3c8',
+  nodeHeaderBg: '#f97316',
+  textMain: '#231207',
+  textMuted: '#5d3418',
+  textDim: '#8c6237',
+  border: '#2a1608',
+  borderStrong: '#2a1608',
+  accent: '#f97316',
+  accentHover: '#ffb000',
+  accentText: '#fff8d6',
+  secondary: '#2563eb',
+  warning: '#facc15',
+  danger: '#dc2626',
+  success: '#22c55e',
+  shadowPanel: '5px 5px 0 #2a1608, 0 18px 46px rgba(74,36,8,0.18)',
+  shadowButton: '3px 3px 0 #2a1608',
+  shadowStrong: '7px 7px 0 #2a1608, 0 24px 72px rgba(74,36,8,0.24)',
+  radiusPanel: '12px',
+  radiusButton: '9999px',
+  radiusNode: '14px',
+  gridDot: '#98622b',
+  edge: '#7c2d12',
+  edgeSelected: '#facc15',
+  selectionBg: 'rgba(37,99,235,0.16)',
+  selectionBorder: '#2563eb',
+  portText: '#2563eb',
+  portImage: '#f59e0b',
+  portVideo: '#ef4444',
+  portAudio: '#7c3aed',
+  fontFamily: "'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif",
+  displayFont: "'Arial Black', Impact, 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif",
+};
+
+const dragonBallDark: ThemeTokens = {
+  ...dragonBallLight,
+  appBg: '#070b1f',
+  canvasBg: '#0b1230',
+  panelBg: '#121a37',
+  panelBgElevated: '#19254a',
+  panelBgMuted: '#26315a',
+  nodeBg: '#121b38',
+  nodeHeaderBg: '#8a2d10',
+  textMain: '#fff7d6',
+  textMuted: '#e7c987',
+  textDim: '#b99a63',
+  border: '#ffe08a',
+  borderStrong: '#ffb000',
+  accent: '#ffb000',
+  accentHover: '#ffe066',
+  accentText: '#120802',
+  secondary: '#38bdf8',
+  warning: '#facc15',
+  danger: '#ff4d5a',
+  success: '#52ff82',
+  shadowPanel: '0 18px 54px rgba(0,0,0,0.58), 5px 5px 0 #02040f',
+  shadowButton: '3px 3px 0 #02040f',
+  shadowStrong: '0 28px 82px rgba(0,0,0,0.68), 7px 7px 0 #02040f',
+  gridDot: '#334070',
+  edge: '#f59e0b',
+  edgeSelected: '#fef08a',
+  selectionBg: 'rgba(255,176,0,0.18)',
+  selectionBorder: '#ffb000',
+  portText: '#67e8f9',
+  portImage: '#facc15',
+  portVideo: '#ff6b6b',
+  portAudio: '#c4a7ff',
+};
+
 export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
   {
     schema: 't8-theme-template',
@@ -940,6 +1016,34 @@ export const BUILT_IN_THEME_TEMPLATES: ThemeTemplate[] = [
       copyrightNote: '足球小将风格默认 MIDI 音乐文件；若公开分发请确认音乐授权边界，golden-goal 仅作为兜底 preset。',
     },
     modes: { dark: { tokens: soccerDark }, light: { tokens: soccerLight } },
+  },
+  {
+    schema: 't8-theme-template',
+    version: THEME_TEMPLATE_VERSION,
+    id: DRAGON_BALL_TEMPLATE_ID,
+    name: '七龙珠风格',
+    description: '热血冒险视觉：胶囊公司设备面板、神龙雷达画布、七颗龙珠徽章、气功波连线和七龙珠第一部开场曲默认音乐。',
+    author: 'T8',
+    builtIn: true,
+    legacyStyle: 'pixel',
+    visuals: {
+      style: 'dragon-ball',
+      intensity: 'strong',
+      iconPack: 'dragon-ball',
+      canvasPattern: 'dragon-radar',
+      nodeFrame: 'capsule-card',
+      headerMark: 'DRAGON RADAR',
+    },
+    music: {
+      title: '摩诃不思议 Adventure',
+      preset: 'ki-burst',
+      source: 'url',
+      url: dragonBallThemeMusicUrl,
+      volume: 0.18,
+      bpm: 156,
+      copyrightNote: '七龙珠第一部开场曲默认音乐文件；公开分发前请确认音乐授权边界。',
+    },
+    modes: { dark: { tokens: dragonBallDark }, light: { tokens: dragonBallLight } },
   },
 ];
 

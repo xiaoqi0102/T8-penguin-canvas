@@ -137,6 +137,7 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
           value={text}
           onValueChange={(value) => update({ prompt: value })}
           placeholder="输入提示词..."
+          promptTemplateKind="image"
           autoCorrect="off"
           autoCapitalize="off"
           containerClassName={`relative ${size.h ? 'flex flex-col flex-1 min-h-0' : ''}`}

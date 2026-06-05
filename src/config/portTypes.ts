@@ -127,6 +127,9 @@ export const NODE_PORTS: Record<string, NodePorts> = {
   'pose-master': { inputs: ['text', 'image', 'metadata'], outputs: ['image', 'text', 'metadata'] },
   // 聚合解析: 可直接接上游分享文案文本，输出解析摘要与媒体地址。
   'aggregate-parser': { inputs: ['text'], outputs: ['text', 'image', 'video', 'audio'] },
+  // Topaz 本地高清化: 仅调用用户本机已安装的 Topaz 软件，不内置第三方商业程序。
+  'topaz-image-upscale': { inputs: ['image'], outputs: ['image'] },
+  'topaz-video-upscale': { inputs: ['video'], outputs: ['video'] },
 
   // ========== 3D ==========
   'panorama-3d': { inputs: ['image'], outputs: ['image'] },

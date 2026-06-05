@@ -815,6 +815,7 @@ const Panorama3DNode = (p: NodeProps) => {
                 })}
                 rows={3}
                 placeholder={panelMode === 'image' ? '可选补充：场景风格、天气、镜头中心...' : '场景提示词'}
+                promptTemplateKind="image"
                 className="w-full resize-none rounded-md border border-[var(--t8-border)] bg-[var(--t8-bg-panel)] px-2 py-1.5 text-xs text-[var(--t8-text-main)] outline-none"
               />
 

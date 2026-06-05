@@ -18,6 +18,31 @@ const fallbackStatus: T8UpdaterStatus = {
   updatedAt: null,
 };
 
+type T8DesktopInfo = Awaited<ReturnType<NonNullable<Window['t8pc']>['getInfo']>>;
+
+const UPDATE_DISABLED_MESSAGE = '开发模式不会检查 GitHub Release 更新';
+const UPDATER_BRIDGE_MISSING_MESSAGE =
+  '当前桌面包缺少自动更新桥接，无法在应用内检查更新。请下载完整安装包覆盖安装，安装后此入口会恢复检查、下载和打开安装向导。';
+
+function isElectronUserAgent(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /\bElectron\//i.test(navigator.userAgent);
+}
+
+function bridgeUnavailableStatus(info?: Partial<T8DesktopInfo> | null): T8UpdaterStatus {
+  const packaged = info?.packaged ?? isElectronUserAgent();
+  const isPackagedDesktop = packaged !== false;
+  return {
+    ...fallbackStatus,
+    status: isPackagedDesktop ? 'error' : 'disabled',
+    currentVersion: info?.version || fallbackStatus.currentVersion,
+    packaged: Boolean(packaged),
+    message: isPackagedDesktop ? UPDATER_BRIDGE_MISSING_MESSAGE : UPDATE_DISABLED_MESSAGE,
+    error: isPackagedDesktop ? '自动更新桥接不可用' : null,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function statusTone(status: T8UpdaterStatusCode): 'idle' | 'busy' | 'good' | 'warn' | 'bad' {
   if (status === 'checking' || status === 'downloading' || status === 'installing') return 'busy';
   if (status === 'available' || status === 'downloaded') return 'warn';
@@ -35,7 +60,7 @@ function statusLabel(status: T8UpdaterStatus): string {
   }
   if (status.status === 'downloaded') return '安装';
   if (status.status === 'installing') return '向导';
-  if (status.status === 'not-available') return '最新';
+  if (status.status === 'not-available') return '更新';
   if (status.status === 'error') return '失败';
   if (status.status === 'disabled') return '桌面版';
   return '更新';
@@ -66,6 +91,10 @@ export default function AppUpdaterButton({ isPixel, isDark }: AppUpdaterButtonPr
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<T8UpdaterStatus>(fallbackStatus);
   const hasUpdater = typeof window !== 'undefined' && Boolean(window.t8pc?.updater);
+  const desktopShellDetected =
+    hasUpdater ||
+    (typeof window !== 'undefined' && Boolean(window.t8pc?.getInfo || window.t8pc?.openExternal)) ||
+    isElectronUserAgent();
 
   useEffect(() => {
     if (!hasUpdater || !window.t8pc?.updater) return;
@@ -85,6 +114,28 @@ export default function AppUpdaterButton({ isPixel, isDark }: AppUpdaterButtonPr
   }, [hasUpdater]);
 
   useEffect(() => {
+    if (!desktopShellDetected || hasUpdater) return;
+    let mounted = true;
+    const getInfo = window.t8pc?.getInfo;
+    if (!getInfo) {
+      setStatus(bridgeUnavailableStatus());
+      return () => {
+        mounted = false;
+      };
+    }
+    getInfo()
+      .then((info) => {
+        if (mounted) setStatus(bridgeUnavailableStatus(info));
+      })
+      .catch(() => {
+        if (mounted) setStatus(bridgeUnavailableStatus());
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [desktopShellDetected, hasUpdater]);
+
+  useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
@@ -99,8 +150,17 @@ export default function AppUpdaterButton({ isPixel, isDark }: AppUpdaterButtonPr
   const tone = statusTone(status.status);
   const progressPercent = Math.max(0, Math.min(100, status.progress?.percent ?? 0));
   const nextVersion = status.availableVersion ? `v${status.availableVersion}` : null;
-  const detailText = status.error || status.message || '等待检查更新';
-  const disabled = busy || status.status === 'checking' || status.status === 'downloading' || status.status === 'installing';
+  const detailText =
+    status.error === '自动更新桥接不可用'
+      ? status.message || status.error
+      : status.error || status.message || '等待检查更新';
+  const updaterUnavailable = desktopShellDetected && !hasUpdater;
+  const disabled =
+    updaterUnavailable ||
+    busy ||
+    status.status === 'checking' ||
+    status.status === 'downloading' ||
+    status.status === 'installing';
 
   const buttonClass = useMemo(() => {
     if (isPixel) {
@@ -134,11 +194,25 @@ export default function AppUpdaterButton({ isPixel, isDark }: AppUpdaterButtonPr
     return `${base} ${isDark ? 'border-white/10 text-white/70 hover:bg-white/10' : 'border-black/10 text-zinc-600 hover:bg-black/5'}`;
   }, [isDark, isPixel, tone]);
 
-  if (!hasUpdater) return null;
+  if (!desktopShellDetected) return null;
 
   const callUpdater = async (action: 'check' | 'download' | 'install') => {
     const api = window.t8pc?.updater;
-    if (!api) return;
+    if (!api) {
+      setStatus((prev) => {
+        const next = bridgeUnavailableStatus({
+          packaged: prev.packaged ?? true,
+          version: prev.currentVersion,
+        });
+        return {
+          ...next,
+          status: prev.status === 'disabled' ? 'disabled' : next.status,
+          message: prev.status === 'disabled' ? prev.message : next.message,
+        };
+      });
+      setOpen(true);
+      return;
+    }
     setBusy(true);
     try {
       const result = await api[action]();

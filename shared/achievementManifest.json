@@ -299,6 +299,35 @@
           "condition": { "type": "nodeCreated", "nodeTypes": ["upload"], "count": 1 }
         }
       ]
+    },
+    {
+      "style": "dragon-ball",
+      "label": "七龙珠风格",
+      "shortLabel": "龙珠",
+      "accent": "#ffb000",
+      "featured": [
+        {
+          "idSuffix": "capsule-start",
+          "title": "万能胶囊启动",
+          "description": "在七龙珠风格下创建上传素材或素材集节点。",
+          "rarity": "bronze",
+          "condition": { "type": "nodeCreated", "nodeTypes": ["upload", "material-set"], "count": 1 }
+        },
+        {
+          "idSuffix": "ki-burst",
+          "title": "气功波生成",
+          "description": "在七龙珠风格下成功运行图像、视频或 Seedance 节点。",
+          "rarity": "silver",
+          "condition": { "type": "nodeRun", "nodeTypes": ["image", "video", "seedance"], "count": 1 }
+        },
+        {
+          "idSuffix": "shenron-pano",
+          "title": "召唤神龙",
+          "description": "在七龙珠风格下成功生成一次 3D 全景。",
+          "rarity": "gold",
+          "condition": { "type": "counter", "metric": "panoramasGenerated", "count": 1 }
+        }
+      ]
     }
   ],
   "films": [
@@ -323,6 +352,14 @@
       "theme": "yyh",
       "title": "幽游隐藏奖励影片",
       "unlockAchievementId": "yyh-portrait-output",
+      "lockedText": "待解锁",
+      "unavailableText": "影片素材待提供"
+    },
+    {
+      "id": "film-dragon-ball-01",
+      "theme": "dragon-ball",
+      "title": "七龙珠奖励影片",
+      "unlockAchievementId": "dragon-ball-shenron-pano",
       "lockedText": "待解锁",
       "unavailableText": "影片素材待提供"
     }

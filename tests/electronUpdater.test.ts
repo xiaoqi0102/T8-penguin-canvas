@@ -29,8 +29,11 @@ test('electron main process owns updater checks, downloads, and install IPC', ()
   const pkg = JSON.parse(read('../package.json'));
   const main = read('../electron/main.cjs');
   const installerNsh = read('../electron/build-resources/installer.nsh');
+  const nsis = pkg.build.nsis;
 
   assert.match(main, new RegExp(`const APP_VERSION = '${escapeRegExp(pkg.version)}'`));
+  assert.equal(nsis.createDesktopShortcut, 'always');
+  assert.equal(nsis.createStartMenuShortcut, true);
   assert.match(main, /require\('electron-updater'\)/);
   assert.match(main, /autoUpdater\.autoDownload\s*=\s*false/);
   assert.match(main, /autoUpdater\.autoInstallOnAppQuit\s*=\s*false/);
@@ -43,6 +46,9 @@ test('electron main process owns updater checks, downloads, and install IPC', ()
   assert.match(main, /打开安装向导/);
   assert.match(installerNsh, /!macro customInit/);
   assert.match(installerNsh, /SetSilent\s+normal/);
+  assert.match(installerNsh, /!macro customInstall/);
+  assert.match(installerNsh, /CreateShortCut "\$newStartMenuLink"/);
+  assert.match(installerNsh, /CreateShortCut "\$DESKTOP\\\$\{SHORTCUT_NAME\}\.lnk"/);
 });
 
 test('preload and frontend expose a narrow updater surface', () => {
@@ -59,6 +65,11 @@ test('preload and frontend expose a narrow updater surface', () => {
   assert.match(app, /<AppUpdaterButton isPixel=\{isPixel\} isDark=\{isDark\} \/>/);
   assert.match(button, /status\.status === 'available'/);
   assert.match(button, /status\.status === 'downloaded'/);
+  assert.match(button, /desktopShellDetected/);
+  assert.match(button, /isElectronUserAgent/);
+  assert.match(button, /UPDATER_BRIDGE_MISSING_MESSAGE/);
+  assert.match(button, /if \(!desktopShellDetected\) return null/);
+  assert.doesNotMatch(button, /if \(!hasUpdater\) return null/);
   assert.match(button, /打开安装向导/);
 });
 

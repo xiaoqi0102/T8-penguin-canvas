@@ -1,0 +1,664 @@
+/*
+ * Dragon Ball visual skin.
+ * Original capsule-console UI: dragon radar canvas, seven-star badge,
+ * capsule-card nodes, static energy grid, and lightweight ki-beam edges.
+ */
+
+html[data-theme-visual="dragon-ball"] {
+  --db-ink: var(--t8-text-main);
+  --db-cream: var(--t8-bg-panel);
+  --db-card: var(--t8-bg-node);
+  --db-card-2: var(--t8-bg-panel-elevated);
+  --db-muted: var(--t8-bg-panel-muted);
+  --db-orange: var(--t8-accent);
+  --db-orange-hot: var(--t8-accent-hover);
+  --db-blue: var(--t8-secondary);
+  --db-gold: var(--t8-warning);
+  --db-red: var(--t8-danger);
+  --db-green: var(--t8-success);
+  --db-line: color-mix(in srgb, var(--db-ink) 38%, transparent);
+  --db-radar-line: rgba(33, 18, 7, 0.28);
+  --db-radar-strong: rgba(33, 18, 7, 0.44);
+  --db-orb:
+    radial-gradient(circle at 32% 24%, rgba(255,255,255,0.62) 0 9%, transparent 10%),
+    radial-gradient(circle at 50% 50%, #ffbf36 0 55%, #f97316 56% 100%);
+  --db-button-shape: polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%);
+  --db-card-shape: polygon(16px 0, calc(100% - 12px) 0, 100% 14px, 100% 100%, 0 100%, 0 14px);
+  --db-radar-bg:
+    radial-gradient(circle at 50% 50%, transparent 0 78px, var(--db-radar-line) 79px 82px, transparent 83px 154px, var(--db-radar-line) 155px 158px, transparent 159px 232px, var(--db-radar-line) 233px 236px, transparent 237px),
+    linear-gradient(90deg, transparent 0 calc(50% - 1px), var(--db-radar-strong) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(0deg, transparent 0 calc(50% - 1px), var(--db-radar-strong) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 72px),
+    radial-gradient(circle at 12% 16%, color-mix(in srgb, var(--db-gold) 28%, transparent) 0 18px, transparent 19px),
+    radial-gradient(circle at 88% 20%, color-mix(in srgb, var(--db-blue) 18%, transparent) 0 24px, transparent 25px),
+    radial-gradient(circle at 74% 82%, color-mix(in srgb, var(--db-orange) 18%, transparent) 0 32px, transparent 33px),
+    linear-gradient(135deg, color-mix(in srgb, var(--t8-bg-canvas) 94%, #fff 6%), var(--t8-bg-canvas));
+  --t8-cut-cursor: crosshair;
+  --t8-cut-color: var(--db-gold);
+  --t8-cut-track: color-mix(in srgb, var(--db-gold) 78%, var(--db-blue));
+  --t8-cut-button-bg: var(--db-card-2);
+  --t8-cut-button-fg: var(--db-orange);
+  --t8-cut-button-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'><path fill='black' d='M14 2 16.9 10.2H26L18.6 15.4 21.5 24 14 18.7 6.5 24 9.4 15.4 2 10.2H11.1L14 2Z'/></svg>");
+  --px-mint: var(--db-gold);
+  --px-mint-deep: var(--db-orange);
+  --px-candy-mint: var(--db-gold);
+  --px-candy-mint-deep: var(--db-orange);
+  --px-success: var(--db-green);
+  --px-cyan: var(--db-blue);
+  --px-sky: var(--db-blue);
+  --px-blue: var(--db-blue);
+  --px-teal: var(--db-green);
+  --px-violet: var(--db-blue);
+  --px-purple: var(--db-blue);
+  --px-fuchsia: var(--db-red);
+  --px-candy-sky: var(--db-blue);
+  --px-candy-violet: var(--db-blue);
+  --px-candy-pink: var(--db-red);
+}
+
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] {
+  --db-radar-line: rgba(255, 224, 138, 0.18);
+  --db-radar-strong: rgba(255, 224, 138, 0.32);
+  --db-radar-bg:
+    radial-gradient(circle at 50% 50%, transparent 0 78px, var(--db-radar-line) 79px 82px, transparent 83px 154px, var(--db-radar-line) 155px 158px, transparent 159px 232px, var(--db-radar-line) 233px 236px, transparent 237px),
+    linear-gradient(90deg, transparent 0 calc(50% - 1px), var(--db-radar-strong) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(0deg, transparent 0 calc(50% - 1px), var(--db-radar-strong) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 72px),
+    radial-gradient(circle at 12% 16%, color-mix(in srgb, var(--db-gold) 20%, transparent) 0 18px, transparent 19px),
+    radial-gradient(circle at 88% 20%, color-mix(in srgb, var(--db-blue) 22%, transparent) 0 24px, transparent 25px),
+    radial-gradient(circle at 74% 82%, color-mix(in srgb, var(--db-orange) 18%, transparent) 0 32px, transparent 33px),
+    linear-gradient(135deg, #071028, var(--t8-bg-canvas));
+}
+
+@keyframes db-ki-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -48; }
+}
+
+html[data-theme-visual="dragon-ball"] body,
+html[data-theme-visual="dragon-ball"] #root {
+  background: var(--t8-bg-app);
+  color: var(--t8-text-main);
+  font-family: var(--t8-font-family);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-app-shell {
+  background:
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--db-gold) 26%, transparent), transparent 26%),
+    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--db-blue) 22%, transparent), transparent 28%),
+    repeating-linear-gradient(90deg, transparent 0 42px, color-mix(in srgb, var(--db-ink) 7%, transparent) 42px 43px),
+    var(--t8-bg-app) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-topbar {
+  position: relative;
+  min-height: 54px;
+  background:
+    radial-gradient(circle at 12% 50%, color-mix(in srgb, var(--db-gold) 26%, transparent), transparent 18%),
+    linear-gradient(90deg, #1b2250 0 14px, var(--db-orange) 14px 38%, var(--db-blue) 38% 72%, #08102b 72% 100%) !important;
+  border-bottom: 3px solid var(--db-ink) !important;
+  box-shadow: 0 4px 0 var(--db-gold), 0 16px 34px rgba(0, 0, 0, 0.18);
+  overflow: visible;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-topbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -8px;
+  height: 5px;
+  background: repeating-linear-gradient(90deg, var(--db-gold) 0 18px, var(--db-orange) 18px 48px, var(--db-blue) 48px 68px, #08102b 68px 78px);
+  pointer-events: none;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__mark {
+  width: 43px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: var(--db-button-shape);
+  border: 2px solid var(--db-ink);
+  background: linear-gradient(90deg, var(--db-blue) 0 28%, var(--db-cream) 28% 36%, #08102b 36% 100%);
+  box-shadow: 3px 3px 0 var(--db-ink);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__orb {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border: 2px solid color-mix(in srgb, var(--db-ink) 82%, transparent);
+  border-radius: 999px;
+  background: var(--db-orb);
+  box-shadow: inset -3px -4px 0 rgba(124, 45, 18, 0.18);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__orb::before,
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__orb::after {
+  content: "★";
+  position: absolute;
+  color: #d71920;
+  font-size: 7px;
+  line-height: 1;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__orb::before {
+  left: 8px;
+  top: 7px;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__orb::after {
+  right: 7px;
+  bottom: 7px;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__title {
+  color: #fff8d6;
+  font-family: var(--t8-font-display);
+  font-size: 16px !important;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-shadow: 2px 2px 0 #08102b, 0 0 12px color-mix(in srgb, var(--db-gold) 50%, transparent);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__sub {
+  color: var(--db-gold);
+  letter-spacing: 0;
+  max-width: clamp(210px, 32vw, 420px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 #08102b;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 8px;
+  border: 2px solid var(--db-ink);
+  border-radius: 999px;
+  background: #08102b;
+  box-shadow: inset 0 -2px 0 rgba(255,255,255,0.12);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-dragonball-brand__stars span {
+  width: 10px;
+  height: 10px;
+  border: 1px solid color-mix(in srgb, var(--db-ink) 72%, transparent);
+  border-radius: 999px;
+  background: var(--db-orb);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-topbar button,
+html[data-theme-visual="dragon-ball"] .t8-topbar .px-btn,
+html[data-theme-visual="dragon-ball"] .t8-topbar .t8-btn,
+html[data-theme-visual="dragon-ball"] .t8-topbar .px-chip,
+html[data-theme-visual="dragon-ball"] .t8-topbar-status-chip {
+  min-height: 25px;
+  border: 2px solid var(--db-ink) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, var(--db-card-2), var(--db-cream)) !important;
+  color: var(--db-ink) !important;
+  box-shadow: 3px 3px 0 var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-topbar button:hover,
+html[data-theme-visual="dragon-ball"] .t8-topbar .t8-btn:hover {
+  background: linear-gradient(180deg, var(--db-orange-hot), var(--db-orange)) !important;
+  color: var(--t8-accent-text) !important;
+  transform: translate(-1px, -1px);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-sidebar {
+  position: relative;
+  background:
+    linear-gradient(90deg, var(--db-blue) 0 7px, var(--db-gold) 7px 10px, transparent 10px),
+    linear-gradient(180deg, color-mix(in srgb, var(--db-cream) 96%, #fff 4%), color-mix(in srgb, var(--db-cream) 86%, var(--db-orange) 14%)) !important;
+  border-right: 4px solid var(--db-ink) !important;
+  box-shadow: 6px 0 0 var(--db-gold);
+}
+
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .t8-sidebar {
+  background:
+    linear-gradient(90deg, var(--db-blue) 0 7px, var(--db-gold) 7px 10px, transparent 10px),
+    linear-gradient(180deg, #0a1029, #121a37) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-sidebar::after {
+  content: "RADAR\A CAPSULE\A ENERGY\A CANVAS";
+  white-space: pre;
+  position: absolute;
+  right: 10px;
+  bottom: 38px;
+  z-index: 0;
+  width: 84px;
+  padding: 8px 7px;
+  border: 2px solid color-mix(in srgb, var(--db-ink) 44%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--db-ink) 10%, transparent);
+  color: color-mix(in srgb, var(--db-ink) 44%, transparent);
+  font-family: var(--t8-font-display);
+  font-size: 8px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-sidebar .px-row,
+html[data-theme-visual="dragon-ball"] .t8-sidebar .px-group-title,
+html[data-theme-visual="dragon-ball"] .t8-sidebar-search-row,
+html[data-theme-visual="dragon-ball"] .t8-sidebar > div {
+  color: var(--db-ink) !important;
+  border-color: color-mix(in srgb, var(--db-ink) 48%, transparent) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-sidebar .px-row.is-active {
+  background:
+    linear-gradient(90deg, var(--db-orange) 0 6px, transparent 6px),
+    linear-gradient(180deg, color-mix(in srgb, var(--db-gold) 34%, var(--db-card-2)), color-mix(in srgb, var(--db-card) 86%, var(--db-orange) 14%)) !important;
+  border: 2px solid var(--db-ink) !important;
+  color: var(--db-ink) !important;
+  box-shadow: 3px 3px 0 var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .t8-sidebar .px-row.is-active,
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .t8-sidebar .px-row.is-active * {
+  color: var(--t8-accent-text) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-sidebar-node > span:first-child {
+  background: var(--db-orb) !important;
+  border-color: var(--db-ink) !important;
+  color: #7c2d12 !important;
+  box-shadow: 2px 2px 0 var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-sidebar-node:hover {
+  border-color: var(--db-ink);
+  background: color-mix(in srgb, var(--db-gold) 20%, var(--db-card-2)) !important;
+  box-shadow: 2px 2px 0 var(--db-ink);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-canvas-shell {
+  --t8-flow-controls-bg: #08102b;
+  --t8-flow-controls-border: var(--db-ink);
+  --t8-flow-controls-fg: #fff8d6;
+  --t8-flow-controls-muted: rgba(255, 248, 214, 0.52);
+  --t8-flow-controls-button-bg: color-mix(in srgb, #08102b 88%, var(--db-blue) 12%);
+  --t8-flow-controls-button-hover-bg: var(--db-orange);
+  --t8-flow-controls-accent: var(--db-gold);
+  background: var(--db-radar-bg) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-canvas-shell > .react-flow,
+html[data-theme-visual="dragon-ball"] .react-flow__pane,
+html[data-theme-visual="dragon-ball"] .react-flow__renderer,
+html[data-theme-visual="dragon-ball"] .react-flow__viewport {
+  background: transparent !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__background {
+  background: var(--db-radar-bg) !important;
+  background-color: transparent !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__background-pattern circle {
+  fill: color-mix(in srgb, var(--db-ink) 42%, transparent) !important;
+  opacity: 0.18;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) {
+  filter: none !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div,
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child,
+html[data-theme-style="pixel"][data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div:first-child {
+  border: 3px solid var(--db-ink) !important;
+  border-radius: var(--t8-radius-node) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--db-card) 96%, #fff 4%), var(--db-card)) !important;
+  box-shadow: none !important;
+  overflow: visible;
+  isolation: isolate;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div::before {
+  content: "CAPSULE";
+  position: absolute;
+  right: 10px;
+  top: 7px;
+  z-index: 4;
+  color: color-mix(in srgb, var(--t8-accent-text) 76%, transparent);
+  font-family: var(--t8-font-display);
+  font-size: 8px;
+  font-weight: 950;
+  pointer-events: none;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div::after {
+  content: "";
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  z-index: 4;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--db-ink);
+  border-radius: 999px;
+  background: var(--db-orb);
+  pointer-events: none;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div > .t8-node-header,
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div > [class*="border-b"] {
+  min-height: 52px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--db-orange-hot) 76%, var(--db-card) 24%), var(--db-orange)) !important;
+  border-bottom: 4px solid var(--db-ink) !important;
+  color: var(--t8-accent-text) !important;
+  position: relative;
+  z-index: 2;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div > .t8-node-header [class*="text-[10px]"],
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div > [class*="border-b"] [class*="text-[10px]"],
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div > .t8-node-header .text-xs,
+html[data-theme-visual="dragon-ball"] .react-flow__node:not(.react-flow__node-groupBox) > div > [class*="border-b"] .text-xs {
+  color: color-mix(in srgb, var(--t8-accent-text) 78%, transparent) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div,
+html[data-theme-visual="dragon-ball"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div:first-child,
+html[data-theme-style="pixel"][data-theme-visual="dragon-ball"] .react-flow__node.selected:not(.react-flow__node-groupBox) > div:first-child {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--db-gold) 72%, transparent) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-node-serial-badge {
+  --t8-node-serial-offset-x: 12px;
+  --t8-node-serial-offset-y: -12px;
+  min-width: 28px;
+  height: 22px;
+  border: 2px solid var(--db-ink);
+  border-radius: 999px;
+  background: var(--db-orb);
+  color: #7c2d12;
+  box-shadow: 2px 2px 0 var(--db-ink);
+  font-family: var(--t8-font-display);
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__handle {
+  border: 2px solid var(--db-ink) !important;
+  background: var(--db-gold) !important;
+  box-shadow: 2px 2px 0 color-mix(in srgb, var(--db-ink) 80%, transparent) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__handle.target {
+  background: var(--db-green) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__handle.source {
+  background: var(--db-blue) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__edge-path,
+html[data-theme-visual="dragon-ball"] .react-flow__connection-path {
+  stroke: color-mix(in srgb, var(--db-gold) 72%, var(--db-blue)) !important;
+  stroke-width: 3px !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 20 10 4 10 !important;
+  animation: db-ki-flow 1.1s linear infinite;
+  filter: none !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-edge-yyh-red-segment {
+  display: block;
+  stroke: var(--db-orange) !important;
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-dasharray: 5 24;
+  animation: db-ki-flow 1.1s linear infinite;
+  opacity: 0.8;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__edge.selected .react-flow__edge-path,
+html[data-theme-visual="dragon-ball"] .react-flow__edge:hover .react-flow__edge-path,
+html[data-theme-visual="dragon-ball"] .react-flow__edge:focus .react-flow__edge-path {
+  stroke: var(--db-orange-hot) !important;
+  stroke-width: 3.8px !important;
+  stroke-dasharray: 8 8 !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__node-groupBox > div,
+html[data-theme-visual="dragon-ball"] .group-box-node {
+  border: 3px dashed var(--db-ink) !important;
+  border-radius: 14px !important;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 56px, color-mix(in srgb, var(--db-gold) 26%, transparent) 57px 60px, transparent 61px),
+    color-mix(in srgb, var(--db-card) 54%, transparent) !important;
+  box-shadow: 5px 5px 0 color-mix(in srgb, var(--db-ink) 72%, transparent) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__minimap {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 28px, color-mix(in srgb, var(--db-green) 38%, transparent) 29px 31px, transparent 32px 56px, color-mix(in srgb, var(--db-green) 30%, transparent) 57px 59px, transparent 60px),
+    linear-gradient(90deg, transparent 0 calc(50% - 1px), color-mix(in srgb, var(--db-green) 36%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(0deg, transparent 0 calc(50% - 1px), color-mix(in srgb, var(--db-green) 36%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    var(--db-card) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__minimap::before {
+  content: "DRAGON RADAR";
+  position: absolute;
+  left: 22px;
+  top: 12px;
+  z-index: 3;
+  color: var(--db-green);
+  font-family: var(--t8-font-display);
+  font-size: 9px;
+  font-weight: 950;
+  pointer-events: none;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__controls,
+html[data-theme-visual="dragon-ball"] .t8-theme-music-toggle,
+html[data-theme-visual="dragon-ball"] .t8-control-rail-help {
+  border: 2px solid var(--db-ink) !important;
+  border-radius: 999px !important;
+  box-shadow: 3px 3px 0 var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__controls,
+html[data-theme-visual="dragon-ball"] .react-flow__controls-button,
+html[data-theme-visual="dragon-ball"] .t8-theme-music-toggle,
+html[data-theme-visual="dragon-ball"] .t8-control-rail-help {
+  background: linear-gradient(180deg, #111a3d, #08102b) !important;
+  color: #fff8d6 !important;
+  fill: #fff8d6 !important;
+}
+
+html[data-theme-visual="dragon-ball"] .react-flow__controls-button:hover,
+html[data-theme-visual="dragon-ball"] .t8-theme-music-toggle:hover,
+html[data-theme-visual="dragon-ball"] .t8-control-rail-help:hover {
+  background: linear-gradient(180deg, var(--db-orange-hot), var(--db-orange)) !important;
+  color: var(--t8-accent-text) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-node-action-bar--dragon-ball button {
+  background: linear-gradient(180deg, color-mix(in srgb, #08102b 84%, var(--db-blue) 16%), #08102b) !important;
+  border: 2px solid var(--db-gold) !important;
+  color: #fff8d6 !important;
+  box-shadow: 2px 2px 0 var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-node-action-bar--dragon-ball button:hover {
+  background: linear-gradient(180deg, var(--db-orange-hot), var(--db-orange)) !important;
+  color: var(--t8-accent-text) !important;
+  border-color: var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-context-menu,
+html[data-theme-visual="dragon-ball"] .t8-model-help-panel,
+html[data-theme-visual="dragon-ball"] .resource-library-drawer,
+html[data-theme-visual="dragon-ball"] .t8-node-action-bar {
+  border: 3px solid var(--db-ink) !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--db-card-2) 92%, var(--db-gold) 8%), var(--db-card)) !important;
+  color: var(--db-ink) !important;
+  box-shadow: 5px 5px 0 var(--db-ink), 0 18px 42px rgba(0, 0, 0, 0.2) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .px-btn--mint,
+html[data-theme-visual="dragon-ball"] .px-btn--sky,
+html[data-theme-visual="dragon-ball"] .px-btn--violet,
+html[data-theme-visual="dragon-ball"] .px-btn--pink,
+html[data-theme-visual="dragon-ball"] .px-btn--peach,
+html[data-theme-visual="dragon-ball"] .px-btn--yellow,
+html[data-theme-visual="dragon-ball"] .px-chip--mint,
+html[data-theme-visual="dragon-ball"] .t8-btn-primary,
+html[data-theme-visual="dragon-ball"] .react-flow__node button.w-full,
+html[data-theme-visual="dragon-ball"] .react-flow__node button.flex-1 {
+  border: 2px solid var(--db-ink) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--db-gold) 82%, #fff 10%), var(--db-orange)) !important;
+  color: var(--t8-accent-text) !important;
+  box-shadow: 3px 3px 0 var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"] input,
+html[data-theme-visual="dragon-ball"] textarea,
+html[data-theme-visual="dragon-ball"] select,
+html[data-theme-visual="dragon-ball"] .t8-input,
+html[data-theme-visual="dragon-ball"] .t8-select {
+  border: 2px solid color-mix(in srgb, var(--db-ink) 72%, transparent) !important;
+  border-radius: 9px !important;
+  background: color-mix(in srgb, var(--db-card-2) 90%, #fff 10%) !important;
+  color: var(--db-ink) !important;
+  color-scheme: light;
+}
+
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] input,
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] textarea,
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] select,
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .t8-input,
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .t8-select {
+  color-scheme: dark;
+}
+
+html[data-theme-visual="dragon-ball"] select option {
+  background: var(--db-card-2);
+  color: var(--db-ink);
+}
+
+html[data-theme-visual="dragon-ball"] select option:checked {
+  background: var(--db-orange);
+  color: var(--t8-accent-text);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-material-preview-header {
+  border: 2px solid var(--db-ink) !important;
+  border-radius: 10px !important;
+  background:
+    radial-gradient(circle at 92% 50%, color-mix(in srgb, var(--db-gold) 36%, transparent) 0 10px, transparent 11px),
+    linear-gradient(180deg, color-mix(in srgb, var(--db-gold) 86%, #fff 8%), var(--db-orange)) !important;
+  color: var(--db-ink) !important;
+  box-shadow: none !important;
+  font-family: var(--t8-font-display);
+}
+
+html[data-theme-visual="dragon-ball"] .t8-material-preview-count {
+  border: 1.5px solid var(--db-ink) !important;
+  border-radius: 999px !important;
+  background: var(--db-gold) !important;
+  color: var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-material-preview-group-label {
+  color: color-mix(in srgb, var(--db-ink) 74%, var(--db-orange)) !important;
+  font-weight: 800;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-material-preview-upload {
+  border-color: color-mix(in srgb, var(--db-ink) 48%, transparent) !important;
+  background: color-mix(in srgb, var(--db-gold) 16%, var(--db-card-2)) !important;
+  color: var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"] [class*="text-emerald-"],
+html[data-theme-visual="dragon-ball"] [class*="text-green-"],
+html[data-theme-visual="dragon-ball"] [class*="text-lime-"],
+html[data-theme-visual="dragon-ball"] [class*="text-cyan-"],
+html[data-theme-visual="dragon-ball"] [class*="text-sky-"],
+html[data-theme-visual="dragon-ball"] [class*="text-blue-"],
+html[data-theme-visual="dragon-ball"] [class*="text-teal-"],
+html[data-theme-visual="dragon-ball"] [class*="text-indigo-"],
+html[data-theme-visual="dragon-ball"] [class*="text-violet-"],
+html[data-theme-visual="dragon-ball"] [class*="text-purple-"],
+html[data-theme-visual="dragon-ball"] [class*="text-fuchsia-"] {
+  color: var(--db-blue) !important;
+}
+
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-emerald-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-green-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-lime-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-cyan-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-sky-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-blue-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-teal-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-indigo-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-violet-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-purple-"],
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] [class*="text-fuchsia-"] {
+  color: var(--db-gold) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .bg-zinc-900,
+html[data-theme-visual="dragon-ball"] .bg-neutral-900,
+html[data-theme-visual="dragon-ball"] .bg-black\/40,
+html[data-theme-visual="dragon-ball"] .bg-white\/5 {
+  background-color: color-mix(in srgb, var(--db-card-2) 88%, transparent) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .border-white\/10,
+html[data-theme-visual="dragon-ball"] .border-white\/20,
+html[data-theme-visual="dragon-ball"] .border-zinc-700 {
+  border-color: color-mix(in srgb, var(--db-ink) 28%, transparent) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .text-white,
+html[data-theme-visual="dragon-ball"] .text-zinc-100,
+html[data-theme-visual="dragon-ball"] .text-zinc-200,
+html[data-theme-visual="dragon-ball"] .text-neutral-100 {
+  color: var(--db-ink) !important;
+}
+
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .text-white,
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .text-zinc-100,
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .text-zinc-200,
+html[data-theme-visual="dragon-ball"][data-theme-mode="dark"] .text-neutral-100 {
+  color: var(--t8-text-main) !important;
+}
+
+html[data-theme-visual="dragon-ball"] .t8-viewport-moving .react-flow__edge-path,
+html[data-theme-visual="dragon-ball"] .t8-node-dragging .react-flow__edge-path,
+html[data-theme-visual="dragon-ball"] .t8-edge-motion-reduced .react-flow__edge-path,
+html[data-theme-visual="dragon-ball"] .t8-edge-motion-reduced .t8-edge-yyh-red-segment,
+html[data-t8-edge-motion="reduced"][data-theme-visual="dragon-ball"] .react-flow__edge-path,
+html[data-t8-edge-motion="reduced"][data-theme-visual="dragon-ball"] .t8-edge-yyh-red-segment {
+  animation: none !important;
+  stroke-dasharray: 12 12 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-visual="dragon-ball"] .react-flow__edge-path,
+  html[data-theme-visual="dragon-ball"] .t8-edge-yyh-red-segment {
+    animation: none !important;
+  }
+}

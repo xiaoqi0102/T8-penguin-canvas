@@ -1,6 +1,17 @@
 export type ThemeMode = 'dark' | 'light';
 export type LegacyThemeStyle = 'tech' | 'pixel';
-export type ThemeVisualStyle = 'plain' | 'tech' | 'pixel' | 'op' | 'rh' | 'naruto' | 'eva' | 'yyh' | 'slamdunk' | 'soccer-hero';
+export type ThemeVisualStyle =
+  | 'plain'
+  | 'tech'
+  | 'pixel'
+  | 'op'
+  | 'rh'
+  | 'naruto'
+  | 'eva'
+  | 'yyh'
+  | 'slamdunk'
+  | 'soccer-hero'
+  | 'dragon-ball';
 export type ThemeIntensity = 'subtle' | 'medium' | 'strong';
 export type ThemeMusicPreset =
   | 'tech-pulse'
@@ -11,7 +22,8 @@ export type ThemeMusicPreset =
   | 'eva-sync'
   | 'spirit-gun'
   | 'buzzer-beater'
-  | 'golden-goal';
+  | 'golden-goal'
+  | 'ki-burst';
 export type ThemeMusicSource = 'synth' | 'url' | 'upload';
 
 export interface ThemeTokens {
@@ -60,9 +72,9 @@ export interface ThemeModeDefinition {
 export interface ThemeVisuals {
   style: ThemeVisualStyle;
   intensity?: ThemeIntensity;
-  iconPack?: 'default' | 'op' | 'naruto' | 'eva' | 'yyh' | 'slamdunk' | 'soccer';
-  canvasPattern?: 'none' | 'dots' | 'map' | 'circuit' | 'confetti' | 'hub' | 'chakra' | 'eva-grid' | 'spirit-map' | 'court' | 'pitch';
-  nodeFrame?: 'plain' | 'glass' | 'sticker' | 'wanted' | 'hub-card' | 'shinobi-scroll' | 'eva-panel' | 'spirit-case' | 'scoreboard-card' | 'match-card';
+  iconPack?: 'default' | 'op' | 'naruto' | 'eva' | 'yyh' | 'slamdunk' | 'soccer' | 'dragon-ball';
+  canvasPattern?: 'none' | 'dots' | 'map' | 'circuit' | 'confetti' | 'hub' | 'chakra' | 'eva-grid' | 'spirit-map' | 'court' | 'pitch' | 'dragon-radar';
+  nodeFrame?: 'plain' | 'glass' | 'sticker' | 'wanted' | 'hub-card' | 'shinobi-scroll' | 'eva-panel' | 'spirit-case' | 'scoreboard-card' | 'match-card' | 'capsule-card';
   headerMark?: string;
 }
 

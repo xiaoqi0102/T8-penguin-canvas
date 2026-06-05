@@ -149,6 +149,8 @@ const PortraitMasterNode = lazyCanvasNode(() => import('./nodes/PortraitMasterNo
 const PoseMasterNode = lazyCanvasNode(() => import('./nodes/PoseMasterNode'), 'PoseMasterNode');
 const Panorama3DNode = lazyCanvasNode(() => import('./nodes/Panorama3DNode'), 'Panorama3DNode');
 const AggregateParserNode = lazyCanvasNode(() => import('./nodes/AggregateParserNode'), 'AggregateParserNode');
+const TopazImageUpscaleNode = lazyCanvasNode(() => import('./nodes/TopazImageUpscaleNode'), 'TopazImageUpscaleNode');
+const TopazVideoUpscaleNode = lazyCanvasNode(() => import('./nodes/TopazVideoUpscaleNode'), 'TopazVideoUpscaleNode');
 const IdeaNode = lazyCanvasNode(() => import('./nodes/IdeaNode'), 'IdeaNode');
 const BpNode = lazyCanvasNode(() => import('./nodes/BpNode'), 'BpNode');
 const RelayNode = lazyCanvasNode(() => import('./nodes/RelayNode'), 'RelayNode');
@@ -227,6 +229,8 @@ const SPECIFIC_NODES: Record<string, any> = {
   'portrait-master': PortraitMasterNode,
   'pose-master': PoseMasterNode,
   'aggregate-parser': AggregateParserNode,
+  'topaz-image-upscale': TopazImageUpscaleNode,
+  'topaz-video-upscale': TopazVideoUpscaleNode,
   'panorama-3d': Panorama3DNode,
   // Input (1) - 上传素材
   upload: UploadNode,
@@ -405,6 +409,42 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
     audioUrl: '',
     audioUrls: [],
     status: 'idle',
+  },
+  'topaz-image-upscale': {
+    topazGigapixelPath: '',
+    topazGigapixelModel: 'std',
+    topazGigapixelScale: 2,
+    topazGigapixelEnableSettings: true,
+    topazGigapixelDenoise: 1,
+    topazGigapixelSharpen: 1,
+    topazGigapixelCompression: 67,
+    topazGigapixelFineDetail: 50,
+    topazGigapixelPreDownscaling: 75,
+    topazGigapixelShowAdvanced: false,
+    imageUrl: '',
+    imageUrls: [],
+    urls: [],
+    status: 'idle',
+    error: '',
+  },
+  'topaz-video-upscale': {
+    topazVideoPath: '',
+    topazVideoEnableUpscale: true,
+    topazVideoUpscaleModel: 'iris-3',
+    topazVideoUpscaleFactor: 2,
+    topazVideoCompression: 1,
+    topazVideoBlend: 0,
+    topazVideoEnableInterpolation: false,
+    topazVideoInputFps: 24,
+    topazVideoInterpolationMultiplier: 2,
+    topazVideoInterpolationModel: 'apo-8',
+    topazVideoUseGpu: true,
+    topazVideoPreserveAudio: true,
+    topazVideoShowAdvanced: false,
+    videoUrl: '',
+    videoUrls: [],
+    status: 'idle',
+    error: '',
   },
   'text-split': {
     sourceText: '',
@@ -651,6 +691,7 @@ const EXECUTABLE_NODE_TYPES = new Set<string>([
   'loop', 'pick-from-set',
   // v1.4.8: 工具箱文本节点也可点击 RUN 直接外挂 OutputNode
   'cinematic', 'video-motion', 'multi-angle-visual', 'portrait-master', 'pose-master', 'aggregate-parser',
+  'topaz-image-upscale', 'topaz-video-upscale',
   'remove-ai-watermark',
 ]);
 
@@ -1206,6 +1247,7 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
   const isYyh = visualStyle === 'yyh';
   const isSlamdunk = visualStyle === 'slamdunk';
   const isSoccer = visualStyle === 'soccer-hero';
+  const isDragonBall = visualStyle === 'dragon-ball';
   const themeTokens = getTemplateMode(currentTemplate, theme).tokens;
   const { screenToFlowPosition, setCenter, getViewport, setViewport, fitView } = useReactFlow();
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -4735,9 +4777,9 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
 
   const isDark = theme === 'dark';
   const isPixel = style === 'pixel';
-  const isSportVisual = isSlamdunk || isSoccer;
-  const heavyEdgeMotion = isSportVisual && edges.length >= EDGE_MOTION_HEAVY_EDGE_COUNT;
-  const edgeMotionReduced = isSportVisual && (heavyEdgeMotion || viewportMoving || nodeDragging);
+  const isDecorativeEdgeVisual = isSlamdunk || isSoccer || isDragonBall;
+  const heavyEdgeMotion = isDecorativeEdgeVisual && edges.length >= EDGE_MOTION_HEAVY_EDGE_COUNT;
+  const edgeMotionReduced = isDecorativeEdgeVisual && (heavyEdgeMotion || viewportMoving || nodeDragging);
   const heavyCanvasSurface = nodes.length >= 96 || edges.length >= EDGE_MOTION_HEAVY_EDGE_COUNT;
   const guideColor = themeTokens.edgeSelected;
   const edgeStroke = themeTokens.edge;
@@ -4767,7 +4809,7 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    if (!isSportVisual) {
+    if (!isDecorativeEdgeVisual) {
       root.removeAttribute('data-t8-edge-motion');
       root.removeAttribute('data-t8-edge-load');
       return;
@@ -4778,7 +4820,7 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
       root.removeAttribute('data-t8-edge-motion');
       root.removeAttribute('data-t8-edge-load');
     };
-  }, [edgeMotionReduced, heavyEdgeMotion, isSportVisual]);
+  }, [edgeMotionReduced, heavyEdgeMotion, isDecorativeEdgeVisual]);
 
   if (!activeId) {
     return (
@@ -4799,7 +4841,7 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
     <div
       className={`t8-canvas-shell flex-1 relative${connectionPanModeActive ? ' connection-pan-mode-active' : ''}${edgeMotionReduced ? ' t8-edge-motion-reduced' : ''}${viewportMoving ? ' t8-viewport-moving' : ''}${nodeDragging ? ' t8-node-dragging' : ''}`}
       data-theme-visual={visualStyle}
-      data-edge-motion={edgeMotionReduced ? 'reduced' : isSportVisual ? 'full' : undefined}
+      data-edge-motion={edgeMotionReduced ? 'reduced' : isDecorativeEdgeVisual ? 'full' : undefined}
       data-edge-load={heavyEdgeMotion ? 'heavy' : undefined}
       style={{ background: bgColor }}
       onContextMenuCapture={onCanvasContextMenuCapture}
@@ -4995,8 +5037,8 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
             setCenter(position.x, position.y, { zoom, duration: 400 });
           }}
           style={{
-            width: isOp ? 144 : isNaruto ? 182 : isEva ? 258 : isYyh ? 224 : isSlamdunk ? 214 : isSoccer ? 224 : undefined,
-            height: isOp ? 144 : isNaruto ? 122 : isEva ? 172 : isYyh ? 144 : isSlamdunk ? 128 : isSoccer ? 136 : undefined,
+            width: isOp ? 144 : isNaruto ? 182 : isEva ? 258 : isYyh ? 224 : isSlamdunk ? 214 : isSoccer ? 224 : isDragonBall ? 192 : undefined,
+            height: isOp ? 144 : isNaruto ? 122 : isEva ? 172 : isYyh ? 144 : isSlamdunk ? 128 : isSoccer ? 136 : isDragonBall ? 192 : undefined,
             background: isOp
               ? themeTokens.panelBg
               : isNaruto
@@ -5008,6 +5050,8 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
               : isSlamdunk
                 ? themeTokens.panelBg
               : isSoccer
+                ? themeTokens.panelBg
+              : isDragonBall
                 ? themeTokens.panelBg
               : isDark ? 'rgba(20,20,22,.9)' : 'rgba(255,255,255,.9)',
             border: isOp
@@ -5022,10 +5066,12 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
                   ? `3px solid ${themeTokens.textMain}`
               : isSoccer
                   ? `3px solid ${themeTokens.textMain}`
+              : isDragonBall
+                  ? `3px solid ${themeTokens.warning}`
                 : `1px solid ${isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.08)'}`,
-            borderRadius: isOp ? 999 : isNaruto ? '18px 18px 12px 12px' : isEva ? 8 : isYyh ? 12 : isSlamdunk ? 10 : isSoccer ? 12 : 8,
-            right: isOp ? 24 : isNaruto ? 24 : isEva ? 24 : isYyh ? 24 : isSlamdunk ? 24 : isSoccer ? 24 : undefined,
-            bottom: isOp ? 42 : isNaruto ? 40 : isEva ? 24 : isYyh ? 28 : isSlamdunk ? 32 : isSoccer ? 32 : undefined,
+            borderRadius: isOp ? 999 : isNaruto ? '18px 18px 12px 12px' : isEva ? 8 : isYyh ? 12 : isSlamdunk ? 10 : isSoccer ? 12 : isDragonBall ? 999 : 8,
+            right: isOp ? 24 : isNaruto ? 24 : isEva ? 24 : isYyh ? 24 : isSlamdunk ? 24 : isSoccer ? 24 : isDragonBall ? 28 : undefined,
+            bottom: isOp ? 42 : isNaruto ? 40 : isEva ? 24 : isYyh ? 28 : isSlamdunk ? 32 : isSoccer ? 32 : isDragonBall ? 34 : undefined,
             boxShadow: isOp
               ? `0 0 0 7px ${themeTokens.warning}, 5px 5px 0 ${themeTokens.textMain}`
               : isNaruto
@@ -5038,13 +5084,15 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
                   ? `0 0 0 5px ${themeTokens.secondary}, 5px 5px 0 ${themeTokens.textMain}, 0 18px 46px rgba(0,0,0,.28)`
               : isSoccer
                   ? `0 0 0 5px ${themeTokens.secondary}, 5px 5px 0 ${themeTokens.textMain}, 0 18px 46px rgba(0,0,0,.24)`
+              : isDragonBall
+                  ? `0 0 0 5px ${themeTokens.secondary}, 5px 5px 0 ${themeTokens.textMain}, 0 18px 46px rgba(0,0,0,.28), inset 0 0 34px ${themeTokens.warning}33`
               : undefined,
             cursor: 'pointer',
-            overflow: isOp || isNaruto || isEva || isYyh || isSlamdunk || isSoccer ? 'hidden' : undefined,
+            overflow: isOp || isNaruto || isEva || isYyh || isSlamdunk || isSoccer || isDragonBall ? 'hidden' : undefined,
             display: (viewportMoving || nodeDragging) && heavyCanvasSurface ? 'none' : undefined,
           }}
-          maskColor={isOp ? 'rgba(15,124,140,.28)' : isNaruto ? 'rgba(255,91,31,.22)' : isEva ? 'rgba(156,255,0,.18)' : isYyh ? 'rgba(67,247,255,.16)' : isSlamdunk ? 'rgba(240,123,34,.22)' : isSoccer ? 'rgba(18,107,216,.22)' : isDark ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.6)'}
-          nodeColor={() => (isOp ? themeTokens.secondary : isNaruto ? themeTokens.accent : isEva ? themeTokens.danger : isYyh ? themeTokens.success : isSlamdunk ? themeTokens.accent : isSoccer ? themeTokens.accent : isDark ? '#a1a1aa' : '#52525b')}
+          maskColor={isOp ? 'rgba(15,124,140,.28)' : isNaruto ? 'rgba(255,91,31,.22)' : isEva ? 'rgba(156,255,0,.18)' : isYyh ? 'rgba(67,247,255,.16)' : isSlamdunk ? 'rgba(240,123,34,.22)' : isSoccer ? 'rgba(18,107,216,.22)' : isDragonBall ? 'rgba(255,176,0,.22)' : isDark ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.6)'}
+          nodeColor={() => (isOp ? themeTokens.secondary : isNaruto ? themeTokens.accent : isEva ? themeTokens.danger : isYyh ? themeTokens.success : isSlamdunk ? themeTokens.accent : isSoccer ? themeTokens.accent : isDragonBall ? themeTokens.warning : isDark ? '#a1a1aa' : '#52525b')}
         />
         {/* 选中可执行节点时的浮动操作栏 (执行 / 中止 / 关闭) */}
         <NodeActionBar />

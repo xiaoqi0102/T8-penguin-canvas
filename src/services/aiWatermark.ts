@@ -57,6 +57,13 @@ export interface AiWatermarkStatus {
   installed: boolean;
   version?: string;
   resolver?: string;
+  runtimeArchivePending?: boolean;
+  runtimeArchive?: {
+    archiveExists?: boolean;
+    ready?: boolean;
+    archiveFile?: string;
+    archiveSize?: number;
+  };
   markKeys: string[];
   optionalFeatures: {
     invisible: boolean;

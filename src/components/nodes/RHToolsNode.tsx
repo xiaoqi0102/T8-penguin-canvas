@@ -1095,6 +1095,7 @@ const RHToolsNode = ({ id, data, selected }: NodeProps) => {
                                 placeholder={extractDefaultValue(it)}
                                 isDark={isDark}
                                 isPixel={isPixel}
+                                promptTemplateKind="image"
                                 className="w-full min-h-14 resize-none rounded px-2 py-1 text-[11px] outline-none"
                                 style={{ background: surface, color: text, border: `1px solid ${border}` }}
                               />

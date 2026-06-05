@@ -15,12 +15,12 @@ function read(rel: string) {
 test('achievement manifest gives every system theme time milestones and featured medals', () => {
   const manifest = JSON.parse(read('../shared/achievementManifest.json'));
   assert.equal(manifest.schema, 't8-achievement-manifest');
-  assert.equal(manifest.themes.length, 9);
+  assert.equal(manifest.themes.length, 10);
   assert.equal(manifest.timeMilestones.length, 5);
   for (const theme of manifest.themes) {
     assert.equal(theme.featured.length, 3, `${theme.style} should have first-batch featured achievements`);
   }
-  assert.equal(manifest.films.length, 3);
+  assert.equal(manifest.films.length, 4);
   assert.equal(manifest.films.every((film: any) => film.lockedText === '待解锁'), true);
   assert.equal(manifest.films.every((film: any) => film.unavailableText === '影片素材待提供'), true);
 
@@ -88,6 +88,13 @@ test('achievement backend records active time, hidden mode, and film placeholder
   }).then((res) => res.json());
   assert.equal(workflowSaved.success, true);
 
+  const dragonPano = await fetch(`${base}/api/achievements/event`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'panorama.generated', theme: 'dragon-ball', nodeType: 'panorama-3d' }),
+  }).then((res) => res.json());
+  assert.equal(dragonPano.success, true);
+
   const profile = await fetch(`${base}/api/achievements/profile`).then((res) => res.json());
   assert.equal(profile.success, true);
   assert.equal(profile.data.profile.themeStats.tech.activeSeconds, 600);
@@ -96,9 +103,12 @@ test('achievement backend records active time, hidden mode, and film placeholder
   assert.ok(profile.data.profile.unlockedAchievements['rh-duck-decoded']);
   assert.equal(profile.data.profile.themeStats.pixel.resourcesSaved, 1);
   assert.equal(profile.data.profile.themeStats.op.workflowsSaved, 1);
+  assert.equal(profile.data.profile.themeStats['dragon-ball'].panoramasGenerated, 1);
+  assert.ok(profile.data.profile.unlockedAchievements['dragon-ball-shenron-pano']);
   assert.equal(profile.data.profile.unlockedFilms['film-rh-01'].hasMedia, false);
   assert.equal(profile.data.profile.unlockedFilms['film-rh-01'].status, 'awaiting-media');
   assert.equal(profile.data.profile.unlockedFilms['film-rh-01'].unavailableText, '影片素材待提供');
+  assert.equal(profile.data.profile.unlockedFilms['film-dragon-ball-01'].status, 'awaiting-media');
 });
 
 test('achievement frontend and server are wired without recording prompt content', () => {

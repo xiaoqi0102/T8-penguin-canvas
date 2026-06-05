@@ -1860,7 +1860,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             labelClassName={labelCls}
             hintClassName={hintCls}
             title="4. ModelScope LoRA（可选）"
-            note={`为 ModelScope 图像模型绑定 LoRA。图像节点会按当前外部模型自动筛选；当前启用 ${enabledModelscopeLoraCount}/${modelscopeLoras.length}。`}
+            note={`为 ModelScope 图像模型绑定 LoRA。图像节点会按当前外部模型自动筛选；多个 LoRA 的官方权重总和必须为 1.00，节点内会显示总权重并限制超额；当前启用 ${enabledModelscopeLoraCount}/${modelscopeLoras.length}。`}
           >
             <div className="flex flex-wrap gap-2">
               <button
@@ -1929,12 +1929,12 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                           </select>
                         </label>
                         <label className="space-y-1 min-w-0">
-                          <span className={`text-[11px] ${labelCls}`}>强度</span>
+                          <span className={`text-[11px] ${labelCls}`} title="作为图像节点选中该 LoRA 时的默认权重；节点内会按官方总和 1.00 限制多 LoRA 权重。">默认权重</span>
                           <input
                             type="number"
                             min={0}
-                            max={2}
-                            step={0.05}
+                            max={1}
+                            step={0.01}
                             value={strength}
                             onChange={(e) => updateModelscopeLora(index, { strength: e.target.value })}
                             className={fieldInputCls}

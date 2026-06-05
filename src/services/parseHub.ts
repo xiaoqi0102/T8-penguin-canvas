@@ -37,6 +37,25 @@ export interface AggregateParserResult {
 export interface AggregateParserStatus {
   ok: boolean;
   available: boolean;
+  embeddedRuntimePending?: boolean;
+  embeddedRuntime?: {
+    archiveAvailable?: boolean;
+    pending?: boolean;
+    expandedLibsReady?: boolean;
+    expandedPythonReady?: boolean;
+    pythonRuntime?: {
+      archiveExists?: boolean;
+      ready?: boolean;
+      archiveFile?: string;
+      archiveSize?: number;
+    };
+    pythonLibs?: {
+      archiveExists?: boolean;
+      ready?: boolean;
+      archiveFile?: string;
+      archiveSize?: number;
+    };
+  };
   error?: string;
   parsehubVersion?: string;
   pythonVersion?: string;

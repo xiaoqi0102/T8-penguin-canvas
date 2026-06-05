@@ -942,6 +942,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
                               placeholder={extractDefaultValue(it)}
                               isDark={isDark}
                               isPixel={isPixel}
+                              promptTemplateKind="image"
                               className="w-full min-h-14 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
                             />
                           )}

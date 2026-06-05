@@ -4,6 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const config = require('../config');
+const {
+  ensureRuntimeArchiveExtracted,
+  getRuntimeArchiveInfo,
+  getRuntimeCachePath,
+} = require('./runtimeArchive');
 
 const COMPLIANCE_WARNING = [
   '仅解析或下载你本人拥有版权、已获授权，或平台明确允许保存的公开内容。',
@@ -76,8 +81,11 @@ function resolveBridgeScript(root = projectRoot()) {
 
 function resolvePythonCandidates(root = projectRoot()) {
   const envPython = process.env.T8_PARSEHUB_PYTHON && process.env.T8_PARSEHUB_PYTHON.trim();
+  const cachedRemoveAi = getRuntimeCachePath('remove-ai-watermarks');
   const raw = [
     envPython ? { command: envPython, argsPrefix: [] } : null,
+    { command: pathIfExists(cachedRemoveAi, 'python', 'python.exe'), argsPrefix: [] },
+    { command: pathIfExists(cachedRemoveAi, 'python.exe'), argsPrefix: [] },
     { command: pathIfExists(root, 'tools', 'parsehub-runtime', 'python', 'python.exe'), argsPrefix: [] },
     { command: pathIfExists(root, 'tools', 'parsehub-runtime', 'python.exe'), argsPrefix: [] },
     { command: pathIfExists(root, 'tools', 'remove-ai-watermarks', 'python', 'python.exe'), argsPrefix: [] },
@@ -103,11 +111,37 @@ function resolvePythonLibPaths(root = projectRoot()) {
     .filter(Boolean);
   return uniqueExistingPaths([
     ...envPaths,
+    getRuntimeCachePath('parsehub-pythonlibs'),
     path.join(root, 'tools', 'parsehub-pythonlibs'),
     path.join(root, 'ParseHub', 'src'),
     path.join(path.resolve(__dirname, '..', '..', '..'), 'tools', 'parsehub-pythonlibs'),
     path.join(path.resolve(__dirname, '..', '..', '..'), 'ParseHub', 'src'),
   ]);
+}
+
+function prepareEmbeddedParseHubRuntime(action, root = projectRoot()) {
+  if (String(action || '').toLowerCase() === 'status') return [];
+  const prepared = [];
+  const parseHubLibs = getRuntimeArchiveInfo('parsehub-pythonlibs');
+  if (parseHubLibs.archiveExists && !parseHubLibs.ready) {
+    prepared.push(ensureRuntimeArchiveExtracted('parsehub-pythonlibs'));
+  }
+  const removeAiPython = getRuntimeArchiveInfo('remove-ai-watermarks');
+  const explicitPython = String(process.env.T8_PARSEHUB_PYTHON || '').trim();
+  const hasCachedPython = fs.existsSync(path.join(getRuntimeCachePath('remove-ai-watermarks'), 'python', 'python.exe')) ||
+    fs.existsSync(path.join(getRuntimeCachePath('remove-ai-watermarks'), 'python.exe'));
+  const hasExpandedPython = Boolean(
+    pathIfExists(root, 'tools', 'parsehub-runtime', 'python', 'python.exe') ||
+    pathIfExists(root, 'tools', 'parsehub-runtime', 'python.exe') ||
+    pathIfExists(root, 'tools', 'remove-ai-watermarks', 'python', 'python.exe') ||
+    pathIfExists(root, 'tools', 'remove-ai-watermarks', 'python.exe') ||
+    pathIfExists(root, 'tools', 'remove-ai-watermarks-runtime', 'python', 'python.exe') ||
+    pathIfExists(root, 'tools', 'remove-ai-watermarks-runtime', 'python.exe')
+  );
+  if (!explicitPython && removeAiPython.archiveExists && !hasCachedPython && !hasExpandedPython) {
+    prepared.push(ensureRuntimeArchiveExtracted('remove-ai-watermarks'));
+  }
+  return prepared;
 }
 
 function clampText(value, max, label) {
@@ -291,6 +325,7 @@ function runBridgeWithCandidate(candidate, script, payload, options) {
 
 async function runParseHubBridge(payload, options = {}) {
   const root = options.root || projectRoot();
+  prepareEmbeddedParseHubRuntime(payload?.action, root);
   const script = resolveBridgeScript(root);
   const libPaths = resolvePythonLibPaths(root);
   const candidates = resolvePythonCandidates(root);
@@ -471,12 +506,62 @@ function normalizeParseHubResult(payload) {
   return result;
 }
 
+function getEmbeddedParseHubRuntimeStatus() {
+  const root = projectRoot();
+  const pythonRuntime = getRuntimeArchiveInfo('remove-ai-watermarks');
+  const libs = getRuntimeArchiveInfo('parsehub-pythonlibs');
+  const expandedLibsReady = Boolean(
+    pathIfExists(root, 'tools', 'parsehub-pythonlibs', 'parsehub') ||
+    pathIfExists(path.resolve(__dirname, '..', '..', '..'), 'tools', 'parsehub-pythonlibs', 'parsehub')
+  );
+  const expandedPythonReady = Boolean(
+    pathIfExists(root, 'tools', 'parsehub-runtime', 'python', 'python.exe') ||
+    pathIfExists(root, 'tools', 'parsehub-runtime', 'python.exe') ||
+    pathIfExists(root, 'tools', 'remove-ai-watermarks', 'python', 'python.exe') ||
+    pathIfExists(root, 'tools', 'remove-ai-watermarks', 'python.exe') ||
+    pathIfExists(root, 'tools', 'remove-ai-watermarks-runtime', 'python', 'python.exe') ||
+    pathIfExists(root, 'tools', 'remove-ai-watermarks-runtime', 'python.exe')
+  );
+  return {
+    archiveAvailable: libs.archiveExists,
+    pending: libs.archiveExists && ((!libs.ready && !expandedLibsReady) || (pythonRuntime.archiveExists && !pythonRuntime.ready && !expandedPythonReady)),
+    expandedLibsReady,
+    expandedPythonReady,
+    pythonRuntime: {
+      archiveExists: pythonRuntime.archiveExists,
+      ready: pythonRuntime.ready,
+      archiveFile: pythonRuntime.archiveFile,
+      archiveSize: pythonRuntime.archiveSize,
+    },
+    pythonLibs: {
+      archiveExists: libs.archiveExists,
+      ready: libs.ready,
+      archiveFile: libs.archiveFile,
+      archiveSize: libs.archiveSize,
+    },
+  };
+}
+
 async function getParseHubStatus() {
+  const embeddedRuntime = getEmbeddedParseHubRuntimeStatus();
+  if (embeddedRuntime.archiveAvailable && embeddedRuntime.pending) {
+    return {
+      ok: true,
+      available: true,
+      embeddedRuntimePending: true,
+      embeddedRuntime,
+      error: '内置 ParseHub 运行时归档将在首次解析时准备。',
+      platforms: [],
+      supportedPlatforms: SUPPORTED_PLATFORM_HINTS,
+    };
+  }
   try {
     const payload = await runParseHubBridge({ action: 'status' }, { timeoutMs: 30000 });
     return {
       ok: true,
       available: true,
+      embeddedRuntimePending: false,
+      embeddedRuntime,
       parsehubVersion: String(payload?.parsehubVersion || ''),
       pythonVersion: String(payload?.pythonVersion || ''),
       platforms: Array.isArray(payload?.platforms) ? payload.platforms : [],
@@ -486,6 +571,8 @@ async function getParseHubStatus() {
     return {
       ok: false,
       available: false,
+      embeddedRuntimePending: false,
+      embeddedRuntime,
       error: err?.message || String(err),
       platforms: [],
       supportedPlatforms: SUPPORTED_PLATFORM_HINTS,
@@ -505,4 +592,5 @@ module.exports = {
   resolvePythonLibPaths,
   runParseHubBridge,
   getParseHubStatus,
+  getEmbeddedParseHubRuntimeStatus,
 };

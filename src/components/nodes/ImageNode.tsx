@@ -52,10 +52,17 @@ import { useApiKeysStore } from '../../stores/apiKeys';
 import {
   advancedProviderModelOptions,
   advancedProvidersForNode,
+  distributeModelscopeLoraWeights,
   externalImageSizeFor,
+  MAX_MODELSCOPE_NODE_LORAS,
+  MODELSCOPE_LORA_TOTAL_WEIGHT,
+  modelscopeLoraWeightTotal,
   modelscopeLorasForModel,
   normalizeModelscopeLoraStrength,
+  normalizeModelscopeLoraWeightsTotal,
+  normalizeModelscopeSelectedLoras,
   resolveAdvancedProviderSelection,
+  type ModelscopeSelectedLora,
 } from '../../utils/advancedProviders';
 import {
   countExcludedMaterials,
@@ -191,17 +198,106 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
     () => modelscopeLorasForModel(providerSelection.provider, externalProviderModel),
     [providerSelection.provider, externalProviderModel],
   );
-  const selectedModelscopeLora = useMemo(() => {
-    const savedId = String(providerParams?.modelscopeLoraId || '').trim();
-    return modelscopeLoras.find((lora) => lora.id === savedId) || modelscopeLoras[0] || null;
-  }, [modelscopeLoras, providerParams?.modelscopeLoraId]);
   const modelscopeLoraEnabled = providerParams?.modelscopeLoraEnabled === true;
-  const modelscopeLoraStrength = normalizeModelscopeLoraStrength(
-    providerParams?.modelscopeLoraStrength ?? selectedModelscopeLora?.strength,
-    selectedModelscopeLora?.strength ?? 0.8,
+  const selectedModelscopeLoras = useMemo(() => {
+    if (!modelscopeLoraEnabled) return [];
+    const normalized = normalizeModelscopeSelectedLoras(
+      providerParams?.modelscopeLoras ?? providerParams?.loras,
+      modelscopeLoras,
+      {
+        enabled: providerParams?.modelscopeLoraEnabled,
+        id: providerParams?.modelscopeLoraId,
+        strength: providerParams?.modelscopeLoraStrength,
+      },
+    );
+    if (normalized.length) return normalized;
+    const first = modelscopeLoras[0];
+    return first
+      ? [{ id: first.id, strength: normalizeModelscopeLoraStrength(first.strength, 0.8) }]
+      : [];
+  }, [
+    modelscopeLoraEnabled,
+    modelscopeLoras,
+    providerParams?.loras,
+    providerParams?.modelscopeLoraId,
+    providerParams?.modelscopeLoraStrength,
+    providerParams?.modelscopeLoras,
+  ]);
+  const selectedModelscopeLoraIds = useMemo(
+    () => new Set(selectedModelscopeLoras.map((lora) => lora.id)),
+    [selectedModelscopeLoras],
+  );
+  const unselectedModelscopeLoras = useMemo(
+    () => modelscopeLoras.filter((lora) => !selectedModelscopeLoraIds.has(lora.id)),
+    [modelscopeLoras, selectedModelscopeLoraIds],
+  );
+  const selectedModelscopeLoraTotal = useMemo(
+    () => modelscopeLoraWeightTotal(selectedModelscopeLoras),
+    [selectedModelscopeLoras],
+  );
+  const selectedModelscopeLoraRemaining = Math.max(
+    0,
+    Number((MODELSCOPE_LORA_TOTAL_WEIGHT - selectedModelscopeLoraTotal).toFixed(4)),
   );
   const patchProviderParams = (patch: Record<string, any>) => {
     update({ providerParams: { ...providerParams, ...patch } });
+  };
+  const applyModelscopeLoraSelection = (nextSelection: ModelscopeSelectedLora[], enabled = true) => {
+    const normalized = normalizeModelscopeLoraWeightsTotal(
+      normalizeModelscopeSelectedLoras(nextSelection, modelscopeLoras),
+    );
+    const first = normalized[0];
+    update({
+      providerParams: {
+        ...providerParams,
+        modelscopeLoraEnabled: enabled && normalized.length > 0,
+        modelscopeLoras: normalized,
+        loras: undefined,
+        modelscopeLoraId: first?.id || '',
+        modelscopeLoraStrength: first?.strength,
+      },
+    });
+  };
+  const addModelscopeLoraSelection = () => {
+    if (selectedModelscopeLoras.length >= MAX_MODELSCOPE_NODE_LORAS) return;
+    if (selectedModelscopeLoras.length > 0 && selectedModelscopeLoraRemaining <= 0.0001) return;
+    const next = unselectedModelscopeLoras[0];
+    if (!next) return;
+    const defaultWeight = normalizeModelscopeLoraStrength(next.strength, 0.8);
+    const nextWeight = selectedModelscopeLoras.length > 0
+      ? Math.min(defaultWeight, selectedModelscopeLoraRemaining)
+      : defaultWeight;
+    applyModelscopeLoraSelection([
+      ...selectedModelscopeLoras,
+      { id: next.id, strength: nextWeight },
+    ]);
+  };
+  const updateModelscopeLoraSelection = (index: number, patch: Partial<ModelscopeSelectedLora>) => {
+    const otherTotal = modelscopeLoraWeightTotal(selectedModelscopeLoras.filter((_, i) => i !== index));
+    const maxForRow = Math.max(0, Number((MODELSCOPE_LORA_TOTAL_WEIGHT - otherTotal).toFixed(4)));
+    const nextSelection = selectedModelscopeLoras.map((item, i) => {
+      if (i !== index) return item;
+      const nextId = String(patch.id ?? item.id).trim();
+      const nextOption = modelscopeLoras.find((lora) => lora.id === nextId);
+      const hasStrengthPatch = Object.prototype.hasOwnProperty.call(patch, 'strength');
+      return {
+        id: nextId,
+        strength: Math.min(
+          normalizeModelscopeLoraStrength(
+            hasStrengthPatch ? patch.strength : item.strength,
+            nextOption?.strength ?? 0.8,
+          ),
+          maxForRow,
+        ),
+      };
+    });
+    applyModelscopeLoraSelection(nextSelection);
+  };
+  const removeModelscopeLoraSelection = (index: number) => {
+    applyModelscopeLoraSelection(selectedModelscopeLoras.filter((_, i) => i !== index));
+  };
+  const distributeSelectedModelscopeLoraWeights = () => {
+    applyModelscopeLoraSelection(distributeModelscopeLoraWeights(selectedModelscopeLoras));
   };
   const comfyFieldDefault = (field: any) => {
     if (!comfyWorkflow?.workflowJson || !field?.nodeId || !field?.fieldName) return '';
@@ -223,6 +319,8 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
       modelscopeLoraEnabled: false,
       modelscopeLoraId: '',
       modelscopeLoraStrength: undefined,
+      modelscopeLoras: [],
+      loras: undefined,
     },
   });
 
@@ -460,16 +558,22 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         const externalProviderParams = { ...(d?.providerParams || {}) };
         let loraLog = '';
         if (isModelScopeExternal && modelscopeLoraEnabled) {
-          const lora = selectedModelscopeLora;
-          const loraId = String(lora?.id || externalProviderParams.modelscopeLoraId || '').trim();
-          if (!loraId) throw new Error('当前 ModelScope 模型没有可用 LoRA，请先在 API 设置中绑定。');
-          const strength = normalizeModelscopeLoraStrength(externalProviderParams.modelscopeLoraStrength ?? lora?.strength, lora?.strength ?? 0.8);
-          externalProviderParams.loras = { [loraId]: strength };
-          externalProviderParams.modelscopeLoraId = loraId;
-          externalProviderParams.modelscopeLoraStrength = strength;
-          loraLog = ` · LoRA=${lora?.name || loraId}@${strength.toFixed(2)}`;
+          if (!selectedModelscopeLoras.length) throw new Error('当前 ModelScope 模型没有可用 LoRA，请先在 API 设置中绑定。');
+          const loraPayload: Record<string, number> = {};
+          selectedModelscopeLoras.forEach((item) => {
+            loraPayload[item.id] = item.strength;
+          });
+          externalProviderParams.loras = loraPayload;
+          externalProviderParams.modelscopeLoras = selectedModelscopeLoras;
+          externalProviderParams.modelscopeLoraId = selectedModelscopeLoras[0]?.id || '';
+          externalProviderParams.modelscopeLoraStrength = selectedModelscopeLoras[0]?.strength;
+          loraLog = ` · LoRA=${selectedModelscopeLoras.map((item) => {
+            const option = modelscopeLoras.find((lora) => lora.id === item.id);
+            return `${option?.name || item.id}@${item.strength.toFixed(2)}`;
+          }).join('+')}`;
         } else {
           delete externalProviderParams.loras;
+          delete externalProviderParams.modelscopeLoras;
         }
         const externalNegativePrompt = isComfyExternal
           ? String(
@@ -939,57 +1043,132 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
                           disabled={!modelscopeLoras.length}
                           onChange={(e) => {
                             const nextEnabled = e.target.checked;
-                            patchProviderParams({
-                              modelscopeLoraEnabled: nextEnabled,
-                              modelscopeLoraId: nextEnabled ? (selectedModelscopeLora?.id || '') : '',
-                              modelscopeLoraStrength: nextEnabled
-                                ? normalizeModelscopeLoraStrength(modelscopeLoraStrength, selectedModelscopeLora?.strength ?? 0.8)
-                                : undefined,
-                            });
+                            if (!nextEnabled) {
+                              applyModelscopeLoraSelection([], false);
+                              return;
+                            }
+                            const next = selectedModelscopeLoras[0] || modelscopeLoras[0];
+                            applyModelscopeLoraSelection(next ? [{
+                              id: next.id,
+                              strength: normalizeModelscopeLoraStrength(next.strength, 0.8),
+                            }] : []);
                           }}
                         />
                         <span>LoRA</span>
                       </label>
                       <span className="text-[10px] text-white/40">
-                        {modelscopeLoras.length ? `${modelscopeLoras.length} 个可用` : '当前模型无绑定'}
+                        {modelscopeLoras.length
+                          ? `${selectedModelscopeLoras.length}/${Math.min(MAX_MODELSCOPE_NODE_LORAS, modelscopeLoras.length)} 已选 · 权重 ${selectedModelscopeLoraTotal.toFixed(2)}/1.00`
+                          : '当前模型无绑定'}
                       </span>
                     </div>
                     {modelscopeLoras.length > 0 && modelscopeLoraEnabled && (
-                      <>
-                        <select
-                          value={selectedModelscopeLora?.id || ''}
-                          onChange={(e) => {
-                            const next = modelscopeLoras.find((lora) => lora.id === e.target.value) || modelscopeLoras[0];
-                            patchProviderParams({
-                              modelscopeLoraId: next?.id || '',
-                              modelscopeLoraStrength: next?.strength ?? 0.8,
-                            });
-                          }}
-                          style={{ background: '#18181b', color: '#ffffff' }}
-                          className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
-                        >
-                          {modelscopeLoras.map((lora) => (
-                            <option key={lora.id} value={lora.id} style={{ background: '#18181b', color: '#ffffff' }}>
-                              {lora.name || lora.id}
-                            </option>
-                          ))}
-                        </select>
-                        <label className="block space-y-1">
-                          <div className="flex items-center justify-between text-[10px] text-white/50">
-                            <span>强度</span>
-                            <span>{modelscopeLoraStrength.toFixed(2)}</span>
+                      <div className="space-y-2">
+                        <div className="rounded border border-amber-300/20 bg-amber-400/[0.06] p-2 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2 text-[10px]">
+                            <span className="font-semibold text-amber-100">官方总权重</span>
+                            <span className={selectedModelscopeLoraTotal >= MODELSCOPE_LORA_TOTAL_WEIGHT - 0.0001 ? 'text-amber-100' : 'text-white/65'}>
+                              {selectedModelscopeLoraTotal.toFixed(2)} / 1.00
+                            </span>
                           </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={2}
-                            step={0.05}
-                            value={modelscopeLoraStrength}
-                            onChange={(e) => patchProviderParams({ modelscopeLoraStrength: normalizeModelscopeLoraStrength(e.target.value, 0.8) })}
-                            className="w-full accent-amber-400"
-                          />
-                        </label>
-                      </>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-black/30">
+                            <div
+                              className="h-full rounded-full bg-amber-300 transition-all"
+                              style={{ width: `${Math.min(100, selectedModelscopeLoraTotal * 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] text-white/45">
+                            <span>
+                              {selectedModelscopeLoras.length > 1
+                                ? selectedModelscopeLoraRemaining > 0.0001
+                                  ? `多个 LoRA 权重总和必须为 1.00；还可分配 ${selectedModelscopeLoraRemaining.toFixed(2)}。`
+                                  : '多个 LoRA 权重总和已到 1.00；要添加或提高某项，请先降低其他 LoRA。'
+                                : '单个 LoRA 可直接提交；多个 LoRA 时官方要求总和为 1.00。'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={distributeSelectedModelscopeLoraWeights}
+                              disabled={selectedModelscopeLoras.length < 2}
+                              className="rounded border border-white/15 px-2 py-0.5 font-semibold text-white/65 disabled:opacity-40 disabled:cursor-not-allowed hover:text-white"
+                              title="把当前选择的 LoRA 权重平均分配到总和 1.00"
+                            >
+                              均分到 1.00
+                            </button>
+                          </div>
+                        </div>
+                        {selectedModelscopeLoras.map((selectedLora, index) => {
+                          const currentOption = modelscopeLoras.find((lora) => lora.id === selectedLora.id) || modelscopeLoras[0];
+                          const rowOptions = modelscopeLoras.filter((lora) => (
+                            lora.id === selectedLora.id || !selectedModelscopeLoraIds.has(lora.id)
+                          ));
+                          const rowOtherTotal = modelscopeLoraWeightTotal(selectedModelscopeLoras.filter((_, i) => i !== index));
+                          const rowMax = Math.max(0, Number((MODELSCOPE_LORA_TOTAL_WEIGHT - rowOtherTotal).toFixed(4)));
+                          const strength = normalizeModelscopeLoraStrength(selectedLora.strength, currentOption?.strength ?? 0.8);
+                          return (
+                            <div key={`${selectedLora.id}-${index}`} className="rounded border border-white/10 bg-black/10 p-2 space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <select
+                                  value={selectedLora.id}
+                                  onChange={(e) => {
+                                    const next = modelscopeLoras.find((lora) => lora.id === e.target.value) || currentOption;
+                                    updateModelscopeLoraSelection(index, {
+                                      id: next?.id || '',
+                                      strength: next?.strength ?? 0.8,
+                                    });
+                                  }}
+                                  style={{ background: '#18181b', color: '#ffffff' }}
+                                  className="min-w-0 flex-1 rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
+                                >
+                                  {rowOptions.map((lora) => (
+                                    <option key={lora.id} value={lora.id} style={{ background: '#18181b', color: '#ffffff' }}>
+                                      {lora.name || lora.id}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => removeModelscopeLoraSelection(index)}
+                                  className="h-7 w-7 shrink-0 rounded border border-white/15 inline-flex items-center justify-center text-white/60 hover:text-white"
+                                  title="移除这组 LoRA"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                              <label className="block space-y-1">
+                                <div className="flex items-center justify-between text-[10px] text-white/50">
+                                  <span title="ModelScope 多 LoRA 官方权重总和必须为 1.00；本行最大值会随其他 LoRA 权重自动变化。">官方权重</span>
+                                  <span>{strength.toFixed(2)} · 最多 {rowMax.toFixed(2)}</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={rowMax}
+                                  step={0.01}
+                                  value={strength}
+                                  onChange={(e) => updateModelscopeLoraSelection(index, { strength: Number(e.target.value) })}
+                                  className="w-full accent-amber-400"
+                                />
+                              </label>
+                            </div>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={addModelscopeLoraSelection}
+                          disabled={
+                            selectedModelscopeLoras.length >= MAX_MODELSCOPE_NODE_LORAS ||
+                            !unselectedModelscopeLoras.length ||
+                            (selectedModelscopeLoras.length > 0 && selectedModelscopeLoraRemaining <= 0.0001)
+                          }
+                          className="w-full rounded border border-white/15 px-2 py-1 text-[11px] font-semibold text-white/70 disabled:opacity-40 disabled:cursor-not-allowed hover:text-white"
+                          title={selectedModelscopeLoraRemaining <= 0.0001 ? '总权重已满，请先降低其他 LoRA 权重' : '添加一组 LoRA'}
+                        >
+                          <Plus size={12} className="inline mr-1" />
+                          {selectedModelscopeLoraRemaining <= 0.0001 && selectedModelscopeLoras.length > 0
+                            ? '总权重已满'
+                            : `添加 LoRA（最多 ${MAX_MODELSCOPE_NODE_LORAS} 个）`}
+                        </button>
+                      </div>
                     )}
                     {!modelscopeLoras.length && (
                       <div className="text-[10px] leading-relaxed text-white/45">
@@ -1049,6 +1228,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
                                   placeholder={String(comfyFieldDefault(field) || '填写 ComfyUI 正向 Prompt')}
                                   isDark={isDark}
                                   isPixel={isPixel}
+                                  promptTemplateKind="image"
                                   className="w-full min-h-[68px] resize-y rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-cyan-300/60 placeholder:text-white/30"
                                 />
                                 {orderedTexts.length > 0 && (
@@ -1073,6 +1253,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
                                   onValueChange={(value) => patchProviderParams({ negative: value, negativePrompt: value })}
                                   placeholder={String(comfyFieldDefault(field) || '填写 ComfyUI 负向 Prompt')}
                                   rows={3}
+                                  promptTemplateKind="image"
                                   style={{ background: '#18181b', color: '#ffffff' }}
                                   className="w-full rounded border border-white/10 px-2 py-1 text-[11px] outline-none focus:border-cyan-300/60 placeholder:text-white/30"
                                 />
@@ -1483,6 +1664,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
                 onValueChange={(value) => update({ nbSysPrompt: value })}
                 placeholder="可选系统指令"
                 rows={2}
+                promptTemplateKind="image"
                 style={{ background: '#18181b', color: '#ffffff' }}
                 className="w-full rounded border border-white/10 px-2 py-1 text-xs outline-none focus:border-white/30"
               />
@@ -1752,6 +1934,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             placeholder="备用:无上游连接时使用此提示词"
             isDark={isDark}
             isPixel={isPixel}
+            promptTemplateKind="image"
             className="w-full h-14 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
           />
         </div>}

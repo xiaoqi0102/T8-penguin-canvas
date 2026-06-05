@@ -840,6 +840,7 @@ const SeedanceNode = ({ id, data, selected }: NodeProps) => {
             placeholder="备用:无上游连接时使用"
             isDark={isDark}
             isPixel={isPixel}
+            promptTemplateKind="video"
             className="w-full h-12 resize-none rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white outline-none focus:border-white/30 placeholder:text-white/30"
           />
         </div>

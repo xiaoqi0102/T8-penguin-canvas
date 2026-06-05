@@ -65,7 +65,7 @@ test('ModelScope image generation submits async task, polls, and normalizes outp
   assert.equal(calls[0].body.model, 'Tongyi-MAI/Z-Image-Turbo');
   assert.equal(calls[0].body.width, 832);
   assert.equal(calls[0].body.height, 1216);
-  assert.deepEqual(calls[0].body.loras, { 'Daniel8152/film': 0.75 });
+  assert.equal(calls[0].body.loras, 'Daniel8152/film');
   assert.equal(calls[1].url, 'https://api-inference.modelscope.cn/v1/tasks/task-123');
   assert.equal(calls[1].init.headers['X-ModelScope-Task-Type'], 'image_generation');
 });
@@ -98,7 +98,54 @@ test('ModelScope image generation accepts enabled LoRA shortcut fields from prov
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(calls[0].body.loras, { 'custom/lora': 2 });
+  assert.equal(calls[0].body.loras, 'custom/lora');
+});
+
+test('ModelScope image generation sends up to five enabled LoRAs with normalized weights from providerParams', async () => {
+  const calls: any[] = [];
+  const provider = {
+    id: 'modelscope',
+    protocol: 'modelscope',
+    baseUrl: 'https://api-inference.modelscope.cn/v1',
+    apiKey: 'ms-secret',
+    imageModels: ['Tongyi-MAI/Z-Image-Turbo'],
+  };
+
+  const result = await modelscope.generateImage(provider, {
+    prompt: 'multi lora draw',
+    providerParams: {
+      modelscopeLoras: [
+        { id: 'lora/a', strength: 0.25 },
+        { id: 'lora/b', weight: 0.5 },
+        { id: 'lora/off', strength: 1.2, enabled: false },
+        { id: 'lora/c', scale: 1.25 },
+        { id: 'lora/d', loraStrength: 9 },
+        { id: 'lora/e', strength: -1 },
+        { id: 'lora/f', strength: 0.9 },
+      ],
+    },
+  }, {
+    pollIntervalMs: 1,
+    timeoutMs: 50,
+    fetchImpl: async (url: string, init: any) => {
+      calls.push({ url, init, body: init.body ? JSON.parse(init.body) : null });
+      if (init.method === 'POST') return jsonResponse({ task_id: 'task-multi-lora' });
+      return jsonResponse({ task_status: 'SUCCEED', output_images: ['https://modelscope.example.com/multi-lora.png'] });
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls[0].body.loras, {
+    'lora/a': 0.0685,
+    'lora/b': 0.137,
+    'lora/c': 0.274,
+    'lora/d': 0.274,
+    'lora/f': 0.2465,
+  });
+  assert.equal(
+    Number(Object.values(calls[0].body.loras).reduce((sum: number, value: any) => sum + Number(value), 0).toFixed(4)),
+    1,
+  );
 });
 
 test('ModelScope chat uses /v1 chat endpoint, strips Bearer prefix, and keeps long-call timeout', async () => {

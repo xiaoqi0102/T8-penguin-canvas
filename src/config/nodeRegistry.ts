@@ -82,6 +82,8 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'portrait-master', label: '肖像大师', category: 'toolbox', description: '捏人 Prompt 设计器：五官、发型、服饰、配饰、气质神情等 9 大类词库，支持随机、锁定、权重和运行输出文本', icon: 'UserRoundCog', color: 'pink' },
   { type: 'pose-master', label: '姿势大师', category: 'toolbox', description: '人体线稿姿态编辑器：支持多人姿势、抓取移动、OpenPose/COCO 预览输出、keypoints JSON 与中英文 prompt', icon: 'PersonStanding', color: 'pink' },
   { type: 'aggregate-parser', label: '聚合解析', category: 'toolbox', description: '基于 ParseHub 的轻量自媒体聚合解析：输入短链/分享码/分享文案，合规确认后默认保存到输出目录；远端地址解析作为高级模式保留', icon: 'Link2', color: 'pink' },
+  { type: 'topaz-image-upscale', label: 'Topaz图像高清化', category: 'toolbox', description: '调用本机 Topaz Gigapixel AI / Gigapixel 8，对上游图像做本地高清放大；需要用户已安装并登录软件', icon: 'Image', color: 'pink' },
+  { type: 'topaz-video-upscale', label: 'Topaz视频高清化', category: 'toolbox', description: '调用本机 Topaz Video AI 自带 ffmpeg，对上游视频做放大与补帧；需要用户已安装并登录软件', icon: 'Video', color: 'pink' },
 
   // ========== 3D 节点 ==========
   { type: 'panorama-3d', label: '3D全景', category: '3d', description: 'Three.js 360 全景预览与取景导出，内置 GPT Image 2 文生/图生 21:9 全景贴图生成', icon: 'Globe2', color: 'sky' },

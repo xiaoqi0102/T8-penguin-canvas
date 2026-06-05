@@ -5,6 +5,11 @@ const path = require('path');
 const { spawn } = require('child_process');
 const config = require('../../config');
 const {
+  ensureRuntimeArchiveExtracted,
+  getRuntimeArchiveInfo,
+  getRuntimeCachePath,
+} = require('../../utils/runtimeArchive');
+const {
   createAiWatermarkOutputPath,
   kindFromPath,
   outputUrlFromPath,
@@ -239,6 +244,14 @@ function commandCandidates() {
   if (runtimeRoot) {
     pushRuntimeRootCandidates(candidates, runtimeRoot, 'T8_REMOVE_AI_WATERMARKS_RUNTIME', env);
   }
+  if (!config.IS_PACKAGED) {
+    pushRuntimeRootCandidates(
+      candidates,
+      path.resolve(config.BASE_DIR, 'tools', 'remove-ai-watermarks-runtime'),
+      'local remove-ai-watermarks runtime slot',
+      env,
+    );
+  }
   const resourcesRoot = String(env.T8PC_RES || '').trim();
   if (resourcesRoot) {
     pushRuntimeRootCandidates(
@@ -248,6 +261,12 @@ function commandCandidates() {
       env,
     );
   }
+  pushRuntimeRootCandidates(
+    candidates,
+    getRuntimeCachePath('remove-ai-watermarks'),
+    'cached remove-ai-watermarks runtime',
+    env,
+  );
 
   const sourceRoots = [];
   const envSource = String(env.T8_REMOVE_AI_WATERMARKS_SRC || '').trim();
@@ -443,11 +462,16 @@ function runCommand(candidate, args, options = {}) {
 }
 
 function aiWatermarkEnvFingerprint() {
+  const archive = getRuntimeArchiveInfo('remove-ai-watermarks');
   return [
     process.env.T8_REMOVE_AI_WATERMARKS_BIN || '',
     process.env.T8_REMOVE_AI_WATERMARKS_RUNTIME || '',
     process.env.T8_REMOVE_AI_WATERMARKS_SRC || '',
     process.env.T8PC_RES || '',
+    archive.archivePath || '',
+    archive.archiveSize || '',
+    archive.archiveMtimeMs || '',
+    archive.ready ? 'ready' : 'pending',
     process.env.PATH || '',
   ].join('\u0000');
 }
@@ -542,7 +566,14 @@ except Exception as exc:
   };
 }
 
-async function resolveAiWatermarkCommand() {
+async function resolveAiWatermarkCommand(options = {}) {
+  if (options.prepareEmbeddedRuntime) {
+    const info = getRuntimeArchiveInfo('remove-ai-watermarks');
+    if (info.archiveExists && !info.ready) {
+      console.log('[ai-watermark] preparing embedded remove-ai-watermarks runtime archive...');
+      ensureRuntimeArchiveExtracted('remove-ai-watermarks');
+    }
+  }
   const candidates = commandCandidates();
   const fingerprint = commandCandidatesFingerprint(candidates);
   const cached = getCachedResolution(fingerprint);
@@ -683,6 +714,38 @@ function setCachedCapabilities(fingerprint, value) {
 async function detectCapabilities() {
   const resolved = await resolveAiWatermarkCommand();
   if (!resolved.installed) {
+    const archive = getRuntimeArchiveInfo('remove-ai-watermarks');
+    if (archive.archiveExists) {
+      const capabilities = archive.manifest?.capabilities || {};
+      const version = archive.manifest?.source?.version || archive.manifest?.version || '';
+      return {
+        installed: true,
+        version,
+        resolver: archive.ready ? 'cached remove-ai-watermarks runtime' : 'embedded remove-ai-watermarks runtime archive',
+        runtimeArchivePending: !archive.ready,
+        runtimeArchive: {
+          archiveExists: true,
+          ready: archive.ready,
+          archiveFile: archive.archiveFile,
+          archiveSize: archive.archiveSize,
+        },
+        markKeys: Array.isArray(capabilities.visibleMarks) && capabilities.visibleMarks.length > 0
+          ? capabilities.visibleMarks
+          : FALLBACK_MARKS,
+        optionalFeatures: {
+          invisible: !!capabilities.invisible,
+          lama: !!capabilities.lama,
+          detect: !!capabilities.detect,
+          trustmark: !!capabilities.trustmark,
+          restore: !!capabilities.restore,
+          auto: !!capabilities.auto,
+          controlnet: !!capabilities.controlnet,
+          adaptivePolish: !!capabilities.adaptivePolish,
+        },
+        setupHints: setupHints(),
+        errors: archive.ready ? [] : ['内置运行时归档将在首次执行时解压到用户数据目录。'],
+      };
+    }
     return {
       installed: false,
       version: '',
@@ -736,7 +799,7 @@ function setupHints() {
   return [
     '推荐: pipx install remove-ai-watermarks',
     '也可以: uv tool install remove-ai-watermarks',
-    'Electron 离线包: 将准备好的 runtime 放入 tools/remove-ai-watermarks-runtime 并在打包时复制到 resources/tools/remove-ai-watermarks',
+    'Electron 离线包: 将准备好的 runtime 放入 tools/remove-ai-watermarks-runtime, 打包前执行 npm run prepack:runtimes 生成归档',
     '已有 runtime 根目录时设置 T8_REMOVE_AI_WATERMARKS_RUNTIME',
     '已有本地源码时设置 T8_REMOVE_AI_WATERMARKS_SRC 指向 clone 根目录',
     '已有可执行文件时设置 T8_REMOVE_AI_WATERMARKS_BIN 指向 remove-ai-watermarks(.cmd)',
@@ -976,7 +1039,7 @@ async function runAiWatermarkProcess({ sourcePath, mediaKind, mode, options = {}
   const normalizedMode = normalizeMode(mode);
   const runId = shortRunId();
   aiWatermarkLog(runId, `request start mode=${normalizedMode} source="${path.basename(String(sourcePath || ''))}" mediaKind=${mediaKind || kindFromPath(sourcePath) || 'unknown'}`);
-  const resolved = await resolveAiWatermarkCommand();
+  const resolved = await resolveAiWatermarkCommand({ prepareEmbeddedRuntime: true });
   if (!resolved.installed) {
     aiWatermarkLog(runId, `runtime missing errors=${JSON.stringify((resolved.errors || []).slice(0, 3))}`);
     throw new Error(`未安装 remove-ai-watermarks。${setupHints().slice(0, 2).join('；')}`);

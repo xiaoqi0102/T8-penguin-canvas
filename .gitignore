@@ -71,6 +71,12 @@ _preview_*.svg
 !/tools/parsehub-pythonlibs/
 !/tools/parsehub-pythonlibs/README.md
 
+# Generated Electron runtime archives. Built locally by npm run prepack:runtimes;
+# shipped via extraResources, never committed to Git.
+/tools/runtime-archives/**
+!/tools/runtime-archives/
+!/tools/runtime-archives/README.md
+
 # Dependencies
 node_modules
 .pnp

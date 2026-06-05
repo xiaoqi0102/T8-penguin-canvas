@@ -187,6 +187,7 @@ const PresetImageNode = (p: NodeProps) => {
           onValueChange={(value) => update({ localPrompt: value })}
           placeholder="输入主题描述(可与上游 prompt 合并)..."
           rows={3}
+          promptTemplateKind="image"
           className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white placeholder-white/30 outline-none focus:border-white/30 resize-none"
         />
 

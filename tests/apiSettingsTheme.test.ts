@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const apiSettingsSource = readFileSync(new URL('../src/components/ApiSettings.tsx', import.meta.url), 'utf8');
 const indexCss = readFileSync(new URL('../src/styles/index.css', import.meta.url), 'utf8');
+const defaultTemplatesSource = readFileSync(new URL('../src/theme/defaultTemplates.ts', import.meta.url), 'utf8');
+const themeTemplateManagerSource = readFileSync(new URL('../src/components/ThemeTemplateManager.tsx', import.meta.url), 'utf8');
+const featuresSource = readFileSync(new URL('../features.json', import.meta.url), 'utf8');
 
 test('ApiSettings uses semantic theme classes for cross-theme readability', () => {
   const requiredClasses = [
@@ -69,4 +72,18 @@ test('ApiSettings ComfyUI panel supports workflow JSON upload and auto-mapping e
   assert.match(apiSettingsSource, /parseComfyFieldExcludeRules/);
   assert.match(apiSettingsSource, /comfyExcludeRulesRaw/);
   assert.match(apiSettingsSource, /排除采样器参数/);
+});
+
+test('Dragon Ball theme defaults to bundled mp3 music and packaging validates the asset', () => {
+  const postBuild = readFileSync(new URL('../electron/_post_build.cjs', import.meta.url), 'utf8');
+  const musicAsset = new URL('../src/assets/theme-music/dragonball-makafushigi-adventure.mp3', import.meta.url);
+
+  assert.equal(existsSync(musicAsset), true);
+  assert.match(defaultTemplatesSource, /dragonBallThemeMusicUrl = new URL\('\.\.\/assets\/theme-music\/dragonball-makafushigi-adventure\.mp3'/);
+  assert.match(defaultTemplatesSource, /id: DRAGON_BALL_TEMPLATE_ID[\s\S]*source: 'url'[\s\S]*url: dragonBallThemeMusicUrl/);
+  assert.match(defaultTemplatesSource, /title: '摩诃不思议 Adventure'/);
+  assert.match(themeTemplateManagerSource, /dragonBallThemeMusicUrl/);
+  assert.match(themeTemplateManagerSource, /visualStyle === 'dragon-ball'[\s\S]*source: 'url'[\s\S]*url: dragonBallThemeMusicUrl/);
+  assert.match(postBuild, /checkFrontendAsset\('dragonball-makafushigi-adventure-', '\.mp3'\)/);
+  assert.match(featuresSource, /"dragon-ball-style": "dragonball-makafushigi-adventure\.mp3"/);
 });
