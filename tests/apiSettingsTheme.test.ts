@@ -61,6 +61,9 @@ test('ApiSettings Jimeng CLI panel explains install, login, and executable path'
 test('ApiSettings ComfyUI panel supports workflow JSON upload and auto-mapping exclude rules', () => {
   assert.match(apiSettingsSource, /handleComfyWorkflowFile/);
   assert.match(apiSettingsSource, /上传 JSON/);
+  assert.match(apiSettingsSource, /applyComfySampleWorkflow/);
+  assert.match(apiSettingsSource, /载入样例/);
+  assert.match(apiSettingsSource, /buildComfyWorkflowImportChecklist/);
   assert.match(apiSettingsSource, /自动映射排除规则（可选）/);
   assert.match(apiSettingsSource, /filterComfyFieldsByExcludeRules/);
   assert.match(apiSettingsSource, /parseComfyFieldExcludeRules/);

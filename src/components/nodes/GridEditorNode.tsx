@@ -34,6 +34,7 @@ import {
 import { useHasAutoOutput } from './useHasAutoOutput';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useUpstreamMaterials } from './useUpstreamMaterials';
+import SmartImage from '../SmartImage';
 
 const COLOR = '#fb923c';
 
@@ -48,6 +49,7 @@ const toItemList = (value: unknown): GridEditorItem[] => {
       id: String(item.id || ''),
       url: String(item.url || ''),
       title: typeof item.title === 'string' ? item.title : undefined,
+      caption: typeof item.caption === 'string' ? item.caption : undefined,
       origin: item.origin === 'upstream' ? ('upstream' as const) : ('local' as const),
     }))
     .filter((item) => item.id && item.url);
@@ -55,6 +57,17 @@ const toItemList = (value: unknown): GridEditorItem[] => {
 
 const toStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.map((item) => String(item || '')).filter(Boolean) : [];
+
+const toCaptionMap = (value: unknown): Record<string, string> => {
+  if (!isRecord(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, caption] of Object.entries(value)) {
+    const id = String(key || '').trim();
+    if (!id || typeof caption !== 'string') continue;
+    out[id] = caption.slice(0, 140);
+  }
+  return out;
+};
 
 const fitLabel = (fit: GridEditorFit) => {
   if (fit === 'adaptive') return '自适应';
@@ -108,20 +121,29 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
         background: d.gridEditorBackground,
         fit: d.gridEditorFit,
         showIndexes: d.gridEditorShowIndexes,
+        showCaptions: d.gridEditorShowCaptions,
+        captionHeight: d.gridEditorCaptionHeight,
+        captionTextColor: d.gridEditorCaptionTextColor,
+        captionBackground: d.gridEditorCaptionBackground,
       }),
     [
       d.gridEditorBackground,
+      d.gridEditorCaptionBackground,
+      d.gridEditorCaptionHeight,
+      d.gridEditorCaptionTextColor,
       d.gridEditorCols,
       d.gridEditorFit,
       d.gridEditorGap,
       d.gridEditorHeight,
       d.gridEditorRows,
+      d.gridEditorShowCaptions,
       d.gridEditorShowIndexes,
       d.gridEditorWidth,
     ],
   );
 
   const hiddenIds = useMemo(() => new Set(toStringArray(d.gridEditorHiddenIds)), [d.gridEditorHiddenIds]);
+  const captionMap = useMemo(() => toCaptionMap(d.gridEditorCaptions), [d.gridEditorCaptions]);
   const localItems = useMemo(() => toItemList(d.gridEditorLocalItems), [d.gridEditorLocalItems]);
   const order = useMemo(() => toStringArray(d.gridEditorOrder), [d.gridEditorOrder]);
   const upstreamItems = useMemo<GridEditorItem[]>(
@@ -140,8 +162,18 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
     () => buildGridEditorItems(upstreamItems, localItems, order),
     [localItems, order, upstreamItems],
   );
+  const itemsWithCaptions = useMemo(
+    () =>
+      items.map((item) => ({
+        ...item,
+        caption: Object.prototype.hasOwnProperty.call(captionMap, item.id)
+          ? captionMap[item.id]
+          : (item.caption || item.title || ''),
+      })),
+    [captionMap, items],
+  );
   const itemIds = useMemo(() => items.map((item) => item.id), [items]);
-  const slots = useMemo(() => createGridEditorSlots(items, config), [config, items]);
+  const slots = useMemo(() => createGridEditorSlots(itemsWithCaptions, config), [config, itemsWithCaptions]);
   const totalSlots = config.rows * config.cols;
   const overflowCount = Math.max(0, items.length - totalSlots);
   const status: 'idle' | 'running' | 'success' | 'error' = d.status || 'idle';
@@ -166,6 +198,10 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
       gridEditorBackground: next.background,
       gridEditorFit: next.fit,
       gridEditorShowIndexes: next.showIndexes,
+      gridEditorShowCaptions: next.showCaptions,
+      gridEditorCaptionHeight: next.captionHeight,
+      gridEditorCaptionTextColor: next.captionTextColor,
+      gridEditorCaptionBackground: next.captionBackground,
     };
     if (ratioMode !== undefined) payload.gridEditorRatioMode = ratioMode;
     update(payload);
@@ -237,6 +273,15 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
 
   const restoreHidden = () => update({ gridEditorHiddenIds: [] });
 
+  const setItemCaption = (item: GridEditorItem, caption: string) => {
+    update({
+      gridEditorCaptions: {
+        ...captionMap,
+        [item.id]: caption.slice(0, 140),
+      },
+    });
+  };
+
   const setSortDragState = (next: typeof sortDrag) => {
     sortDragRef.current = next;
     setSortDrag(next);
@@ -306,7 +351,7 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
   useEffect(() => () => cleanupSortListeners(), []);
 
   const handleSplit = () => {
-    const urls = splitGridEditorItems(items.slice(0, totalSlots));
+    const urls = splitGridEditorItems(itemsWithCaptions.slice(0, totalSlots));
     if (urls.length === 0) {
       setError('暂无可拆分图像');
       return;
@@ -331,7 +376,7 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
     }
     update({ status: 'running', error: null });
     try {
-      const request = buildGridComposeRequest(items, config);
+      const request = buildGridComposeRequest(itemsWithCaptions, config);
       const result = await opGridCompose(request);
       update({
         status: 'success',
@@ -505,7 +550,7 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
           </label>
         </div>
 
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-6 gap-2">
           <label className="col-span-1 text-[10px] font-semibold" style={subtleTextStyle}>
             间距
             <input
@@ -548,7 +593,50 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
             />
             序号
           </label>
+          <label className="col-span-1 flex items-end gap-1.5 text-[10px] font-semibold" style={subtleTextStyle}>
+            <input
+              type="checkbox"
+              checked={config.showCaptions}
+              onChange={(event) => patchConfig({ showCaptions: event.target.checked })}
+              className="mb-2 h-4 w-4 accent-orange-400"
+            />
+            字幕
+          </label>
         </div>
+
+        {config.showCaptions && (
+          <div className="grid grid-cols-3 gap-2">
+            <label className="text-[10px] font-semibold" style={subtleTextStyle}>
+              字幕高
+              <input
+                type="number"
+                min={24}
+                max={240}
+                value={config.captionHeight}
+                onChange={(event) => patchConfig({ captionHeight: Number(event.target.value) })}
+                className="t8-input mt-1 h-8 w-full px-2 text-xs"
+              />
+            </label>
+            <label className="text-[10px] font-semibold" style={subtleTextStyle}>
+              条底色
+              <input
+                type="color"
+                value={config.captionBackground}
+                onChange={(event) => patchConfig({ captionBackground: event.target.value })}
+                className="t8-input mt-1 h-8 w-full p-1"
+              />
+            </label>
+            <label className="text-[10px] font-semibold" style={subtleTextStyle}>
+              字色
+              <input
+                type="color"
+                value={config.captionTextColor}
+                onChange={(event) => patchConfig({ captionTextColor: event.target.value })}
+                className="t8-input mt-1 h-8 w-full p-1"
+              />
+            </label>
+          </div>
+        )}
 
         <div
           className="rounded-lg border p-1.5"
@@ -585,13 +673,25 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
                 >
                   {item ? (
                     <>
-                      <img
+                      <SmartImage
                         src={item.url}
                         alt={item.title || `cell-${index + 1}`}
                         draggable={false}
                         className="h-full w-full"
+                        thumbSize={320}
                         style={{ objectFit: cellObjectFit(config.fit), background: config.background }}
                       />
+                      {config.showCaptions && item.caption && (
+                        <div
+                          className="absolute inset-x-0 bottom-0 truncate px-1.5 py-1 text-center text-[10px] font-semibold"
+                          style={{
+                            background: config.captionBackground,
+                            color: config.captionTextColor,
+                          }}
+                        >
+                          {item.caption}
+                        </div>
+                      )}
                       <div
                         className="absolute left-1 top-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
                         style={{
@@ -663,6 +763,35 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
           </span>
         </div>
 
+        {config.showCaptions && slots.some(Boolean) && (
+          <div
+            className="rounded-lg border p-2"
+            style={{
+              borderColor: 'var(--t8-border, rgba(255,255,255,.14))',
+              background: 'color-mix(in srgb, var(--t8-bg-panel-elevated, rgba(255,255,255,.06)) 78%, transparent)',
+            }}
+          >
+            <div className="mb-1 flex items-center gap-1 text-[10px] font-bold" style={{ color: 'var(--t8-text-main, #f8fafc)' }}>
+              <Layers size={11} />
+              单格字幕
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {slots.map((item, index) => item && (
+                <label key={`caption-${item.id}-${index}`} className="min-w-0 text-[10px]" style={subtleTextStyle}>
+                  {index + 1}
+                  <input
+                    value={item.caption || ''}
+                    maxLength={140}
+                    onChange={(event) => setItemCaption(item, event.target.value)}
+                    className="t8-input mt-0.5 h-8 w-full px-2 text-xs"
+                    placeholder={item.title || `第 ${index + 1} 格`}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-2">
           <button type="button" onClick={openFilePicker} disabled={uploading} className="t8-btn h-9 text-xs">
             {uploading ? <Loader2 size={13} className="animate-spin" /> : <ImagePlus size={13} />}
@@ -700,13 +829,13 @@ const GridEditorNode = ({ id, data, selected }: NodeProps) => {
 
       {composedUrl && !hasAutoOutput && (
         <div className="border-t p-2" style={{ borderColor: 'var(--t8-border, rgba(255,255,255,.12))' }}>
-          <img src={composedUrl} alt="宫格结果" className="max-h-56 w-full rounded object-contain" />
+          <SmartImage src={composedUrl} alt="宫格结果" className="max-h-56 w-full rounded object-contain" thumbSize={720} />
         </div>
       )}
       {splitUrls.length > 1 && !hasAutoOutput && d.gridEditorLastAction === 'split' && (
         <div className="grid grid-cols-6 gap-1 border-t p-2" style={{ borderColor: 'var(--t8-border, rgba(255,255,255,.12))' }}>
           {splitUrls.slice(0, 12).map((url: string, index: number) => (
-            <img key={`${url}-${index}`} src={url} alt={`拆分 ${index + 1}`} className="aspect-square w-full rounded object-cover" />
+            <SmartImage key={`${url}-${index}`} src={url} alt={`拆分 ${index + 1}`} className="aspect-square w-full rounded object-cover" thumbSize={240} />
           ))}
         </div>
       )}

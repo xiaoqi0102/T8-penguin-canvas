@@ -5,6 +5,8 @@ import { useUpdateNodeData } from './useUpdateNodeData';
 import { generateImage } from '../../services/generation';
 import { IMAGE_MODELS } from '../../providers/models';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
+import SmartImage from '../SmartImage';
+import PromptTextarea from '../PromptTextarea';
 
 /**
  * PresetImageNode - 特殊图像节点(multi-angle-3d / panorama-720 / penguin-portrait)
@@ -179,9 +181,10 @@ const PresetImageNode = (p: NodeProps) => {
       </div>
 
       <div className="p-2.5 space-y-2" onMouseDown={(e) => e.stopPropagation()}>
-        <textarea
+        <PromptTextarea
+          title={`${meta.title} 提示词`}
           value={localPrompt}
-          onChange={(e) => update({ localPrompt: e.target.value })}
+          onValueChange={(value) => update({ localPrompt: value })}
           placeholder="输入主题描述(可与上游 prompt 合并)..."
           rows={3}
           className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-xs text-white placeholder-white/30 outline-none focus:border-white/30 resize-none"
@@ -215,13 +218,13 @@ const PresetImageNode = (p: NodeProps) => {
       {urls.length > 1 && (
         <div className="border-t border-white/10 p-2 grid grid-cols-2 gap-1">
           {urls.map((u, i) => (
-            <img key={i} src={u} alt={`#${i}`} className="w-full rounded object-cover" />
+            <SmartImage key={i} src={u} alt={`#${i}`} className="w-full rounded object-cover" thumbSize={240} />
           ))}
         </div>
       )}
       {urls.length === 1 && imageUrl && (
         <div className="border-t border-white/10 p-2">
-          <img src={imageUrl} alt="结果" className="w-full rounded object-contain" />
+          <SmartImage src={imageUrl} alt="结果" className="w-full rounded object-contain" thumbSize={720} />
         </div>
       )}
     </div>

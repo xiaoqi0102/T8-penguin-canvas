@@ -48,12 +48,15 @@ export type NodeType =
   | 'relay'
   | 'remove-ai-watermark'
   | 'video-output'
-  // Toolbox (5)
+  // Toolbox (6)
   | 'cinematic'
   | 'video-motion'
   | 'multi-angle-visual'
   | 'portrait-master'
   | 'pose-master'
+  | 'aggregate-parser'
+  // 3D (1)
+  | 'panorama-3d'
   // Input/Output 素材 (2) - 上传素材(图像/视频/音频三合一) + 输出素材(文本/图像/视频/音频预览)
   | 'upload'
   | 'material-set'
@@ -68,6 +71,7 @@ export type NodeCategory =
   | 'utility'
   | 'auxiliary'
   | 'toolbox'
+  | '3d'
   | 'input';
 
 // 节点元数据(用于 Sidebar 展示)

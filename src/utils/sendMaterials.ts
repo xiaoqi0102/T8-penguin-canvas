@@ -142,12 +142,13 @@ export function resourceItemToSendMaterials(item: ResourceItem): SendableMateria
       }),
     );
   }
-  if (!MEDIA_KINDS.includes(item.kind as MediaKind) || !item.fileUrl) return [];
+  const mediaKind: MediaKind | null = item.kind === 'panorama' ? 'image' : (item.kind as MediaKind);
+  if (!mediaKind || !MEDIA_KINDS.includes(mediaKind) || !item.fileUrl) return [];
   return [
     toSendable(
       {
         id: item.id,
-        kind: item.kind as MediaKind,
+        kind: mediaKind,
         url: item.fileUrl,
         name: item.title || item.originalName || fileNameFromUrl(item.fileUrl),
         size: item.size,

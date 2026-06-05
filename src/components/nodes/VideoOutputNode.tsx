@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import { MonitorPlay, Download } from 'lucide-react';
 import LoopingVideo from '../LoopingVideo';
+import SmartImage from '../SmartImage';
 
 /**
  * VideoOutputNode - 视频结果展示
@@ -68,7 +69,7 @@ const VideoOutputNode = (p: NodeProps) => {
               {isVideoUrl(u) ? (
                 <LoopingVideo src={u} controls className="w-full rounded bg-black" />
               ) : (
-                <img src={u} alt={`媒体 ${i + 1}`} className="w-full rounded object-contain" />
+                <SmartImage src={u} alt={`媒体 ${i + 1}`} className="w-full rounded object-contain" thumbSize={720} />
               )}
               <div className="flex justify-between items-center text-[10px] text-white/40">
                 <span className="truncate flex-1">{u.split('/').pop()}</span>

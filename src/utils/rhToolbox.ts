@@ -1,6 +1,7 @@
 export type RhToolboxMediaKind = 'text' | 'image' | 'video' | 'audio';
 
 export type RhToolboxUserParamKind = 'text' | 'number' | 'select' | 'boolean';
+export type RhToolboxQuickSurface = 'image' | 'video' | 'text' | 'audio';
 
 export type RhToolboxOutputRole =
   | 'append-output'
@@ -126,6 +127,21 @@ export interface RhToolboxOutputClassification {
   textOutputs: string[];
 }
 
+export interface RhToolboxQuickAction {
+  surface: RhToolboxQuickSurface;
+  toolId: string;
+  title: string;
+  label: string;
+  description?: string;
+  enabled: boolean;
+  reason?: string;
+  categoryId: string;
+  capabilities: string[];
+  inputKinds: RhToolboxMediaKind[];
+  outputKinds: RhToolboxMediaKind[];
+  accent?: string;
+}
+
 const DEFAULT_CATEGORY_ID = 'general';
 
 const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp|avif)(\?|$)/i;
@@ -134,6 +150,27 @@ const AUDIO_RE = /\.(mp3|wav|ogg|m4a|flac|aac)(\?|$)/i;
 const TEXT_RE = /\.(txt|md|json|csv)(\?|$)/i;
 
 export const RH_TOOLBOX_ALL_CATEGORY_ID = 'all';
+
+export const RH_TOOLBOX_QUICK_SURFACE_LABELS: Record<RhToolboxQuickSurface, string> = {
+  image: '图像',
+  video: '视频',
+  text: '文本',
+  audio: '音频',
+};
+
+const RH_TOOLBOX_SURFACE_CAPABILITY_PREFIX: Record<RhToolboxQuickSurface, string> = {
+  image: 'image.',
+  video: 'video.',
+  text: 'text.',
+  audio: 'audio.',
+};
+
+const RH_TOOLBOX_SURFACE_UI_FLAG: Record<RhToolboxQuickSurface, keyof NonNullable<RhToolboxTool['ui']>> = {
+  image: 'showInImageEditor',
+  video: 'showInVideoEditor',
+  text: 'showInTextEditor',
+  audio: 'showInAudioEditor',
+};
 
 export const RH_TOOLBOX_CAPABILITY_LABELS: Record<string, string> = {
   'image.cutout': '图像抠图',
@@ -417,6 +454,40 @@ export function filterRhToolboxTools(
     ].join(' ').toLowerCase();
     return haystack.includes(q);
   });
+}
+
+export function buildRhToolboxQuickActions(
+  manifest: Partial<RhToolboxManifest> | null | undefined,
+  surface: RhToolboxQuickSurface,
+  options: { includeDisabled?: boolean } = {},
+): RhToolboxQuickAction[] {
+  const uiFlag = RH_TOOLBOX_SURFACE_UI_FLAG[surface];
+  const capabilityPrefix = RH_TOOLBOX_SURFACE_CAPABILITY_PREFIX[surface];
+  return listRhToolboxTools(manifest, { includeDisabled: true })
+    .filter((tool) => {
+      const surfaceEnabled = tool.ui?.[uiFlag] === true;
+      const capabilityEnabled = tool.capabilities.some((capability) => capability.startsWith(capabilityPrefix));
+      return surfaceEnabled || capabilityEnabled;
+    })
+    .filter((tool) => options.includeDisabled || tool.enabled !== false)
+    .map((tool) => {
+      const enabled = tool.enabled !== false && !!tool.webappId;
+      return {
+        surface,
+        toolId: tool.id,
+        title: tool.title,
+        label: tool.ui?.quickActionLabel || tool.capabilities.map((capability) => RH_TOOLBOX_CAPABILITY_LABELS[capability]).find(Boolean) || tool.title,
+        description: tool.description,
+        enabled,
+        reason: enabled ? undefined : '待维护者配置 WebApp ID 后启用',
+        categoryId: tool.categoryId,
+        capabilities: tool.capabilities,
+        inputKinds: Array.from(new Set(tool.inputSchema.map((input) => input.kind))),
+        outputKinds: Array.from(new Set(tool.outputSchema.map((output) => output.kind))),
+        accent: tool.ui?.accent,
+      };
+    })
+    .sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.label.localeCompare(b.label, 'zh-Hans-CN'));
 }
 
 export function pickRhToolboxInputs(tool: RhToolboxTool, pools: RhToolboxInputPools): RhToolboxPickedInputs {

@@ -22,14 +22,17 @@ environments.
 Recommended manifest:
 
 `runtime-manifest.json` with upstream commit/version, Python version, torch build,
-CUDA build, and installed extras (`gpu`, `detect`, `trustmark`, `lama`).
+CUDA build, and installed extras (`gpu`, `detect`, `trustmark`, `lama`, `restore`).
 
 Current bridge target:
 
 - Upstream: `wiltodelta/remove-ai-watermarks`
-- Version: `0.8.7` or newer
-- Required CLI behavior: invisible text/face protection is opt-in
-  (`--protect-text` / `--protect-faces` only when the user enables it);
-  do not package an older runtime that only supports `--no-protect-*`.
+- Version: `0.8.9` or newer for the current full UI
+- Required CLI behavior: invisible removal supports `--auto`,
+  `--pipeline controlnet`, `--min-resolution`, `--controlnet-scale`,
+  `--adaptive-polish`, `--unsharp`, and optional GFPGAN `--restore-faces`.
+  T8 still keeps a version-aware compatibility path for old 0.8.7 runtimes
+  (`ctrlregen` / `--protect-text` / `--protect-faces`), but release packages
+  should be rebuilt on 0.8.9+ so the UI matches the bundled CLI.
 - Rebuild this sidecar whenever upstream changes CLI options, mark registry,
   optional extras, or model cache layout.

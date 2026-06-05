@@ -9,7 +9,7 @@ import {
   type PortraitSelection,
   type PortraitTerm,
   type PortraitWeights,
-} from './portraitMasterOptions';
+} from './portraitMasterOptions.ts';
 
 type AdvancedTerm = PortraitTerm;
 

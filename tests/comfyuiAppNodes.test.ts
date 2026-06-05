@@ -24,10 +24,15 @@ test('ComfyUI maker and store expose local library management controls', () => {
   assert.match(maker, /comfyMakerExcludeRules/);
   assert.match(maker, /自动映射排除规则（可选）/);
   assert.match(maker, /排除采样器参数/);
+  assert.match(maker, /applySampleWorkflow/);
+  assert.match(maker, /载入样例/);
+  assert.match(maker, /buildComfyWorkflowImportChecklist/);
 
   assert.match(store, /comfyuiStoreManageCategories/);
   assert.match(store, /新建分类/);
   assert.match(store, /导出本地自定义应用和分类/);
   assert.match(store, /设置应用分类/);
   assert.match(store, /删除应用/);
+  assert.match(store, /missingRequirements/);
+  assert.match(store, /当前应用需要更多上游素材/);
 });

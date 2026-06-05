@@ -5,6 +5,7 @@ import { useUpdateNodeData } from './useUpdateNodeData';
 import { opCombine } from '../../services/imageOps';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { useHasAutoOutput } from './useHasAutoOutput';
+import SmartImage from '../SmartImage';
 
 /**
  * CombineNode - 多图拼接(横向/纵向)
@@ -132,7 +133,7 @@ const CombineNode = (p: NodeProps) => {
 
       {outImg && !hasAutoOutput && (
         <div className="border-t border-white/10 p-2">
-          <img src={outImg} alt="结果" className="w-full rounded object-contain" />
+          <SmartImage src={outImg} alt="结果" className="w-full rounded object-contain" thumbSize={720} />
         </div>
       )}
     </div>

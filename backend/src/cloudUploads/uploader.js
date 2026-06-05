@@ -328,8 +328,99 @@ async function putStream(url, filePath, headers = {}) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`上传失败 HTTP ${res.status}${text ? `：${text.slice(0, 300)}` : ''}`);
+    const error = new Error(`上传失败 HTTP ${res.status}${text ? `：${text.slice(0, 300)}` : ''}`);
+    error.statusCode = res.status;
+    error.responseText = text;
+    throw error;
   }
+}
+
+function getUploadErrorText(error) {
+  return [
+    error?.message,
+    error?.responseText,
+    error?.code,
+    error?.name,
+    error?.cause?.message,
+  ]
+    .filter(Boolean)
+    .map((item) => String(item))
+    .join('\n');
+}
+
+function classifyCloudUploadError(target, error) {
+  const provider = String(target?.provider || '').trim();
+  const statusCode = Number(error?.statusCode || error?.status || 0) || undefined;
+  const text = getUploadErrorText(error);
+  const lower = text.toLowerCase();
+  const base = {
+    provider,
+    statusCode,
+    rawMessage: String(error?.message || error || ''),
+  };
+
+  const isNetwork =
+    /enotfound|eai_again|econnreset|etimedout|network|fetch failed|failed to fetch|socket|timeout|aborted/.test(lower);
+  if (isNetwork) {
+    return {
+      ...base,
+      code: 'network',
+      message: '云端上传连接失败：请检查网络、代理、Endpoint/Region 是否正确，稍后重试。',
+      hint: '如果浏览器可访问但节点失败，优先检查 API 设置里的 Endpoint/Region、代理环境和本机防火墙。',
+    };
+  }
+
+  if (/无法解析上传素材|缺少上传素材|远端素材下载失败|安全限制|dataurl 格式无效/.test(text)) {
+    return {
+      ...base,
+      code: 'source',
+      message: String(error?.message || '上传素材无法读取，请确认素材仍存在且不是内网地址。'),
+      hint: '建议先把素材保存到本地输出目录或资源库，再执行云端上传。',
+    };
+  }
+
+  const signatureMismatch = /signaturedoesnotmatch|signature.*not match|q-signature|签名/.test(lower);
+  const accessKeyInvalid = /invalidaccesskeyid|invalidsecretid|accesskeyid|secretid.*not exist|access key.*not exist/.test(lower);
+  const accessDenied = /accessdenied|forbidden|permission|not authorized|unauthorized|拒绝|无权限/.test(lower);
+  const noSuchBucket = /nosuchbucket|bucket.*not exist|bucketnotexist|no such bucket|bucket不存在/.test(lower);
+  const timeSkew = /requesttimeskewed|expire|expired|time skew|clock/.test(lower);
+
+  if (signatureMismatch || accessKeyInvalid || timeSkew) {
+    const name = provider === 'aliyun-oss' ? '阿里云 OSS' : provider === 'tencent-cos' ? '腾讯云 COS' : '云端目标';
+    return {
+      ...base,
+      code: signatureMismatch ? 'signature' : timeSkew ? 'clock' : 'credential',
+      message: `${name} 上传签名校验失败：请确认密钥、Bucket、区域/Endpoint 与本机时间。`,
+      hint: '重新复制 AccessKey/Secret，确认没有多余空格；Windows 时间同步后再试。COS 还要确认 Region，OSS 还要确认 Endpoint。',
+    };
+  }
+
+  if (noSuchBucket || statusCode === 404) {
+    const name = provider === 'aliyun-oss' ? '阿里云 OSS' : provider === 'tencent-cos' ? '腾讯云 COS' : '云端目标';
+    return {
+      ...base,
+      code: 'bucket',
+      message: `${name} Bucket 无法访问：请确认 Bucket 名称和区域/Endpoint 是同一个存储桶。`,
+      hint: '常见原因是把 Bucket 写错、COS Region 写错，或 OSS Endpoint 与 Bucket 所在地域不一致。',
+    };
+  }
+
+  if (accessDenied || statusCode === 401 || statusCode === 403) {
+    const name = provider === 'aliyun-oss' ? '阿里云 OSS' : provider === 'tencent-cos' ? '腾讯云 COS' : '云端目标';
+    return {
+      ...base,
+      code: 'permission',
+      message: `${name} 权限不足：当前密钥没有上传对象权限。`,
+      hint: '请给密钥授予 PutObject/上传对象权限；若需要公开直链，还要配置 Bucket 读权限或 publicBaseUrl。',
+    };
+  }
+
+  return {
+    ...base,
+    code: 'unknown',
+    message: String(error?.message || '云端上传失败，请检查目标配置后重试。'),
+    hint: '请先点“检查配置”，再确认 Bucket、区域/Endpoint、密钥和路径前缀。',
+  };
 }
 
 function publicUrlForHost(target, host, objectKey) {
@@ -439,6 +530,7 @@ async function uploadCloudAsset(target, payload = {}) {
 
 module.exports = {
   buildObjectKey,
+  classifyCloudUploadError,
   kindFromExt,
   mimeFromPath,
   resolveUploadSource,

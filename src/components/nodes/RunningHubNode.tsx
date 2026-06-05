@@ -10,6 +10,8 @@ import { useOrderedMaterials } from './useOrderedMaterials';
 import MaterialPreviewSection from './MaterialPreviewSection';
 import MentionPromptInput from './MentionPromptInput';
 import LoopingVideo from '../LoopingVideo';
+import SmartImage from '../SmartImage';
+import PromptTextarea from '../PromptTextarea';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
 import { useThemeStore } from '../../stores/theme';
 import { logBus } from '../../stores/logs';
@@ -923,14 +925,16 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
                             </div>
                           )}
                           {isLinked ? (
-                            <textarea
+                            <PromptTextarea
+                              title={`RunningHub 参数 · ${it.fieldName || '文本'} #${it.nodeId || ''}`}
                               value={cur.value}
+                              onValueChange={() => undefined}
                               readOnly
                               className="w-full min-h-14 resize-none rounded bg-cyan-500/10 border border-cyan-500/30 px-2 py-1 text-[11px] text-white outline-none cursor-not-allowed"
-                              title="已从上游文本同步；取消勾选后可手动编辑"
                             />
                           ) : (
                             <MentionPromptInput
+                              title={`RunningHub 参数 · ${it.fieldName || '文本'} #${it.nodeId || ''}`}
                               value={cur.value}
                               mentions={getParamMentions(k)}
                               materials={mentionMaterials}
@@ -1004,7 +1008,7 @@ const RunningHubNode = ({ id, data, selected, type }: NodeProps) => {
             if (/\.(mp3|wav|ogg)$/i.test(u)) {
               return <audio key={i} src={u} controls className="w-full h-8" />;
             }
-            return <img key={i} src={u} alt={`输出 ${i}`} className="w-full rounded object-cover" />;
+            return <SmartImage key={i} src={u} alt={`输出 ${i}`} className="w-full rounded object-cover" thumbSize={720} />;
           })}
         </div>
       )}

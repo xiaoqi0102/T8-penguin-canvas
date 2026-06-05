@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { CheckCircle2, Clipboard, Download, FileJson, RotateCcw, Save, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, Clipboard, Download, FileJson, RotateCcw, Save, Sparkles, Upload, XCircle } from 'lucide-react';
 import { PORT_COLOR } from '../../config/portTypes';
 import { COMFYUI_APP_MANIFEST } from '../../data/comfyuiAppManifest';
 import { useThemeStore } from '../../stores/theme';
@@ -15,11 +15,15 @@ import {
 } from '../../utils/comfyuiApps';
 import {
   analyzeComfyWorkflow,
+  BASIC_COMFY_TEXT_TO_IMAGE_SAMPLE_ID,
+  buildComfyWorkflowImportChecklist,
   filterComfyFieldsByExcludeRules,
   parseComfyFieldExcludeRules,
+  stringifyBasicComfyTextToImageWorkflow,
 } from '../../utils/comfyuiWorkflow';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import ResizableCorners from './ResizableCorners';
+import PromptTextarea from '../PromptTextarea';
 
 const handleStyle: CSSProperties = {
   width: 12,
@@ -62,6 +66,7 @@ const ComfyUIAppMakerNode = ({ id, data, selected }: NodeProps) => {
   const workflowRaw = String(d.comfyMakerWorkflowRaw || '');
   const workflowJson = useMemo(() => parseWorkflow(workflowRaw), [workflowRaw]);
   const analysis = useMemo(() => analyzeComfyWorkflow(workflowJson || null), [workflowJson]);
+  const importChecklist = useMemo(() => buildComfyWorkflowImportChecklist(workflowJson || null, analysis), [workflowJson, analysis]);
   const excludeRulesRaw = String(d.comfyMakerExcludeRules || '');
   const excludeRules = useMemo(() => parseComfyFieldExcludeRules(excludeRulesRaw), [excludeRulesRaw]);
   const filteredAnalysisFields = useMemo(
@@ -133,6 +138,19 @@ const ComfyUIAppMakerNode = ({ id, data, selected }: NodeProps) => {
     setStatus('');
   };
 
+  const applySampleWorkflow = () => {
+    update({
+      comfyMakerWorkflowRaw: stringifyBasicComfyTextToImageWorkflow(),
+      comfyMakerTitle: '基础文生图样例',
+      comfyMakerAppId: BASIC_COMFY_TEXT_TO_IMAGE_SAMPLE_ID,
+      comfyMakerCategoryId: 'image',
+      comfyMakerDescription: '用于学习字段映射和首次连通测试；运行前把 Checkpoint 改成本机已安装的模型文件名。',
+      comfyMakerExcludeRules: '',
+      comfyMakerHiddenParamKeys: [],
+    });
+    setStatus('已载入基础文生图样例。保存到超市后，运行前请把 Checkpoint 改成本机模型文件名。');
+  };
+
   const setExcludeRules = (raw: string) => {
     update({ comfyMakerExcludeRules: raw, comfyMakerHiddenParamKeys: [] });
     setStatus('已更新排除规则，自动识别结果会按规则过滤。');
@@ -200,6 +218,9 @@ const ComfyUIAppMakerNode = ({ id, data, selected }: NodeProps) => {
         <button type="button" className={btnCls} style={inputStyle} onClick={() => fileInputRef.current?.click()}>
           <Upload size={12} /> 上传 JSON
         </button>
+        <button type="button" className={btnCls} style={inputStyle} onClick={applySampleWorkflow}>
+          <Sparkles size={12} /> 载入样例
+        </button>
       </div>
 
       <div className="h-[calc(100%-58px)] overflow-auto p-3 space-y-3 nowheel">
@@ -249,9 +270,12 @@ const ComfyUIAppMakerNode = ({ id, data, selected }: NodeProps) => {
 
         <label className="block space-y-1">
           <span className="text-[11px] font-bold" style={{ color: sub }}>Workflow JSON</span>
-          <textarea
+          <PromptTextarea
+            title="ComfyUI Workflow JSON"
             value={workflowRaw}
-            onChange={(e) => setRaw(e.target.value)}
+            onValueChange={setRaw}
+            editorKind="json"
+            mono
             className={`${inputCls} min-h-[120px] resize-y font-mono leading-relaxed`}
             style={inputStyle}
             placeholder='粘贴 ComfyUI API Workflow JSON，例如 {"1":{"class_type":"CLIPTextEncode","inputs":{"text":""}}}'
@@ -263,9 +287,12 @@ const ComfyUIAppMakerNode = ({ id, data, selected }: NodeProps) => {
 
         <label className="block space-y-1">
           <span className="text-[11px] font-bold" style={{ color: sub }}>自动映射排除规则（可选）</span>
-          <textarea
+          <PromptTextarea
+            title="ComfyUI 自动映射排除规则"
             value={excludeRulesRaw}
-            onChange={(e) => setExcludeRules(e.target.value)}
+            onValueChange={setExcludeRules}
+            editorKind="lines"
+            mono
             className={`${inputCls} min-h-[68px] resize-y font-mono leading-relaxed`}
             style={inputStyle}
             placeholder={'每行一个：seed、steps、class:KSampler、CLIPTextEncode.text、#86.batch_size'}
@@ -311,6 +338,21 @@ const ComfyUIAppMakerNode = ({ id, data, selected }: NodeProps) => {
           </div>
           <div className="mt-1 text-[11px]" style={{ color: sub }}>
             字段 {analysis.fields.length} 个 · 排除后 {filteredAnalysisFields.length} 个 · 图片输入 {analysis.imageInputCount} · 视频输入 {analysis.videoInputCount} · 音频输入 {analysis.audioInputCount} · 输出节点 {analysis.outputCount}
+          </div>
+          <div className="mt-2 grid grid-cols-1 gap-1">
+            {importChecklist.map((item) => (
+              <div
+                key={item.id}
+                className="rounded border px-2 py-1 text-[10px]"
+                style={{
+                  borderColor: item.level === 'ok' ? 'rgba(34,197,94,0.36)' : item.level === 'warn' ? 'rgba(245,158,11,0.42)' : border,
+                  color: item.level === 'ok' ? '#22c55e' : item.level === 'warn' ? '#f59e0b' : sub,
+                  background: item.level === 'ok' ? 'rgba(34,197,94,0.08)' : item.level === 'warn' ? 'rgba(245,158,11,0.08)' : 'transparent',
+                }}
+              >
+                <b>{item.label}</b> · {item.detail}
+              </div>
+            ))}
           </div>
           {analysis.warnings.slice(0, 3).map((warning, index) => (
             <div key={index} className="mt-1 text-[10px] text-amber-500">{warning}</div>

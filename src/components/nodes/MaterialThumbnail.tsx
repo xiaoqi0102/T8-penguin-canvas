@@ -7,6 +7,7 @@ import {
   Pin,
   FileText,
 } from 'lucide-react';
+import SmartImage from '../SmartImage';
 import type { Material } from './useUpstreamMaterials';
 
 /**
@@ -132,10 +133,11 @@ const MaterialThumbnail = ({
     >
       {/* 内容主体 */}
       {material.kind === 'image' ? (
-        <img
+        <SmartImage
           src={material.url}
           alt={material.label || ''}
           draggable={false}
+          thumbSize={Math.max(160, size * 3)}
           style={{
             width: '100%',
             height: '100%',

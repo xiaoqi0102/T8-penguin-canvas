@@ -75,12 +75,16 @@ export const NODE_REGISTRY: NodeMeta[] = [
   { type: 'remove-ai-watermark', label: '去AI水印', category: 'auxiliary', description: '基于 remove-ai-watermarks 的可见/隐形水印、局部擦除、元数据清理与鉴别', icon: 'ShieldOff', color: 'slate' },
   { type: 'video-output', label: '视频输出', category: 'auxiliary', description: '视频结果展示', icon: 'MonitorPlay', color: 'slate', hidden: true },
 
-  // ========== Toolbox 工具箱(5) ==========
+  // ========== Toolbox 工具箱(6) ==========
   { type: 'cinematic', label: '电影感', category: 'toolbox', description: '电影感组合器：风格 / 镜头 / 光影 / 调色 / 质感各 50 项，支持收藏与 JSON 导入/导出', icon: 'Clapperboard', color: 'pink' },
   { type: 'video-motion', label: '视频运镜', category: 'toolbox', description: '视频运镜组合器：场景 / 动作 / 路径 / 节奏 / 稳定 / 主体约束各 50 项，支持收藏与 JSON 导入/导出', icon: 'Camera', color: 'pink' },
   { type: 'multi-angle-visual', label: '可视化多角度', category: 'toolbox', description: '可视化调节方位 / 俯仰 / 远近，支持批量角度、Prompt 模式、前后缀、镜头收藏、JSON 导入/导出与紧凑双栏 UI', icon: 'Compass', color: 'pink' },
   { type: 'portrait-master', label: '肖像大师', category: 'toolbox', description: '捏人 Prompt 设计器：五官、发型、服饰、配饰、气质神情等 9 大类词库，支持随机、锁定、权重和运行输出文本', icon: 'UserRoundCog', color: 'pink' },
   { type: 'pose-master', label: '姿势大师', category: 'toolbox', description: '人体线稿姿态编辑器：支持多人姿势、抓取移动、OpenPose/COCO 预览输出、keypoints JSON 与中英文 prompt', icon: 'PersonStanding', color: 'pink' },
+  { type: 'aggregate-parser', label: '聚合解析', category: 'toolbox', description: '基于 ParseHub 的轻量自媒体聚合解析：输入短链/分享码/分享文案，合规确认后默认保存到输出目录；远端地址解析作为高级模式保留', icon: 'Link2', color: 'pink' },
+
+  // ========== 3D 节点 ==========
+  { type: 'panorama-3d', label: '3D全景', category: '3d', description: 'Three.js 360 全景预览与取景导出，内置 GPT Image 2 文生/图生 21:9 全景贴图生成', icon: 'Globe2', color: 'sky' },
 ];
 
 // 按分类分组,便于 Sidebar 渲染 (在这里过滤 hidden 节点 —— 它们仍在 NODE_REGISTRY 中保证节点类型注册)
@@ -93,6 +97,7 @@ export const NODE_GROUPS: Record<string, { label: string; nodes: NodeMeta[] }> =
   utility: { label: '工具节点', nodes: NODE_REGISTRY.filter((n) => n.category === 'utility' && !n.hidden) },
   auxiliary: { label: '辅助节点', nodes: NODE_REGISTRY.filter((n) => n.category === 'auxiliary' && !n.hidden) },
   toolbox: { label: '工具箱', nodes: NODE_REGISTRY.filter((n) => n.category === 'toolbox' && !n.hidden) },
+  '3d': { label: '3D', nodes: NODE_REGISTRY.filter((n) => n.category === '3d' && !n.hidden) },
 };
 
 // 通过 type 反查 meta

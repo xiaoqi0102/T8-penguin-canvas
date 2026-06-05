@@ -13,6 +13,7 @@ import { Download, Upload } from 'lucide-react';
 import { useRHTools } from '../../providers/RHToolsProvider';
 import type { RHTool, RHToolCategory, RHToolsBackup } from '../../services/api';
 import { fetchRhAppInfo } from '../../services/generation';
+import PromptTextarea from '../PromptTextarea';
 
 interface RHToolEditorModalProps {
   isOpen: boolean;
@@ -354,11 +355,12 @@ const RHToolEditorModal: React.FC<RHToolEditorModalProps> = ({ isOpen, onClose, 
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                   style={inputStyle}
                 />
-                <textarea
+                <PromptTextarea
+                  title="RH 超市应用简介"
                   placeholder="简介（点击应用时显示在节点底部）"
                   value={form.description}
                   rows={2}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  onValueChange={(value) => setForm((f) => ({ ...f, description: value }))}
                   style={{ ...inputStyle, resize: 'vertical' }}
                 />
                 <div className="flex gap-2 items-center">

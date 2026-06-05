@@ -10,18 +10,24 @@ export interface GridEditorConfig {
   background: string;
   fit: GridEditorFit;
   showIndexes: boolean;
+  showCaptions: boolean;
+  captionHeight: number;
+  captionTextColor: string;
+  captionBackground: string;
 }
 
 export interface GridEditorItem {
   id: string;
   url: string;
   title?: string;
+  caption?: string;
   origin?: GridEditorOrigin;
 }
 
 export interface GridComposeCell {
   imageUrl: string;
   fit?: GridEditorFit;
+  caption?: string;
 }
 
 export interface GridComposeRequest extends GridEditorConfig {
@@ -73,6 +79,10 @@ export function normalizeGridEditorConfig(value: Partial<GridEditorConfig> | Rec
     background: normalizeColor(value.background),
     fit: normalizeFit(value.fit),
     showIndexes: Boolean(value.showIndexes),
+    showCaptions: Boolean(value.showCaptions),
+    captionHeight: clampInt(value.captionHeight, 24, 240, 56),
+    captionTextColor: normalizeColor(value.captionTextColor, '#fff7ed'),
+    captionBackground: normalizeColor(value.captionBackground, '#111827'),
   };
 }
 
@@ -93,7 +103,7 @@ export function buildGridEditorItems(
   const add = (item: GridEditorItem, fallbackOrigin: GridEditorOrigin) => {
     if (!item || typeof item.id !== 'string' || typeof item.url !== 'string' || !item.id || !item.url) return;
     if (byId.has(item.id)) return;
-    byId.set(item.id, { ...item, origin: item.origin || fallbackOrigin });
+    byId.set(item.id, { ...item, caption: item.caption, origin: item.origin || fallbackOrigin });
   };
   upstreamItems.forEach((item) => add(item, 'upstream'));
   localItems.forEach((item) => add(item, 'local'));
@@ -136,7 +146,15 @@ export function buildGridComposeRequest(items: GridEditorItem[], config: GridEdi
   const slots = createGridEditorSlots(items, normalized);
   return {
     ...normalized,
-    cells: slots.map((slot) => (slot ? { imageUrl: slot.url, fit: normalized.fit } : null)),
+    cells: slots.map((slot) => {
+      if (!slot) return null;
+      const caption = String(slot.caption || slot.title || '').trim().slice(0, 140);
+      return {
+        imageUrl: slot.url,
+        fit: normalized.fit,
+        ...(normalized.showCaptions && caption ? { caption } : {}),
+      };
+    }),
   };
 }
 

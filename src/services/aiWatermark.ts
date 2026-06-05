@@ -30,14 +30,24 @@ export interface AiWatermarkOptions {
   backend?: 'cv2' | 'lama';
   eraseMethod?: 'telea' | 'ns';
   dilate?: number;
-  pipeline?: 'default' | 'ctrlregen';
+  pipeline?: 'default' | 'controlnet' | 'ctrlregen';
   device?: 'auto' | 'cpu' | 'mps' | 'cuda' | 'xpu';
   strength?: number;
   steps?: number;
   seed?: number | '';
   humanize?: number;
+  unsharp?: number;
   maxResolution?: number;
+  minResolution?: number;
+  controlnetScale?: number;
+  auto?: boolean;
+  autoTune?: boolean;
+  adaptivePolish?: boolean;
+  restoreFaces?: boolean;
+  restoreFacesWeight?: number;
+  /** Legacy 0.8.7 fields. Kept for old canvas data; 0.8.9 uses controlnet / restoreFaces instead. */
   protectText?: boolean;
+  /** Legacy 0.8.7 fields. Kept for old canvas data; 0.8.9 uses controlnet / restoreFaces instead. */
   protectFaces?: boolean;
   keepStandardMetadata?: boolean;
   noVisible?: boolean;
@@ -53,6 +63,10 @@ export interface AiWatermarkStatus {
     lama: boolean;
     detect: boolean;
     trustmark: boolean;
+    restore?: boolean;
+    auto?: boolean;
+    controlnet?: boolean;
+    adaptivePolish?: boolean;
   };
   setupHints: string[];
   errors?: string[];

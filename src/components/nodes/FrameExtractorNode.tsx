@@ -3,6 +3,7 @@ import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
 import { Scissors, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
+import SmartImage from '../SmartImage';
 
 /**
  * FrameExtractorNode - 视频抽帧
@@ -202,7 +203,7 @@ const FrameExtractorNode = (p: NodeProps) => {
       {urls.length > 0 && (
         <div className="border-t border-white/10 p-2 grid grid-cols-2 gap-1">
           {urls.map((u, i) => (
-            <img key={i} src={u} alt={`帧 ${i}`} className="w-full rounded object-cover" />
+            <SmartImage key={i} src={u} alt={`帧 ${i}`} className="w-full rounded object-cover" thumbSize={240} />
           ))}
         </div>
       )}

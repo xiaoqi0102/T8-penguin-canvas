@@ -18,6 +18,7 @@ import ImageCompareModal from '../ImageCompareModal';
 import CollectionSplitButton from '../CollectionSplitButton';
 import ImageHoverPreview from '../ImageHoverPreview';
 import LoopingVideo from '../LoopingVideo';
+import SmartImage from '../SmartImage';
 import { useMaterialDropTarget } from '../../hooks/useMaterialDropTarget';
 import { useDragMaterialStore, type MaterialPayload } from '../../stores/dragMaterial';
 import ResizableCorners from './ResizableCorners';
@@ -948,10 +949,11 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
               {collected.images.map((u, i) => (
                 <div key={i} className="group group/output-image-card space-y-0.5">
                   <div className="relative">
-                    <img
+                    <SmartImage
                       src={u}
                       alt={`图像 ${i + 1}`}
                       className="w-full h-auto rounded block cursor-zoom-in"
+                      thumbSize={collected.images.length >= 2 ? 360 : 720}
                       style={{
                         background: '#0008',
                         objectFit: 'contain',

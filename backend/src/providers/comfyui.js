@@ -58,6 +58,103 @@ function responseJson(res) {
   });
 }
 
+function safeJsonText(value, max = 3000) {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') return value.slice(0, max);
+  try {
+    return JSON.stringify(value).slice(0, max);
+  } catch {
+    return String(value).slice(0, max);
+  }
+}
+
+function collectComfyErrorText(raw, fallback = '') {
+  const parts = [];
+  const push = (value) => {
+    const text = safeJsonText(value, 1200).trim();
+    if (text) parts.push(text);
+  };
+  push(fallback);
+  push(raw?.error);
+  push(raw?.message);
+  push(raw?.detail);
+  push(raw?.details);
+  const nodeErrors = raw?.node_errors || raw?.nodeErrors || raw?.data?.node_errors;
+  if (nodeErrors && typeof nodeErrors === 'object') {
+    for (const [nodeId, info] of Object.entries(nodeErrors)) {
+      push(`node #${nodeId}`);
+      push(info?.class_type || info?.classType);
+      push(info?.message);
+      push(info?.errors);
+      push(info?.details);
+    }
+  }
+  if (!parts.length) push(raw);
+  return parts.join('\n').slice(0, 4000);
+}
+
+function firstComfyNodeError(raw) {
+  const nodeErrors = raw?.node_errors || raw?.nodeErrors || raw?.data?.node_errors;
+  if (!nodeErrors || typeof nodeErrors !== 'object') return '';
+  for (const [nodeId, info] of Object.entries(nodeErrors)) {
+    const classType = String(info?.class_type || info?.classType || '').trim();
+    const errors = Array.isArray(info?.errors) ? info.errors : [];
+    const error = errors[0] || {};
+    const text = [
+      `#${nodeId}`,
+      classType,
+      error?.message,
+      error?.details,
+      info?.message,
+      info?.details,
+    ].filter(Boolean).join(' · ');
+    if (text) return text.slice(0, 360);
+  }
+  return '';
+}
+
+function classifyComfyUiError(raw, fallback = 'ComfyUI 调用失败。') {
+  const text = collectComfyErrorText(raw, fallback);
+  const low = text.toLowerCase();
+  const detail = firstComfyNodeError(raw) || safeJsonText(raw?.error || raw?.message || fallback, 360);
+  const withDetail = (message) => (detail ? `${message}（${detail}）` : message);
+
+  if (/aborterror|timeout|timed out|超时/.test(low)) {
+    return {
+      code: 'timeout',
+      error: withDetail('ComfyUI 响应超时。请确认本机 ComfyUI 没有卡在加载模型，或稍后在队列空闲时重试。'),
+    };
+  }
+  if (/econnrefused|failed to fetch|fetch failed|network|connect|connection refused|不在线|无法连接/.test(low)) {
+    return {
+      code: 'comfyui_offline',
+      error: withDetail('没有连上本机 ComfyUI。请先启动 ComfyUI，并确认地址是 http://127.0.0.1:8188 或 localhost。'),
+    };
+  }
+  if (/class_type.*(does not exist|missing|not found)|node type.*not found|custom node|no module named|import failed|cannot import|was not found/.test(low)) {
+    return {
+      code: 'missing_custom_node',
+      error: withDetail('ComfyUI 缺少这个 workflow 需要的自定义节点。请在 ComfyUI Manager 安装对应节点包，重启 ComfyUI 后再运行。'),
+    };
+  }
+  if (/(ckpt_name|checkpoint|model_name|lora_name|vae_name|clip_name|control_net_name|unet_name).*(not in list|not found|does not exist|missing|no such file)|value not in list|not in list.*(safetensors|ckpt|vae|lora|clip)|model.*(not found|does not exist|missing)/.test(low)) {
+    return {
+      code: 'missing_model',
+      error: withDetail('ComfyUI 缺少模型或模型名不匹配。请把 Checkpoint / LoRA / VAE / CLIP 等参数改成本机 ComfyUI 已安装的文件名。'),
+    };
+  }
+  if (/invalid prompt|prompt outputs failed validation|node_errors|validation/.test(low)) {
+    return {
+      code: 'invalid_workflow',
+      error: withDetail('ComfyUI 工作流校验失败。请检查导入的是 API Workflow，并确认参数映射没有写到错误节点。'),
+    };
+  }
+  return {
+    code: 'comfyui_failed',
+    error: withDetail(fallback || 'ComfyUI 调用失败。'),
+  };
+}
+
 function cloneWorkflow(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return JSON.parse(JSON.stringify(value));
@@ -546,7 +643,13 @@ async function pollHistory(baseUrl, promptId, options = {}) {
     }
     const status = extractStatus(raw);
     if (SUCCESS_STATUSES.has(status)) return { raw, ...outputs };
-    if (FAILURE_STATUSES.has(status)) throw new Error(raw?.message || raw?.error || 'ComfyUI 工作流执行失败。');
+    if (FAILURE_STATUSES.has(status)) {
+      const classified = classifyComfyUiError(raw, 'ComfyUI 工作流执行失败。');
+      const error = new Error(classified.error);
+      error.code = classified.code;
+      error.raw = raw;
+      throw error;
+    }
   }
   throw new Error(`ComfyUI 工作流超时：${JSON.stringify(lastRaw || promptId).slice(0, 500)}`);
 }
@@ -589,7 +692,8 @@ async function generateImage(provider, input = {}, options = {}) {
     });
     const raw = await responseJson(res);
     if (!res.ok) {
-      return { ok: false, code: 'http_error', providerId: provider.id, protocol: 'comfyui', error: `ComfyUI 提交失败：HTTP ${res.status}`, raw };
+      const classified = classifyComfyUiError(raw, `ComfyUI 提交失败：HTTP ${res.status}`);
+      return { ok: false, code: classified.code, providerId: provider.id, protocol: 'comfyui', error: classified.error, raw };
     }
     const promptId = extractPromptId(raw);
     if (!promptId) {
@@ -614,7 +718,8 @@ async function generateImage(provider, input = {}, options = {}) {
       raw: polled.raw,
     };
   } catch (e) {
-    return { ok: false, code: e?.name === 'AbortError' ? 'timeout' : 'comfyui_failed', providerId: provider.id, protocol: 'comfyui', error: e?.message || 'ComfyUI 调用失败。' };
+    const classified = classifyComfyUiError(e?.raw || e, e?.message || 'ComfyUI 调用失败。');
+    return { ok: false, code: e?.code || classified.code, providerId: provider.id, protocol: 'comfyui', error: classified.error };
   }
 }
 
@@ -659,17 +764,19 @@ async function testProvider(provider, options = {}) {
       message: 'ComfyUI 已连接。',
     };
   } catch (e) {
+    const classified = classifyComfyUiError(e, e?.name === 'AbortError' ? 'ComfyUI 连接超时。' : (e?.message || 'ComfyUI 不在线。'));
     return {
       ok: false,
-      code: e?.name === 'AbortError' ? 'timeout' : 'network_error',
+      code: classified.code === 'comfyui_failed' ? 'network_error' : classified.code,
       providerId: provider.id,
       protocol: 'comfyui',
-      error: e?.name === 'AbortError' ? 'ComfyUI 连接超时。' : (e?.message || 'ComfyUI 不在线。'),
+      error: classified.error,
     };
   }
 }
 
 module.exports = {
+  classifyComfyUiError,
   generateImage,
   testProvider,
 };

@@ -46,6 +46,13 @@ export interface ComfyWorkflowAnalysis {
   warnings: string[];
 }
 
+export interface ComfyWorkflowImportChecklistItem {
+  id: string;
+  level: 'ok' | 'warn' | 'info';
+  label: string;
+  detail: string;
+}
+
 export interface CanonicalizeComfyFieldsOptions {
   addMissingPromptField?: boolean;
 }
@@ -78,6 +85,63 @@ export const COMFY_FIELD_SOURCE_OPTIONS: Array<{ value: ComfyFieldSource; label:
   { value: 'strength_clip', label: 'LoRA CLIP 强度' },
   { value: 'fixed', label: '固定值' },
 ];
+
+export const BASIC_COMFY_TEXT_TO_IMAGE_SAMPLE_ID = 't8-basic-text-to-image-sample';
+
+export function createBasicComfyTextToImageWorkflow(): Record<string, any> {
+  return {
+    '1': {
+      class_type: 'CheckpointLoaderSimple',
+      inputs: { ckpt_name: '请改成你的模型.safetensors' },
+      _meta: { title: 'Checkpoint' },
+    },
+    '2': {
+      class_type: 'CLIPTextEncode',
+      inputs: { text: 'a cozy studio, soft light, highly detailed', clip: ['1', 1] },
+      _meta: { title: 'Positive Prompt' },
+    },
+    '3': {
+      class_type: 'CLIPTextEncode',
+      inputs: { text: 'low quality, blurry, bad anatomy', clip: ['1', 1] },
+      _meta: { title: 'Negative Prompt' },
+    },
+    '4': {
+      class_type: 'EmptyLatentImage',
+      inputs: { width: 1024, height: 1024, batch_size: 1 },
+      _meta: { title: 'Canvas Size' },
+    },
+    '5': {
+      class_type: 'KSampler',
+      inputs: {
+        seed: 123456,
+        steps: 20,
+        cfg: 7,
+        sampler_name: 'euler',
+        scheduler: 'normal',
+        denoise: 1,
+        model: ['1', 0],
+        positive: ['2', 0],
+        negative: ['3', 0],
+        latent_image: ['4', 0],
+      },
+      _meta: { title: 'Sampler' },
+    },
+    '6': {
+      class_type: 'VAEDecode',
+      inputs: { samples: ['5', 0], vae: ['1', 2] },
+      _meta: { title: 'Decode' },
+    },
+    '7': {
+      class_type: 'SaveImage',
+      inputs: { filename_prefix: 'T8_ComfyUI', images: ['6', 0] },
+      _meta: { title: 'Save Image' },
+    },
+  };
+}
+
+export function stringifyBasicComfyTextToImageWorkflow(): string {
+  return JSON.stringify(createBasicComfyTextToImageWorkflow(), null, 2);
+}
 
 function entriesOfWorkflow(workflow: unknown): Array<[string, any]> {
   if (!workflow || typeof workflow !== 'object' || Array.isArray(workflow)) return [];
@@ -225,6 +289,62 @@ export function analyzeComfyWorkflow(workflow: unknown): ComfyWorkflowAnalysis {
   }
 
   return { fields, imageInputCount, videoInputCount, audioInputCount, outputCount, warnings };
+}
+
+export function buildComfyWorkflowImportChecklist(
+  workflow: unknown,
+  analysis: ComfyWorkflowAnalysis = analyzeComfyWorkflow(workflow),
+): ComfyWorkflowImportChecklistItem[] {
+  const hasWorkflowObject = !!workflow && typeof workflow === 'object' && !Array.isArray(workflow);
+  const fields = Array.isArray(analysis.fields) ? analysis.fields : [];
+  const hasPrompt = fields.some((field) => field.source === 'prompt' || field.source === 'positive');
+  const hasNegative = fields.some((field) => field.source === 'negative');
+  const hasModelField = fields.some((field) => ['ckpt_name', 'model_name', 'clip_name', 'vae_name', 'lora_name'].includes(String(field.source || '')));
+  const hasSize = fields.some((field) => field.source === 'width') && fields.some((field) => field.source === 'height');
+  const items: ComfyWorkflowImportChecklistItem[] = [];
+
+  items.push({
+    id: 'api-format',
+    level: hasWorkflowObject && fields.length ? 'ok' : 'warn',
+    label: hasWorkflowObject && fields.length ? 'API Workflow 已识别' : '还没有识别到 API Workflow',
+    detail: hasWorkflowObject
+      ? '节点需要包含 class_type 和 inputs；如果字段为 0，通常导入的是普通前端 workflow。'
+      : '请从 ComfyUI 右上角设置开启 dev mode，再导出 API Workflow JSON。',
+  });
+  items.push({
+    id: 'prompt',
+    level: hasPrompt ? 'ok' : 'warn',
+    label: hasPrompt ? '正向 Prompt 可编辑' : '未找到正向 Prompt',
+    detail: hasPrompt ? '运行时会把节点提示词写入该字段。' : '可在参数映射里手动把 CLIPTextEncode.text 设置为正向 Prompt。',
+  });
+  items.push({
+    id: 'negative',
+    level: hasNegative ? 'ok' : 'info',
+    label: hasNegative ? '负向 Prompt 已识别' : '未识别负向 Prompt',
+    detail: hasNegative ? '采样器连接可帮助区分正向/负向。' : '没有负向也可以运行；需要时手动映射另一个 CLIPTextEncode.text。',
+  });
+  items.push({
+    id: 'size',
+    level: hasSize ? 'ok' : 'info',
+    label: hasSize ? '尺寸字段可编辑' : '尺寸可能固定在 workflow 内',
+    detail: hasSize ? '宽高会跟随节点尺寸/参数写入。' : '如果 workflow 用固定 latent 或外部尺寸节点，请确认输出比例符合预期。',
+  });
+  items.push({
+    id: 'model',
+    level: hasModelField ? 'info' : 'ok',
+    label: hasModelField ? '模型字段建议检查' : '未暴露模型字段',
+    detail: hasModelField
+      ? 'Checkpoint、LoRA、VAE、CLIP 名必须和本机 ComfyUI 模型文件名一致。'
+      : '模型名会按 workflow 内固定值运行。',
+  });
+  items.push({
+    id: 'output',
+    level: analysis.outputCount > 0 ? 'ok' : 'warn',
+    label: analysis.outputCount > 0 ? `输出节点 ${analysis.outputCount} 个` : '未找到输出节点',
+    detail: analysis.outputCount > 0 ? 'SaveImage / PreviewImage 等输出会被 T8 自动归一化。' : '请确认 workflow 最后有 SaveImage、PreviewImage、SaveVideo 或 SaveAudio。',
+  });
+
+  return items;
 }
 
 export function compactComfyFields(fields: Array<ComfyFieldMapping | ComfyDetectedField> | undefined): ComfyFieldMapping[] {

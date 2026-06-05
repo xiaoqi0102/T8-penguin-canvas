@@ -6,8 +6,10 @@ const require = createRequire(import.meta.url);
 const comfyui = require('../backend/src/providers/comfyui.js');
 const {
   analyzeComfyWorkflow,
+  buildComfyWorkflowImportChecklist,
   canonicalizeComfyFieldsByWorkflow,
   compactComfyFields,
+  createBasicComfyTextToImageWorkflow,
   filterComfyFieldsByExcludeRules,
   parseComfyFieldExcludeRules,
 } = await import('../src/utils/comfyuiWorkflow.ts');
@@ -215,6 +217,20 @@ test('ComfyUI workflow analyzer creates friendly mappings for common API workflo
       ['5', 'scheduler', 'scheduler'],
     ],
   );
+});
+
+test('ComfyUI sample workflow and import checklist guide first-time setup', () => {
+  const workflow = createBasicComfyTextToImageWorkflow();
+  const analysis = analyzeComfyWorkflow(workflow);
+  const checklist = buildComfyWorkflowImportChecklist(workflow, analysis);
+  const sourceByNodeField = new Map(analysis.fields.map((field) => [`${field.nodeId}.${field.fieldName}`, field.source]));
+
+  assert.equal(sourceByNodeField.get('1.ckpt_name'), 'ckpt_name');
+  assert.equal(sourceByNodeField.get('2.text'), 'prompt');
+  assert.equal(sourceByNodeField.get('3.text'), 'negative');
+  assert.equal(analysis.outputCount, 1);
+  assert.ok(checklist.some((item) => item.id === 'model' && /模型字段建议检查/.test(item.label)));
+  assert.ok(checklist.some((item) => item.id === 'api-format' && item.level === 'ok'));
 });
 
 test('ComfyUI workflow analyzer uses sampler links to avoid swapping positive and negative prompt nodes', () => {
@@ -496,4 +512,72 @@ test('ComfyUI image generation preserves sampler-linked negative prompt when heu
   assert.equal(promptCall.body.prompt['71'].inputs.seed, 123);
   assert.equal(promptCall.body.prompt['86'].inputs.width, 512);
   assert.equal(promptCall.body.prompt['86'].inputs.height, 512);
+});
+
+test('ComfyUI error classifier explains missing models and custom nodes', () => {
+  const missingModel = comfyui.classifyComfyUiError({
+    error: { message: 'Prompt outputs failed validation' },
+    node_errors: {
+      '1': {
+        class_type: 'CheckpointLoaderSimple',
+        errors: [{ message: 'Value not in list', details: "ckpt_name: 'missing.safetensors' not in list" }],
+      },
+    },
+  }, 'ComfyUI 提交失败');
+  const missingNode = comfyui.classifyComfyUiError({
+    error: { message: 'Cannot execute because node class_type IPAdapterApply does not exist' },
+  }, 'ComfyUI 提交失败');
+
+  assert.equal(missingModel.code, 'missing_model');
+  assert.match(missingModel.error, /模型名不匹配|模型或模型名/);
+  assert.match(missingModel.error, /Checkpoint/);
+  assert.equal(missingNode.code, 'missing_custom_node');
+  assert.match(missingNode.error, /自定义节点/);
+});
+
+test('ComfyUI image generation returns friendly missing-model error from prompt validation', async () => {
+  const provider = {
+    id: 'comfyui',
+    protocol: 'comfyui',
+    baseUrl: 'http://127.0.0.1:8188',
+    enabled: true,
+    comfyuiConfig: {
+      workflows: [
+        {
+          id: 'sample',
+          name: 'Sample',
+          workflowJson: createBasicComfyTextToImageWorkflow(),
+          fields: [
+            { nodeId: '1', fieldName: 'ckpt_name', source: 'ckpt_name' },
+            { nodeId: '2', fieldName: 'text', source: 'prompt' },
+          ],
+        },
+      ],
+    },
+  };
+
+  const result = await comfyui.generateImage(provider, {
+    prompt: 'test',
+    providerModel: 'sample',
+    providerParams: { ckpt_name: 'missing.safetensors' },
+  }, {
+    fetchImpl: async (url: string) => {
+      if (String(url).endsWith('/prompt')) {
+        return jsonResponse({
+          error: { message: 'Prompt outputs failed validation' },
+          node_errors: {
+            '1': {
+              class_type: 'CheckpointLoaderSimple',
+              errors: [{ message: 'Value not in list', details: "ckpt_name: 'missing.safetensors' not in list" }],
+            },
+          },
+        }, 400);
+      }
+      return jsonResponse({});
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'missing_model');
+  assert.match(result.error, /Checkpoint|模型/);
 });

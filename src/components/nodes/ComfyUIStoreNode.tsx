@@ -33,6 +33,8 @@ import {
   normalizeExcludedMaterialIds,
 } from '../../utils/materialExclusion';
 import MaterialPreviewSection from './MaterialPreviewSection';
+import SmartImage from '../SmartImage';
+import PromptTextarea from '../PromptTextarea';
 import ResizableCorners from './ResizableCorners';
 import { useOrderedMaterials } from './useOrderedMaterials';
 import { useUpdateNodeData } from './useUpdateNodeData';
@@ -120,6 +122,11 @@ const ComfyUIStoreNode = ({ id, data, selected }: NodeProps) => {
   const orderedAudios = useOrderedMaterials(visibleAudios, order);
 
   const req = comfyAppInputRequirements(activeApp);
+  const missingRequirements = [
+    req.images > orderedImages.length ? `图片还缺 ${req.images - orderedImages.length} 张` : '',
+    req.videos > orderedVideos.length ? `视频还缺 ${req.videos - orderedVideos.length} 个` : '',
+    req.audios > orderedAudios.length ? `音频还缺 ${req.audios - orderedAudios.length} 个` : '',
+  ].filter(Boolean);
   const imageUrls: string[] = Array.isArray(d.imageUrls) ? d.imageUrls : (d.imageUrl ? [d.imageUrl] : []);
   const outputText = String(d.outputText || '');
 
@@ -240,6 +247,11 @@ const ComfyUIStoreNode = ({ id, data, selected }: NodeProps) => {
     if (!activeApp) {
       update({ status: 'error', error: '请先导入或制作一个 ComfyUI 应用。' });
       throw new Error('请先导入或制作一个 ComfyUI 应用。');
+    }
+    if (missingRequirements.length) {
+      const message = `当前应用需要更多上游素材：${missingRequirements.join('、')}。请连接上传节点或从资源库插入素材后再运行。`;
+      update({ status: 'error', error: message });
+      throw new Error(message);
     }
     taskCompletionSound.primeAudio();
     update({ status: 'running', error: '', imageUrl: '', imageUrls: [], outputText: '', progress: '提交中' });
@@ -516,6 +528,11 @@ const ComfyUIStoreNode = ({ id, data, selected }: NodeProps) => {
               <div className="mt-1 text-[10px]" style={{ color: sub }}>
                 需要：图片 {req.images} / 视频 {req.videos} / 音频 {req.audios} · 字段 {activeApp.fields.length}
               </div>
+              {missingRequirements.length > 0 && (
+                <div className="mt-2 rounded border px-2 py-1 text-[10px] text-amber-500" style={{ borderColor: 'rgba(245,158,11,0.45)' }}>
+                  当前还缺：{missingRequirements.join('、')}。把素材节点连到左侧输入口即可。
+                </div>
+              )}
               <div className="mt-2 flex items-center gap-1.5">
                 <select
                   value={activeApp.categoryId}
@@ -564,9 +581,10 @@ const ComfyUIStoreNode = ({ id, data, selected }: NodeProps) => {
                 <label key={param.key} className="block space-y-1">
                   <span className="text-[11px] font-bold" style={{ color: sub }}>{param.label}</span>
                   {param.kind === 'textarea' ? (
-                    <textarea
+                    <PromptTextarea
+                      title={`ComfyUI 参数 · ${param.label}`}
                       value={String(paramValues[param.key] ?? '')}
-                      onChange={(e) => setParam(param.key, e.target.value)}
+                      onValueChange={(value) => setParam(param.key, value)}
                       rows={param.rows || 4}
                       className={`${inputCls} resize-y`}
                       style={inputStyle}
@@ -608,7 +626,7 @@ const ComfyUIStoreNode = ({ id, data, selected }: NodeProps) => {
             {imageUrls.length > 0 && (
               <div className="grid grid-cols-2 gap-1.5">
                 {imageUrls.slice(0, 4).map((url, index) => (
-                  <img key={`${url}-${index}`} src={url} alt="ComfyUI 输出" className="w-full rounded object-contain" />
+                  <SmartImage key={`${url}-${index}`} src={url} alt="ComfyUI 输出" className="w-full rounded object-contain" thumbSize={420} />
                 ))}
               </div>
             )}

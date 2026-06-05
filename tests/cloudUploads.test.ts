@@ -14,6 +14,7 @@ const {
 
 const {
   buildObjectKey,
+  classifyCloudUploadError,
   validateTargetConfig,
 } = require('../backend/src/cloudUploads/uploader.js');
 
@@ -156,4 +157,34 @@ test('validateTargetConfig rejects unsupported netdisk placeholders with clear e
     () => validateTargetConfig({ provider: 'quark-netdisk', quarkNetdisk: { commandPath: 'quark' } }),
     /夸克网盘真实上传等待/,
   );
+});
+
+test('classifyCloudUploadError turns storage provider failures into actionable hints', () => {
+  const signature = classifyCloudUploadError(
+    { provider: 'tencent-cos' },
+    Object.assign(new Error('上传失败 HTTP 403：SignatureDoesNotMatch'), {
+      statusCode: 403,
+      responseText: '<Code>SignatureDoesNotMatch</Code>',
+    }),
+  );
+  assert.equal(signature.code, 'signature');
+  assert.match(signature.message, /腾讯云 COS 上传签名校验失败/);
+  assert.match(signature.hint, /Region/);
+
+  const bucket = classifyCloudUploadError(
+    { provider: 'aliyun-oss' },
+    Object.assign(new Error('上传失败 HTTP 404：NoSuchBucket'), {
+      statusCode: 404,
+      responseText: '<Code>NoSuchBucket</Code>',
+    }),
+  );
+  assert.equal(bucket.code, 'bucket');
+  assert.match(bucket.message, /阿里云 OSS Bucket 无法访问/);
+
+  const network = classifyCloudUploadError(
+    { provider: 'aliyun-oss' },
+    Object.assign(new Error('fetch failed'), { code: 'ENOTFOUND' }),
+  );
+  assert.equal(network.code, 'network');
+  assert.match(network.message, /连接失败/);
 });

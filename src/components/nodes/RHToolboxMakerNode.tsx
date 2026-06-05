@@ -31,6 +31,7 @@ import {
 import { saveRhToolboxDeveloperTool } from '../../utils/rhToolboxDeveloper';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import ResizableCorners from './ResizableCorners';
+import PromptTextarea from '../PromptTextarea';
 
 type MakerInput = RhToolboxInputMapping & { rowId: string };
 type MakerParam = RhToolboxUserParam & { rowId: string; optionsText?: string };
@@ -461,9 +462,10 @@ const RHToolboxMakerNode = ({ id, data, selected }: NodeProps) => {
             </div>
             <label className="block text-[10px] space-y-1 mt-2" style={{ color: subText }}>
               <span>说明</span>
-              <textarea
+              <PromptTextarea
+                title="RH 工具说明"
                 value={d.rhToolboxMakerDescription || ''}
-                onChange={(event) => updateData({ rhToolboxMakerDescription: event.target.value })}
+                onValueChange={(value) => updateData({ rhToolboxMakerDescription: value })}
                 rows={2}
                 className="nodrag nowheel"
                 style={fieldStyle}
@@ -471,9 +473,12 @@ const RHToolboxMakerNode = ({ id, data, selected }: NodeProps) => {
             </label>
             <label className="block text-[10px] space-y-1 mt-2" style={{ color: subText }}>
               <span>能力标签（换行或逗号分隔）</span>
-              <textarea
+              <PromptTextarea
+                title="RH 工具能力标签"
                 value={d.rhToolboxMakerCapabilities || 'image.cutout\nimage.edit'}
-                onChange={(event) => updateData({ rhToolboxMakerCapabilities: event.target.value })}
+                onValueChange={(value) => updateData({ rhToolboxMakerCapabilities: value })}
+                editorKind="lines"
+                mono
                 rows={3}
                 className="nodrag nowheel"
                 style={fieldStyle}
@@ -644,10 +649,15 @@ const RHToolboxMakerNode = ({ id, data, selected }: NodeProps) => {
               <button type="button" className="nodrag ml-auto flex items-center gap-1 rounded px-2 py-1 text-[11px]" style={{ border: `1px solid ${border}` }} onClick={() => setRows('rhToolboxMakerInputs', [...inputs, { ...DEFAULT_INPUT, rowId: uid('input') }])}><Plus size={12} />补输入</button>
             </div>
             {status && <div className="text-[10px] mb-1" style={{ color: accent }}>{status}</div>}
-            <textarea
+            <PromptTextarea
+              title="RH 工具 manifest JSON"
               value={toolJson}
+              onValueChange={() => {}}
               readOnly
-              className="nodrag nowheel flex-1 min-h-0 font-mono"
+              editorKind="json"
+              mono
+              containerClassName="relative flex-1 min-h-0"
+              className="nodrag nowheel h-full w-full font-mono"
               style={{ ...fieldStyle, fontSize: 10, resize: 'none' }}
             />
           </div>

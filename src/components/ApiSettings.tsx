@@ -13,12 +13,16 @@ import {
 } from '../utils/advancedProviders';
 import {
   COMFY_FIELD_SOURCE_OPTIONS,
+  BASIC_COMFY_TEXT_TO_IMAGE_SAMPLE_ID,
   analyzeComfyWorkflow,
+  buildComfyWorkflowImportChecklist,
   canonicalizeComfyFieldsByWorkflow,
   filterComfyFieldsByExcludeRules,
   parseComfyFieldExcludeRules,
+  stringifyBasicComfyTextToImageWorkflow,
   type ComfyFieldMapping,
 } from '../utils/comfyuiWorkflow';
+import PromptTextarea from './PromptTextarea';
 
 interface ApiSettingsModalProps {
   open: boolean;
@@ -1103,6 +1107,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     const comfyWorkflowObject = tryParseJsonObject(comfyWorkflowRaw);
     const comfyWorkflowSource = comfyWorkflowObject || comfyWorkflow.workflowJson || null;
     const comfyAnalysis = analyzeComfyWorkflow(comfyWorkflowSource);
+    const comfyImportChecklist = buildComfyWorkflowImportChecklist(comfyWorkflowSource, comfyAnalysis);
     const comfyExcludeRulesRaw = comfyDraft.excludeRules ?? parseComfyFieldExcludeRules((comfyWorkflow as any).excludeRules).join('\n');
     const comfyExcludeRules = parseComfyFieldExcludeRules(comfyExcludeRulesRaw);
     const comfyFilteredAnalysisFields = filterComfyFieldsByExcludeRules(comfyWorkflowSource, comfyAnalysis.fields, comfyExcludeRules);
@@ -1216,6 +1221,30 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
           message: fields.length
             ? `已应用自动映射：${fields.length} 个字段${comfyExcludeRules.length ? `，已按规则排除 ${analysis.fields.length - fields.length} 个` : ''}`
             : '没有识别到可自动映射的字段',
+        },
+      }));
+    };
+    const applyComfySampleWorkflow = () => {
+      const workflowJson = JSON.parse(stringifyBasicComfyTextToImageWorkflow());
+      const analysis = analyzeComfyWorkflow(workflowJson);
+      const fields = canonicalizeComfyFieldsByWorkflow(workflowJson, analysis.fields);
+      updateComfyWorkflow({
+        id: BASIC_COMFY_TEXT_TO_IMAGE_SAMPLE_ID,
+        name: '基础文生图样例',
+        workflowJson,
+        fields,
+        excludeRules: [],
+      });
+      setComfyDraft({
+        workflowJson: JSON.stringify(workflowJson, null, 2),
+        fields: JSON.stringify(fields, null, 2),
+        excludeRules: '',
+      });
+      setAdvancedTestStatus((prev) => ({
+        ...prev,
+        [provider.id]: {
+          ok: true,
+          message: '已载入基础文生图样例。运行前请把 Checkpoint 改成本机已安装的模型文件名。',
         },
       }));
     };
@@ -1484,11 +1513,14 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
           >
             <label className="space-y-1 block">
               <span className={`text-[11px] ${labelCls}`}>实例地址列表（一行一个）</span>
-              <textarea
+              <PromptTextarea
+                title="ComfyUI 实例地址列表"
                 value={(provider.comfyuiConfig?.instances || [provider.baseUrl || '']).filter(Boolean).join('\n')}
-                onChange={(e) => updateAdvancedProviderNested(provider.id, 'comfyuiConfig', {
-                  instances: parseAdvancedProviderModelText(e.target.value),
+                onValueChange={(value) => updateAdvancedProviderNested(provider.id, 'comfyuiConfig', {
+                  instances: parseAdvancedProviderModelText(value),
                 })}
+                editorKind="lines"
+                mono
                 className={textareaCls}
                 placeholder={guide?.baseUrlPlaceholder || 'http://127.0.0.1:8188'}
               />
@@ -1536,10 +1568,25 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                     }}
                   />
                 </label>
+                <button
+                  type="button"
+                  onClick={applyComfySampleWorkflow}
+                  className={
+                    isPixel
+                      ? 't8-api-settings-secondary-btn px-btn text-[11px] px-2 py-1 shrink-0'
+                      : 't8-api-settings-secondary-btn px-2 py-1 text-[11px] rounded border shrink-0 inline-flex items-center gap-1'
+                  }
+                  title="填入一个可学习的基础文生图 API Workflow 样例"
+                >
+                  <Plus size={12} /> 载入样例
+                </button>
               </div>
-              <textarea
+              <PromptTextarea
+                title="ComfyUI Workflow JSON"
                 value={comfyWorkflowRaw}
-                onChange={(e) => updateComfyWorkflowJson(e.target.value)}
+                onValueChange={updateComfyWorkflowJson}
+                editorKind="json"
+                mono
                 className={`${textareaCls} min-h-[140px]`}
                 placeholder='粘贴 ComfyUI API workflow JSON，例如 {"1":{"class_type":"CLIPTextEncode","inputs":{"text":""}}}'
               />
@@ -1547,9 +1594,12 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             </label>
             <label className="space-y-1 block">
               <span className={`text-[11px] ${labelCls}`}>自动映射排除规则（可选）</span>
-              <textarea
+              <PromptTextarea
+                title="ComfyUI 自动映射排除规则"
                 value={comfyExcludeRulesRaw}
-                onChange={(e) => updateComfyExcludeRules(e.target.value)}
+                onValueChange={updateComfyExcludeRules}
+                editorKind="lines"
+                mono
                 className={`${textareaCls} min-h-[72px]`}
                 placeholder={'每行一个：seed、steps、class:KSampler、CLIPTextEncode.text、#86.batch_size'}
               />
@@ -1597,6 +1647,20 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                       ))}
                     </div>
                   )}
+                  <div className="mt-2 grid grid-cols-1 gap-1">
+                    {comfyImportChecklist.map((item) => (
+                      <div
+                        key={`${provider.id}-comfy-check-${item.id}`}
+                        className="rounded border px-2 py-1 text-[10px]"
+                        style={{
+                          borderColor: item.level === 'ok' ? 'rgba(34,197,94,0.38)' : item.level === 'warn' ? 'rgba(245,158,11,0.42)' : 'var(--t8-border)',
+                          color: item.level === 'ok' ? '#22c55e' : item.level === 'warn' ? '#f59e0b' : undefined,
+                        }}
+                      >
+                        <b>{item.label}</b> · {item.detail}
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1671,9 +1735,12 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             </div>
             <details className="space-y-2">
               <summary className={`cursor-pointer text-[11px] font-bold ${labelCls}`}>高级：直接编辑 fields JSON</summary>
-              <textarea
+              <PromptTextarea
+                title="ComfyUI fields JSON"
                 value={comfyDraft.fields ?? JSON.stringify(comfyMappedFields, null, 2)}
-                onChange={(e) => updateComfyFields(e.target.value)}
+                onValueChange={updateComfyFields}
+                editorKind="json"
+                mono
                 className={textareaCls}
                 placeholder='[{"nodeId":"1","fieldName":"text","source":"prompt"}]'
               />
@@ -1749,27 +1816,36 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
               <label className="space-y-1 min-w-0">
                 <span className={`text-[11px] ${labelCls}`}>图像模型（一行一个）</span>
-                <textarea
+                <PromptTextarea
+                  title={`${provider.label || protocolLabel} 图像模型`}
                   value={stringifyAdvancedProviderModels(provider.imageModels)}
-                  onChange={(e) => updateAdvancedProvider(provider.id, { imageModels: parseAdvancedProviderModelText(e.target.value) })}
+                  onValueChange={(value) => updateAdvancedProvider(provider.id, { imageModels: parseAdvancedProviderModelText(value) })}
+                  editorKind="lines"
+                  mono
                   className={textareaCls}
                   placeholder="例如 gpt-image-1"
                 />
               </label>
               <label className="space-y-1 min-w-0">
                 <span className={`text-[11px] ${labelCls}`}>视频模型（一行一个）</span>
-                <textarea
+                <PromptTextarea
+                  title={`${provider.label || protocolLabel} 视频模型`}
                   value={stringifyAdvancedProviderModels(provider.videoModels)}
-                  onChange={(e) => updateAdvancedProvider(provider.id, { videoModels: parseAdvancedProviderModelText(e.target.value) })}
+                  onValueChange={(value) => updateAdvancedProvider(provider.id, { videoModels: parseAdvancedProviderModelText(value) })}
+                  editorKind="lines"
+                  mono
                   className={textareaCls}
                   placeholder={isJimeng ? '例如 seedance2.0fast_vip' : '例如 video-model-name'}
                 />
               </label>
               <label className="space-y-1 min-w-0">
                 <span className={`text-[11px] ${labelCls}`}>聊天模型（一行一个）</span>
-                <textarea
+                <PromptTextarea
+                  title={`${provider.label || protocolLabel} 聊天模型`}
                   value={stringifyAdvancedProviderModels(provider.chatModels)}
-                  onChange={(e) => updateAdvancedProvider(provider.id, { chatModels: parseAdvancedProviderModelText(e.target.value) })}
+                  onValueChange={(value) => updateAdvancedProvider(provider.id, { chatModels: parseAdvancedProviderModelText(value) })}
+                  editorKind="lines"
+                  mono
                   className={textareaCls}
                   placeholder={isJimeng ? '即梦 CLI 通常不用填写' : '例如 gpt-4o-mini'}
                 />

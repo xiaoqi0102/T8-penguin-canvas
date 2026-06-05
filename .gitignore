@@ -16,6 +16,15 @@ dist
 dist-ssr
 *.local
 
+# Local reference/test artifacts that must not enter public release
+/public/vendor/js/three-0.160.0.module.js
+/upstream-jimeng-cli-issues-*.md
+/yolov8n.pt
+/_update-test/
+/src/assets/soccer-ball-cursor.svg
+/src/assets/soccer-ball.svg
+/src/assets/soccer-jersey-10.svg
+
 # Electron 打包产物与中间产物 (不上传仓库)
 dist_electron/
 build/
@@ -30,9 +39,11 @@ _temp_*
 _*.ps1
 _*.txt
 _*.log
+_preview_*.svg
 
-# Local project operating manual (do not publish)
+# Local project operating manual and planning notes (do not publish)
 /skill.md
+/roadmap.md
 
 # Local-only private billing/recharge overlay. Public GitHub releases must not
 # contain these modules, routes, UI components, or private patch files.
@@ -52,6 +63,13 @@ _*.log
 /tools/remove-ai-watermarks-runtime/**
 !/tools/remove-ai-watermarks-runtime/
 !/tools/remove-ai-watermarks-runtime/README.md
+
+# Local ParseHub upstream clone and generated Python dependency target.
+# Keep bridge/docs tracked; refresh dependencies locally before Electron release builds.
+/ParseHub/
+/tools/parsehub-pythonlibs/**
+!/tools/parsehub-pythonlibs/
+!/tools/parsehub-pythonlibs/README.md
 
 # Dependencies
 node_modules

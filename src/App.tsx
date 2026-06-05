@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Moon, Settings, Sun, Wifi, WifiOff, Sparkles, Cloud, ExternalLink, Copy, Check, Gift, Heart, Youtube, PlayCircle, Bell, Wand2, Globe, MessageCircle, CalendarDays, Rocket, Key, Library, Palette, Skull, Sailboat } from 'lucide-react';
 import { useThemeStore } from './stores/theme';
 import { useApiKeysStore } from './stores/apiKeys';
 import { useShortcutStore } from './stores/shortcuts';
 import Sidebar from './components/Sidebar';
-import Canvas, { type AddNodeFn, type InsertWorkflowFn } from './components/Canvas';
-import ApiSettingsModal from './components/ApiSettings';
-import ResourceLibraryDrawer from './components/ResourceLibraryDrawer';
+import type { AddNodeFn, InsertWorkflowFn } from './components/Canvas';
+import AppUpdaterButton from './components/AppUpdaterButton';
 import MaterialContextMenu from './components/MaterialContextMenu';
-import ThemeTemplateManager from './components/ThemeTemplateManager';
 import ErrorBoundary from './components/ErrorBoundary';
+import AchievementButton from './components/AchievementButton';
+import AchievementDrawer from './components/AchievementDrawer';
+import AchievementToast from './components/AchievementToast';
+import AchievementTracker from './components/AchievementTracker';
 import { RHToolsProvider } from './providers/RHToolsProvider';
 import * as api from './services/api';
 import type { NodeType } from './types/canvas';
@@ -19,16 +21,12 @@ import { resolveThemeTemplate } from './theme/defaultTemplates';
 import { materialSetItemsToData, type MaterialSetKind, type MaterialSetItem } from './utils/materialSet';
 import { workflowManifestToFragment } from './utils/workflowResource';
 import { matchesAnyShortcut } from './utils/keyboardShortcuts';
-import {
-  buildPortraitPrompt,
-  normalizePortraitLocks,
-  normalizePortraitSelection,
-  normalizePortraitWeights,
-  portraitSelectionStats,
-  resolvePortraitPreview,
-  summarizePortraitSelection,
-  type PortraitLanguage,
-} from './data/portraitMasterOptions';
+import { portraitResourceToNodeData } from './utils/portraitResource';
+
+const Canvas = lazy(() => import('./components/Canvas'));
+const ApiSettingsModal = lazy(() => import('./components/ApiSettings'));
+const ResourceLibraryDrawer = lazy(() => import('./components/ResourceLibraryDrawer'));
+const ThemeTemplateManager = lazy(() => import('./components/ThemeTemplateManager'));
 
 // vite.config 注入的编译期常量（与 package.json 同步），勿硬编码 v1.x.x
 declare const __APP_VERSION__: string;
@@ -43,54 +41,6 @@ function isShortcutTypingTarget(target: EventTarget | null): boolean {
     target.isContentEditable ||
     Boolean(target.closest('[contenteditable="true"]'))
   );
-}
-
-function safePortraitLanguage(value: unknown): PortraitLanguage {
-  return value === 'zh' ? 'zh' : 'en';
-}
-
-function portraitResourceToNodeData(item: ResourceItem): Record<string, any> | null {
-  if (item.kind !== 'set' || item.materialSetKind !== 'text' || !Array.isArray(item.materialSetItems)) return null;
-  const rawText = item.materialSetItems
-    .map((entry) => String(entry.text || '').trim())
-    .find((text) => text.includes('"t8-portrait-master"'));
-  if (!rawText) return null;
-  try {
-    const parsed = JSON.parse(rawText);
-    if (!parsed || parsed.schema !== 't8-portrait-master') return null;
-    const selection = normalizePortraitSelection(parsed.selection);
-    const locks = normalizePortraitLocks(parsed.locks);
-    const weights = normalizePortraitWeights(parsed.weights);
-    const customText = typeof parsed.customText === 'string' ? parsed.customText : '';
-    const language = safePortraitLanguage(parsed.language);
-    const prompt = buildPortraitPrompt({ selection, weights, customText, language });
-    return {
-      portraitLanguage: language,
-      portraitSelection: selection,
-      portraitLocks: locks,
-      portraitWeights: weights,
-      portraitCustomText: customText,
-      prompt,
-      text: prompt,
-      outputText: prompt,
-      portraitMetadata: {
-        schema: 't8-portrait-master',
-        version: 1,
-        selection,
-        locks,
-        weights,
-        customText,
-        language,
-        prompt,
-        preview: resolvePortraitPreview(selection),
-      },
-      portraitSummary: summarizePortraitSelection(selection, 'zh'),
-      portraitStats: portraitSelectionStats(selection),
-      portraitSchemaVersion: 1,
-    };
-  } catch {
-    return null;
-  }
 }
 
 function poseBackupToNodeData(value: unknown): Record<string, any> | null {
@@ -147,6 +97,22 @@ async function workflowResourceToFragment(item: ResourceItem) {
   const res = await fetch(item.fileUrl);
   if (!res.ok) throw new Error(`读取工作流资源失败: HTTP ${res.status}`);
   return workflowManifestToFragment(await res.json());
+}
+
+function InfiniteCanvasBootLoading() {
+  return (
+    <div className="t8-boot-screen" role="status" aria-label="正在打开画布工作台">
+      <img className="t8-boot-art" src="/infinite-canvas-loading.png" alt="" aria-hidden="true" />
+      <div className="t8-boot-progress-shell" aria-hidden="true">
+        <span className="t8-boot-progress-label">正在启动...</span>
+        <div className="t8-boot-progress-track">
+          <span className="t8-boot-progress-fill" />
+          <span className="t8-boot-progress-spark" />
+        </div>
+        <span className="t8-boot-progress-percent">Loading</span>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -443,17 +409,18 @@ function App() {
       });
       return;
     }
+    const mediaKind = item.kind === 'panorama' ? 'image' : item.kind;
     const data: Record<string, any> = {
-      uploadType: item.kind,
+      uploadType: mediaKind,
       fileName: item.title || item.originalName || '资源库素材',
       fileSize: item.size || 0,
       mime: item.mime || '',
     };
-    if (item.kind === 'image') {
+    if (mediaKind === 'image') {
       data.imageUrl = item.fileUrl;
-    } else if (item.kind === 'video') {
+    } else if (mediaKind === 'video') {
       data.videoUrl = item.fileUrl;
-    } else if (item.kind === 'audio') {
+    } else if (mediaKind === 'audio') {
       data.audioUrl = item.fileUrl;
     }
     addNodeRef.current?.('upload', { data });
@@ -461,6 +428,7 @@ function App() {
 
   return (
     <RHToolsProvider>
+    <AchievementTracker />
     <div
       className={`t8-app-shell h-screen flex flex-col overflow-hidden ${
         isPixel ? '' : isDark ? 'bg-zinc-950 text-white' : 'bg-zinc-50 text-zinc-900'
@@ -1270,6 +1238,7 @@ function App() {
             <Palette size={14} />
             <span className="text-[11px] truncate">{currentTemplate.name}</span>
           </button>
+          <AchievementButton isPixel={isPixel} isDark={isDark} />
           <button
             onClick={() => setResourceOpen(true)}
             className={
@@ -1286,6 +1255,7 @@ function App() {
             <Library size={14} />
             <span className="text-[11px]">资源库</span>
           </button>
+          <AppUpdaterButton isPixel={isPixel} isDark={isDark} />
           <button
             onClick={() => setSettingsOpen(true)}
             className={
@@ -1315,19 +1285,29 @@ function App() {
       <div className="flex-1 flex overflow-hidden">
         <Sidebar onAddNode={handleAddNode} />
         <ErrorBoundary fallbackTitle="画布渲染出错了，已被错误边界捕获">
-          <Canvas onAddNodeRef={addNodeRef} onInsertWorkflowRef={insertWorkflowRef} />
+          <Suspense fallback={<InfiniteCanvasBootLoading />}>
+            <Canvas onAddNodeRef={addNodeRef} onInsertWorkflowRef={insertWorkflowRef} />
+          </Suspense>
         </ErrorBoundary>
       </div>
 
       {/* API 设置弹窗 */}
-      <ApiSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <ThemeTemplateManager open={themeManagerOpen} onClose={() => setThemeManagerOpen(false)} />
-      <ResourceLibraryDrawer
-        open={resourceOpen}
-        onClose={() => setResourceOpen(false)}
-        onInsertMaterial={handleInsertResource}
-      />
+      <Suspense fallback={null}>
+        {settingsOpen && <ApiSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />}
+        {themeManagerOpen && (
+          <ThemeTemplateManager open={themeManagerOpen} onClose={() => setThemeManagerOpen(false)} />
+        )}
+        {resourceOpen && (
+          <ResourceLibraryDrawer
+            open={resourceOpen}
+            onClose={() => setResourceOpen(false)}
+            onInsertMaterial={handleInsertResource}
+          />
+        )}
+      </Suspense>
       <MaterialContextMenu />
+      <AchievementDrawer />
+      <AchievementToast />
     </div>
     </RHToolsProvider>
   );

@@ -5,9 +5,173 @@
     <link rel="icon" type="image/x-icon" href="/logo/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>贞贞的无限画布（企鹅共创版）</title>
+    <style>
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        background: #f4ead5;
+        color: #201713;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .t8-boot-screen {
+        position: relative;
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 100%;
+        overflow: hidden;
+        background: #f4ead5;
+      }
+
+      .t8-boot-art {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+
+      .t8-boot-progress-shell {
+        position: absolute;
+        left: 50%;
+        bottom: clamp(44px, 7.4vh, 86px);
+        display: grid;
+        grid-template-columns: auto minmax(140px, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+        width: min(760px, 48vw);
+        min-width: 420px;
+        padding: 11px 18px;
+        border: 1px solid rgba(83, 72, 51, 0.32);
+        border-radius: 999px;
+        background: rgba(255, 249, 232, 0.88);
+        box-shadow:
+          0 18px 48px rgba(86, 60, 24, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.86);
+        backdrop-filter: blur(10px);
+        transform: translateX(-50%);
+      }
+
+      .t8-boot-progress-label,
+      .t8-boot-progress-percent {
+        color: rgba(43, 33, 22, 0.82);
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1;
+        white-space: nowrap;
+      }
+
+      .t8-boot-progress-track {
+        position: relative;
+        height: 13px;
+        border: 1px solid rgba(91, 79, 55, 0.16);
+        border-radius: 999px;
+        background: rgba(245, 235, 209, 0.92);
+        overflow: hidden;
+      }
+
+      .t8-boot-progress-fill {
+        display: block;
+        width: 42%;
+        height: 100%;
+        min-width: 90px;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #51beb8, #76d7c8, #e4c268);
+        box-shadow: 0 0 18px rgba(81, 190, 184, 0.42);
+        animation: t8BootProgress 1.7s cubic-bezier(.45, 0, .2, 1) infinite;
+      }
+
+      .t8-boot-progress-spark {
+        position: absolute;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow:
+          0 0 0 3px rgba(118, 215, 200, 0.35),
+          0 0 18px rgba(228, 194, 104, 0.72);
+        transform: translate(-50%, -50%);
+        animation: t8BootSpark 1.7s cubic-bezier(.45, 0, .2, 1) infinite;
+      }
+
+      @media (max-width: 560px) {
+        .t8-boot-art {
+          object-position: center;
+        }
+
+        .t8-boot-progress-shell {
+          bottom: 34px;
+          width: calc(100vw - 32px);
+          min-width: 0;
+          grid-template-columns: 1fr;
+          gap: 8px;
+          border-radius: 18px;
+        }
+
+        .t8-boot-progress-percent {
+          display: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .t8-boot-progress-fill,
+        .t8-boot-progress-spark {
+          animation: none;
+        }
+      }
+
+      @keyframes t8BootProgress {
+        0% {
+          transform: translateX(-115%);
+        }
+        70%,
+        100% {
+          transform: translateX(245%);
+        }
+      }
+
+      @keyframes t8BootSpark {
+        0% {
+          left: 0%;
+          opacity: 0;
+        }
+        12%,
+        78% {
+          opacity: 1;
+        }
+        100% {
+          left: 100%;
+          opacity: 0;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="t8-boot-screen" role="status" aria-label="正在打开画布工作台">
+        <img class="t8-boot-art" src="/infinite-canvas-loading.png" alt="" aria-hidden="true" />
+        <div class="t8-boot-progress-shell" aria-hidden="true">
+          <span class="t8-boot-progress-label">正在启动...</span>
+          <div class="t8-boot-progress-track">
+            <span class="t8-boot-progress-fill"></span>
+            <span class="t8-boot-progress-spark"></span>
+          </div>
+          <span class="t8-boot-progress-percent">Loading</span>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

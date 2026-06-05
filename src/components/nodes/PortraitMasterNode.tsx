@@ -69,6 +69,7 @@ import {
 } from '../../data/portraitMasterAdvancedOptions';
 import { useRunTrigger } from '../../hooks/useRunTrigger';
 import { useThemeStore } from '../../stores/theme';
+import { trackAchievementEvent } from '../../stores/achievements';
 import { useHiddenFeatureStore, isYyhPortraitEnabled } from '../../stores/hiddenFeatures';
 import { resolveThemeTemplate } from '../../theme/defaultTemplates';
 import { materialSetItemFromText, materialSetItemsToData } from '../../utils/materialSet';
@@ -739,6 +740,14 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
   const [batchMode, setBatchMode] = useState<PortraitBatchMode>('text-nodes');
   const [targetCanvasId, setTargetCanvasId] = useState('');
   const [hiddenRandomEnabled, setHiddenRandomEnabled] = useState(false);
+  const [resourceDialogOpen, setResourceDialogOpen] = useState(false);
+  const [resourceCategories, setResourceCategories] = useState<api.ResourceCategory[]>([]);
+  const [resourceCategoryId, setResourceCategoryId] = useState('set_uncategorized');
+  const [resourceTitle, setResourceTitle] = useState('');
+  const [resourceTags, setResourceTags] = useState('portrait-master, 肖像大师, 角色');
+  const [resourceFavorite, setResourceFavorite] = useState(true);
+  const [resourceSaving, setResourceSaving] = useState(false);
+  const [resourceMessage, setResourceMessage] = useState('');
 
   const openEditor = useCallback(() => {
     rf.setNodes((nodes) =>
@@ -1001,41 +1010,78 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
     downloadJson(`t8-portrait-master-${Date.now()}.json`, currentBackup(title));
   };
 
-  const handleSaveToResourceLibrary = async () => {
+  const openSaveResourceDialog = async () => {
     const name = (favoriteName.trim() || summary || '未命名角色').slice(0, 80);
-    const backup = currentBackup(name);
-    const text = JSON.stringify(backup, null, 2);
+    setResourceTitle(`${name} · 肖像配置`);
+    setResourceTags('portrait-master, 肖像大师, 角色');
+    setResourceFavorite(true);
+    setResourceMessage('');
+    setResourceDialogOpen(true);
     try {
-      let categoryId = 'set_uncategorized';
       const cats = await api.getResourceCategories('set');
       if (cats.success) {
-        const existing = cats.data.find((cat) => cat.name === '角色' || cat.name === '肖像角色');
-        if (existing) categoryId = existing.id;
-        else {
-          const created = await api.addResourceCategory('set', '角色');
-          if (created.success) categoryId = created.data.id;
-        }
+        setResourceCategories(cats.data);
+        const preferred = cats.data.find((cat) => cat.name === '角色' || cat.name === '肖像角色') || cats.data.find((cat) => cat.id === 'set_uncategorized') || cats.data[0];
+        if (preferred) setResourceCategoryId(preferred.id);
+        return;
       }
+    } catch (e: any) {
+      setResourceMessage(e?.message || '读取资源库分类失败');
+    }
+  };
+
+  const handleCreateResourceCategory = async () => {
+    const name = window.prompt('新建资源库分类', '角色');
+    if (!name?.trim()) return;
+    const created = await api.addResourceCategory('set', name.trim());
+    if (created.success) {
+      setResourceCategories((prev) => [...prev, created.data]);
+      setResourceCategoryId(created.data.id);
+      setResourceMessage(`已新建分类：${created.data.name}`);
+    } else {
+      setResourceMessage(created.error || '新建分类失败');
+    }
+  };
+
+  const handleSaveToResourceLibrary = async () => {
+    const title = (resourceTitle.trim() || favoriteName.trim() || summary || '未命名角色').slice(0, 100);
+    const roleName = title.replace(/·\s*肖像配置$/, '').trim() || title;
+    const backup = currentBackup(roleName);
+    const text = JSON.stringify(backup, null, 2);
+    const tags = resourceTags
+      .split(/[,，]/)
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 20);
+    setResourceSaving(true);
+    setResourceMessage('');
+    try {
       const saved = await api.addResourceSet({
         materialSetKind: 'text',
         materialSetItems: [{
           kind: 'text',
           text,
-          name: `${name}.portrait.json`,
+          name: `${roleName}.portrait.json`,
           mime: 'application/json',
         }],
-        categoryId,
-        title: `${name} · 肖像配置`,
-        tags: ['portrait-master', '肖像大师', '角色'],
+        categoryId: resourceCategoryId,
+        title,
+        tags: tags.length ? tags : ['portrait-master', '肖像大师', '角色'],
         sourceNodeId: id,
         sourceCanvasId: activeId || '',
-        favorite: true,
+        favorite: resourceFavorite,
       });
       if (!saved.success) throw new Error(saved.error || '保存资源库失败');
       window.dispatchEvent(new CustomEvent('penguin:resources-changed'));
-      logBus.success((saved as any).duplicate ? '资源库已有相同肖像配置' : '已保存到资源库角色分类', '肖像大师');
+      logBus.success((saved as any).duplicate ? '资源库已有相同肖像配置' : '已保存到资源库', '肖像大师');
+      setResourceMessage((saved as any).duplicate ? '资源库已有相同肖像配置，已更新分类' : '已保存到资源库');
+      window.setTimeout(() => setResourceDialogOpen(false), 650);
     } catch (e: any) {
-      logBus.warn(e?.message || '保存到资源库失败', '肖像大师');
+      const msg = e?.message || '保存到资源库失败';
+      setResourceMessage(msg);
+      logBus.warn(msg, '肖像大师');
+    } finally {
+      setResourceSaving(false);
     }
   };
 
@@ -1336,6 +1382,9 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
       },
       status: 'success',
     });
+    if (yyhHiddenMode) {
+      trackAchievementEvent({ type: 'hidden_mode.used', theme: 'yyh', kind: 'yyh-portrait', nodeType: 'portrait-master' });
+    }
 
     const nodes = rf.getNodes();
     const edges = rf.getEdges();
@@ -1768,7 +1817,7 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
                     <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleExportJson} disabled={!prompt.trim()}>
                       <Download size={12} /> 导出当前
                     </button>
-                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleSaveToResourceLibrary} disabled={!prompt.trim()}>
+                    <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={openSaveResourceDialog} disabled={!prompt.trim()}>
                       <PackagePlus size={12} /> 存资源库
                     </button>
                     <button type="button" className="t8-btn min-h-8 px-2 text-[10px]" onClick={handleCreateTextNode} disabled={!prompt.trim()}>
@@ -1855,6 +1904,95 @@ const PortraitMasterNode = ({ id, data, selected }: NodeProps) => {
                   </button>
                 </div>
               </aside>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+      {resourceDialogOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/50 p-4"
+          data-canvas-floating-ui="portrait-resource-save"
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="t8-card nodrag nopan w-[420px] max-w-[calc(100vw-24px)] space-y-3 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-1.5 text-sm font-black">
+                  <PackagePlus size={15} /> 保存到资源库
+                </div>
+                <div className="mt-0.5 text-[11px]" style={{ color: 'var(--t8-text-muted)' }}>
+                  保存为肖像大师配置，插入资源时会恢复为节点。
+                </div>
+              </div>
+              <button type="button" className="t8-mini-icon-button" onClick={() => setResourceDialogOpen(false)} title="关闭">
+                <X size={14} />
+              </button>
+            </div>
+
+            <label className="block space-y-1">
+              <span className="text-[11px] font-bold">名称</span>
+              <input
+                className="t8-input h-8 w-full px-2 text-[12px]"
+                value={resourceTitle}
+                onChange={(event) => setResourceTitle(event.target.value)}
+                placeholder="角色名称"
+              />
+            </label>
+
+            <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+              <label className="block space-y-1">
+                <span className="text-[11px] font-bold">分类</span>
+                <select
+                  className="t8-select h-8 w-full px-2 text-[12px]"
+                  value={resourceCategoryId}
+                  onChange={(event) => setResourceCategoryId(event.target.value)}
+                >
+                  {resourceCategories.length === 0 && <option value="set_uncategorized">未分类</option>}
+                  {resourceCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="t8-btn h-8 px-2 text-[11px]" onClick={handleCreateResourceCategory}>
+                新建
+              </button>
+            </div>
+
+            <label className="block space-y-1">
+              <span className="text-[11px] font-bold">标签</span>
+              <input
+                className="t8-input h-8 w-full px-2 text-[12px]"
+                value={resourceTags}
+                onChange={(event) => setResourceTags(event.target.value)}
+                placeholder="用逗号分隔"
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-[12px]" style={{ background: 'var(--t8-bg-panel-muted)' }}>
+              <span>保存后标记为收藏</span>
+              <input type="checkbox" checked={resourceFavorite} onChange={(event) => setResourceFavorite(event.target.checked)} />
+            </label>
+
+            {resourceMessage && (
+              <div className="rounded px-2 py-1.5 text-[11px]" style={{ background: 'var(--t8-bg-panel-muted)', color: 'var(--t8-text-muted)' }}>
+                {resourceMessage}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button type="button" className="t8-btn h-8 px-3 text-[12px]" onClick={() => setResourceDialogOpen(false)} disabled={resourceSaving}>
+                取消
+              </button>
+              <button
+                type="button"
+                className="t8-btn t8-btn-primary h-8 px-3 text-[12px]"
+                onClick={handleSaveToResourceLibrary}
+                disabled={resourceSaving || !prompt.trim()}
+              >
+                <PackagePlus size={13} /> {resourceSaving ? '保存中' : '保存'}
+              </button>
             </div>
           </div>
         </div>,
