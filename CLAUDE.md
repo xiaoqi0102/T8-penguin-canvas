@@ -237,9 +237,9 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 
 ### 当前状态
 
-- **Fork 版本**：v2.1.0
-- **Upstream 版本**：v1.9.9
-- **领先状态**：✅ 领先（v2.1.0 > v1.9.9）
+- **Fork 版本**：v2.3.0
+- **Upstream 版本**：v2.1.3
+- **领先状态**：✅ 领先（v2.3.0 > v2.1.3）
 
 ---
 
@@ -268,6 +268,7 @@ git commit -m "chore: 升级版本到 v1.8.0（fork 版本策略）"
 | 2026-06-04 | v2.1.0：合并 upstream v1.9.2→v1.9.7（宫格编辑节点 / 即梦 CLI Seedance 多素材 / ModelScope LoRA / RH工具箱+制作器 / ComfyUI 本地工作流+超市+制作工具 / 足球小将主题 / 云端上传 / 主节点 3600s 轮询 / LLM 视频输入 / 画布对齐修复）。冲突融合：`registry.js`（fork 默认填充 + upstream modelscope/volcengine 并存）、`ImageNode.tsx`/`LLMNode.tsx`（fork 七牛/Grsai/Geeknow 流式提交 + upstream ComfyUI/LoRA/视频输入）；fork phase124→127 撞 key 顺延为 **phase138→141** + 新增 phase142；接受 upstream「Harden public release」删除充值（`recharge.js`/`RechargeModal.tsx`），保留 fork 对 `roadmap.md`/`vite.config.js` 的删除。8 处版本号同步，type-check / build 通过 |
 | 2026-06-04 | AI 去水印 sidecar runtime 完整集成与打包验证（v2.1.0 正式版）：`tools/remove-ai-watermarks-runtime/` 嵌入式 Python 3.12.9 + Torch 2.12.0 CPU + remove_ai_watermarks 0.8.7 + 全功能（visible/invisible/lama/detect/trustmark），打包后由 `T8PC_RES` 注入定位到 `resources/tools/remove-ai-watermarks/`；后端 `tools/aiWatermark/runner.js` 探测链路实测命中 `python -m remove_ai_watermarks.cli`；`_post_build.cjs` 全部 27 个 `.t8c` + ffmpeg sidecar + AI 水印 sidecar + RH toolbox maker 安全闸通过；compression 模式实测对比 store(4m00s/529MB) vs maximum(3m52s/528MB) → NSIS 外层 LZMA 主导，几乎无差，保留 store。正式版 `Setup-2.1.0.exe` 529 MB / SHA-256 `bf82ebcb…b2be83b7` |
 | 2026-06-04 | 文档整理：新增 [`docs/packaging-and-distribution.md`](./docs/packaging-and-distribution.md)（打包链路 / sidecar 机制 / compression 实测 / post-build 校验 / 正式版 SOP）；同步更新 `electron/CLAUDE.md`（.t8c 27 个 + extraResources + FAQ Q4 体积）、`backend/CLAUDE.md`（§3.9 AI 水印路由 + §3.10 externalProviders/cloudUploads/eagle + 文件清单加 providers/cloudUploads/tools/aiWatermark）、`src/CLAUDE.md`（§6.4 工具节点补 RemoveAiWatermarkNode 数量 13→14）；本节顶部 AI 使用指引追加打包专项指向 |
+| 2026-06-08 | v2.3.0：合并 upstream v2.0.7→v2.1.3 共 7 个版本：龙珠 Shenron 隐藏模式 + 雷达 + 成就大扩展（v2.0.7）/ Volcengine Seedance 2.0 任务解析修复（v2.0.8）/ Veo Omni 视频协议 + 3D 动作导演（Panorama3DNode +5830 行）+ 上传 20MB + 画布 BOM/原子写（v2.0.9）/ 提示词模板库媒体化 + Remote ComfyUI 高危开关 + Docker 部署（v2.1.0）/ New API group-token 钩子 + Nano Banana 2 映射修复（v2.1.1）/ LLM 流式删除 + Figma 发送 + 左下角放置栏（v2.1.2）/ 即梦 CLI seedream-4.7 + Seedance 2.0 完整变体（v2.1.3）。冲突融合：`registry.js`（fork 三家中转站 + upstream comfyui allowRemote 并存）、`loader.cjs`（upstream `canFallbackToLoaderRequire` helper 替代 fork 2dd834d 等价实现）、`achievements/store.js`（upstream 多 candidate 探测 + 兜底 require）、`App.tsx`/`Canvas.tsx`（接受 upstream 龙珠 Shenron + edgeMotionMode）、`features.json`（接受 upstream 全部 + 顶部插入 v2.3.0 块）、`installer.nsh` 保留 fork c0e1b76 customCheckAppRunning 修复。8 处版本号同步，type-check / build 待验证 |
 
 ---
 

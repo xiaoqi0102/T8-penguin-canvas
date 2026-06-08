@@ -100,6 +100,8 @@ test('prompt template library supports custom management, import/export, and res
   assert.match(service, /importPromptTemplateBackup/);
   assert.match(service, /customCategories/);
   assert.match(service, /hiddenBuiltInIds/);
+  assert.match(service, /normalizePromptTemplateAttachments/);
+  assert.match(service, /createPromptTemplateFromMaterial/);
 
   assert.match(modal, /提示词模板库/);
   assert.match(modal, /saveSelectedToResource/);
@@ -113,6 +115,24 @@ test('prompt template library supports custom management, import/export, and res
   assert.match(modal, /renameCategory/);
   assert.match(modal, /deleteCategory/);
   assert.match(modal, /中英文切换|Languages/);
+  assert.match(modal, /data-prompt-template-media-preview/);
+  assert.match(modal, /ImageHoverPreview/);
+  assert.match(modal, /preload="metadata"/);
+  assert.match(modal, /preload="none"/);
+});
+
+test('custom prompt templates preserve lightweight media attachment schema', () => {
+  const data = read('../src/data/promptTemplateLibrary.ts');
+  const service = read('../src/services/promptTemplateLibrary.ts');
+
+  assert.match(data, /PromptTemplateAttachmentKind = 'image' \| 'video' \| 'audio'/);
+  assert.match(data, /attachments\?: PromptTemplateAttachment\[\]/);
+  assert.match(service, /normalizePromptTemplateAttachments/);
+  assert.match(service, /previewUrl/);
+  assert.match(service, /sourceNodeId/);
+  assert.match(service, /video-music-audio/);
+  assert.match(service, /attachments:\s*\[/);
+  assert.doesNotMatch(service, /base64Array|readAsDataURL/);
 });
 
 test('prompt template button is wired into shared prompt inputs and core media nodes', () => {
@@ -144,4 +164,25 @@ test('prompt template button is wired into shared prompt inputs and core media n
   assert.match(runningHub, /promptTemplateKind="image"/);
   assert.match(rhTools, /promptTemplateKind="image"/);
   assert.match(comfyStore, /promptTemplateKind="image"/);
+});
+
+test('generated materials can be saved to prompt templates from context menu', () => {
+  const contextMenu = read('../src/components/MaterialContextMenu.tsx');
+  const image = read('../src/components/nodes/ImageNode.tsx');
+  const video = read('../src/components/nodes/VideoNode.tsx');
+  const seedance = read('../src/components/nodes/SeedanceNode.tsx');
+  const audio = read('../src/components/nodes/AudioNode.tsx');
+  const output = read('../src/components/nodes/OutputNode.tsx');
+  const llm = read('../src/components/nodes/LLMNode.tsx');
+
+  assert.match(contextMenu, /保存到提示词模板库/);
+  assert.match(contextMenu, /createPromptTemplateFromMaterial/);
+  assert.match(contextMenu, /penguin:prompt-templates-changed/);
+
+  for (const file of [image, video, seedance, audio, output, llm]) {
+    assert.match(file, /data-prompt-template-prompt/);
+    assert.match(file, /data-prompt-template-kind/);
+  }
+  assert.match(output, /mediaPromptByUrl/);
+  assert.match(audio, /data-prompt-template-category="video-music-audio"/);
 });

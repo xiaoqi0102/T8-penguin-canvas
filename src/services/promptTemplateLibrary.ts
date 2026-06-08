@@ -1,5 +1,7 @@
 import {
   PROMPT_TEMPLATE_LIBRARY_VERSION,
+  type PromptTemplateAttachment,
+  type PromptTemplateAttachmentKind,
   type PromptTemplateCategory,
   type PromptTemplateItem,
   type PromptTemplateKind,
@@ -66,6 +68,21 @@ function normalizeKind(value: unknown): PromptTemplateKind | '' {
   return kind === 'image' || kind === 'video' ? kind : '';
 }
 
+function normalizeAttachmentKind(value: unknown): PromptTemplateAttachmentKind | '' {
+  const kind = String(value || '').trim();
+  return kind === 'image' || kind === 'video' || kind === 'audio' ? kind : '';
+}
+
+export function promptTemplateKindFromAttachmentKind(kind: PromptTemplateAttachmentKind): PromptTemplateKind {
+  return kind === 'image' ? 'image' : 'video';
+}
+
+export function defaultPromptTemplateCategoryForAttachmentKind(kind: PromptTemplateAttachmentKind): string {
+  if (kind === 'image') return 'image-reference-edit';
+  if (kind === 'audio') return 'video-music-audio';
+  return 'video-image-to-video';
+}
+
 function normalizeLanguage(value: unknown): PromptTemplateLanguage {
   return value === 'en' ? 'en' : 'zh';
 }
@@ -87,6 +104,29 @@ function normalizeCustomCategory(raw: any, index: number): PromptTemplateCategor
   };
 }
 
+export function normalizePromptTemplateAttachments(raw: unknown): PromptTemplateAttachment[] {
+  const attachments: PromptTemplateAttachment[] = [];
+  for (const [index, item] of (Array.isArray(raw) ? raw : []).entries()) {
+    const record = item && typeof item === 'object' ? (item as any) : null;
+    const kind = normalizeAttachmentKind(record?.kind);
+    const url = cleanText(record?.url || record?.fileUrl || record?.src, '', 4000);
+    if (!kind || !url) continue;
+    const id = cleanId(record?.id, `att-${kind}-${index + 1}`) || `att-${kind}-${index + 1}`;
+    attachments.push({
+      id,
+      kind,
+      url,
+      previewUrl: cleanText(record?.previewUrl || record?.thumbUrl || record?.poster || '', '', 4000) || undefined,
+      title: cleanText(record?.title || record?.name || '', '', 160) || undefined,
+      mime: cleanText(record?.mime || record?.mimeType || '', '', 120) || undefined,
+      sourceNodeId: cleanText(record?.sourceNodeId || '', '', 120) || undefined,
+      createdAt: cleanText(record?.createdAt, '', 40) || undefined,
+    });
+    if (attachments.length >= 12) break;
+  }
+  return attachments;
+}
+
 export function createCustomPromptTemplate(input: {
   kind: PromptTemplateKind;
   categoryId: string;
@@ -99,6 +139,7 @@ export function createCustomPromptTemplate(input: {
   negativeZh?: string;
   negativeEn?: string;
   tags?: string[];
+  attachments?: PromptTemplateAttachment[];
   id?: string;
 }): PromptTemplateItem {
   const titleZh = cleanText(input.titleZh, '我的提示词模板', 120) || '我的提示词模板';
@@ -118,6 +159,7 @@ export function createCustomPromptTemplate(input: {
     negativeZh: cleanText(input.negativeZh, '', 10000),
     negativeEn: cleanText(input.negativeEn, input.negativeZh || '', 10000),
     tags: Array.isArray(input.tags) ? input.tags.map((tag) => cleanText(tag, '', 40)).filter(Boolean).slice(0, 20) : [],
+    attachments: normalizePromptTemplateAttachments(input.attachments),
     source: 'custom',
     builtIn: false,
     createdAt: stamp,
@@ -143,10 +185,55 @@ function normalizeCustomItem(raw: any, index: number): PromptTemplateItem | null
     negativeZh: cleanText(raw?.negativeZh || raw?.negative, '', 10000),
     negativeEn: cleanText(raw?.negativeEn, raw?.negativeZh || raw?.negative || '', 10000),
     tags: Array.isArray(raw?.tags) ? raw.tags : [],
+    attachments: normalizePromptTemplateAttachments(raw?.attachments || raw?.media || raw?.materials),
   });
   item.createdAt = cleanText(raw?.createdAt, item.createdAt, 40);
   item.updatedAt = cleanText(raw?.updatedAt, item.updatedAt, 40);
   return item;
+}
+
+export function createPromptTemplateFromMaterial(input: {
+  mediaKind: PromptTemplateAttachmentKind;
+  url: string;
+  previewUrl?: string;
+  prompt?: string;
+  negative?: string;
+  title?: string;
+  templateKind?: PromptTemplateKind;
+  categoryId?: string;
+  sourceNodeId?: string;
+  mime?: string;
+}): PromptTemplateItem {
+  const mediaKind = normalizeAttachmentKind(input.mediaKind) || 'image';
+  const templateKind = normalizeKind(input.templateKind) || promptTemplateKindFromAttachmentKind(mediaKind);
+  const title = cleanText(input.title, '', 120) || (mediaKind === 'image' ? '图像提示词模板' : mediaKind === 'video' ? '视频提示词模板' : '音频提示词模板');
+  const prompt = cleanText(input.prompt, '', 30000) || title;
+  const categoryId = cleanText(input.categoryId, '', 96) || defaultPromptTemplateCategoryForAttachmentKind(mediaKind);
+  return createCustomPromptTemplate({
+    kind: templateKind,
+    categoryId,
+    titleZh: title,
+    titleEn: title,
+    descriptionZh: `从${mediaKind === 'image' ? '图像' : mediaKind === 'video' ? '视频' : '音频'}素材右键保存，包含原始提示词与配套素材。`,
+    descriptionEn: `Saved from a ${mediaKind} asset with prompt and media attachment.`,
+    promptZh: prompt,
+    promptEn: prompt,
+    negativeZh: cleanText(input.negative, '', 10000),
+    negativeEn: cleanText(input.negative, '', 10000),
+    tags: ['我的模板', mediaKind === 'image' ? '图像参考' : mediaKind === 'video' ? '视频参考' : '音频参考'],
+    attachments: [
+      {
+        id: `att-${mediaKind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind: mediaKind,
+        url: cleanText(input.url, '', 4000),
+        previewUrl: cleanText(input.previewUrl, '', 4000) || undefined,
+        title,
+        mime: cleanText(input.mime, '', 120) || undefined,
+        sourceNodeId: cleanText(input.sourceNodeId, '', 120) || undefined,
+        createdAt: nowIso(),
+      },
+    ],
+  });
 }
 
 export function normalizePromptTemplateState(raw: any): PromptTemplateUserState {

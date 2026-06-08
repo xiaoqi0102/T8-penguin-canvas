@@ -1,0 +1,19 @@
+services:
+  t8-penguin-canvas:
+    build: .
+    image: t8-penguin-canvas:local
+    container_name: t8-penguin-canvas
+    restart: unless-stopped
+    ports:
+      - "18766:18766"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 18766
+      NODE_ENV: production
+      T8PC_PACKAGED: "1"
+      T8PC_FRONTEND_DIST: /app/dist
+      T8PC_USER_DATA: /app/userdata
+      HOME: /app/userdata
+      T8_COMFYUI_ALLOW_REMOTE: "1"
+    volumes:
+      - ./userdata:/app/userdata

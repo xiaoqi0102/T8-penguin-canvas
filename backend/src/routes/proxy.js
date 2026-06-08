@@ -14,6 +14,7 @@ const config = require('../config');
 const { getWhitePng } = require('../utils/whitePng');
 const { tryDecodeDuckPayload } = require('../utils/duckPayload');
 const { normalizeLlmMessageMedia } = require('../providers/llmMedia');
+const { runLocalHooks } = require('../extensions/runtimeHooks');
 
 const router = express.Router();
 
@@ -69,7 +70,7 @@ function loadRawSettings() {
 
 // ========== 工具: 按提示词（模型名 / endpoint / 路由名）选择分类 API Key ==========
 // 未填分类 key 时 fallback 到 通用 zhenzhenApiKey。
-// hint 例: 'gpt-image-1' / 'nano-banana-pro' / 'mj-fast' / 'veo3.1-fal'
+// hint 例: 'gpt-image-1' / 'nano-banana-pro' / 'gemini-3.1-flash-image-preview' / 'mj-fast' / 'veo3.1-fal'
 //          / 'grok-video-fal' / 'seedance-v3' / 'suno-v5.5' / 'fal-ai/nano-banana/edit'
 function pickApiKey(settings, hint = '') {
   if (!settings) return '';
@@ -77,14 +78,28 @@ function pickApiKey(settings, hint = '') {
   const m = String(hint || '').toLowerCase();
   if (!m) return fb;
   if (m.includes('gpt-image') || m.includes('gpt2') || m.includes('gpt_image') || m.includes('gptimage')) return settings.gptImageApiKey || fb;
-  if (m.includes('nano-banana') || m.includes('nano_banana') || m.includes('nanobanana')) return settings.nanoBananaApiKey || fb;
+  if (m.includes('nano-banana') || m.includes('nano_banana') || m.includes('nanobanana') || m.includes('flash-image-preview')) return settings.nanoBananaApiKey || fb;
   if (m.includes('midjourney') || /\bmj[-_/]/.test(m) || m.startsWith('mj') || m === 'mj') return settings.mjApiKey || fb;
   if (m.includes('veo')) return settings.veoApiKey || fb;
-  if (m.includes('sora')) return settings.veoApiKey || fb;
+  if (m.includes('sora')) return settings.soraApiKey || fb;
   if (m.includes('grok')) return settings.grokApiKey || fb;
   if (m.includes('seedance')) return settings.seedanceApiKey || fb;
   if (m.includes('suno') || m.includes('chirp')) return settings.sunoApiKey || fb;
   return fb;
+}
+
+function normalizeImageApiModel(model) {
+  const raw = String(model || '').trim();
+  if (raw === 'nano-banana-2') return 'gemini-3.1-flash-image-preview';
+  return raw;
+}
+
+function isBananaImageModel(model) {
+  const m = String(model || '').toLowerCase();
+  return m.includes('nano-banana')
+    || m.includes('nano_banana')
+    || m.includes('nanobanana')
+    || m.includes('flash-image-preview');
 }
 
 // ========== 工具: 以提示词为准，将 settings.zhenzhenApiKey 临时覆盖为分类 key ==========
@@ -133,19 +148,126 @@ function ensureKey(settings, res, hint, label) {
   return true;
 }
 
+function ensureDefaultZhenzhenKey(settings, res, label = '贞贞工坊') {
+  if (!settings) {
+    res.status(400).json({ success: false, error: '未找到 settings 文件，请先在【设置】中配置 API Key' });
+    return false;
+  }
+  if (!settings.zhenzhenApiKey) {
+    res.status(400).json({ success: false, error: `${label} 使用通用贞贞 API Key，请先在【设置】中填写贞贞工坊通用 API Key` });
+    return false;
+  }
+  return true;
+}
+
 // ========== 工具: taskId → 实际使用的 apiKey 内存映射 ==========
 // submit 阶段根据 hint 选了分类 key 后，将 (taskId → key) 记下，
 // query/status 阶段优先从该 Map 恢复 key，
 // 防止前端未透传 model 时轮询错误 fallback 到通用 key 导致“令牌不合法”。
 // 30 分钟过期自清。
 const taskKeyMap = new Map();
-function rememberTaskKey(taskId, apiKey) {
+function rememberTaskKey(taskId, apiKey, meta = {}) {
   if (!taskId || !apiKey) return;
-  taskKeyMap.set(String(taskId), apiKey);
+  taskKeyMap.set(String(taskId), { apiKey, ...meta });
   setTimeout(() => taskKeyMap.delete(String(taskId)), 30 * 60 * 1000);
 }
+function recallTaskMeta(taskId) {
+  if (!taskId) return null;
+  const item = taskKeyMap.get(String(taskId));
+  if (!item) return null;
+  return typeof item === 'string' ? { apiKey: item } : item;
+}
 function recallTaskKey(taskId) {
-  return taskId ? taskKeyMap.get(String(taskId)) : null;
+  return recallTaskMeta(taskId)?.apiKey || null;
+}
+
+function normalizeProviderParams(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function parseProviderParams(value) {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try {
+      return normalizeProviderParams(JSON.parse(value));
+    } catch {
+      return {};
+    }
+  }
+  return normalizeProviderParams(value);
+}
+
+function hasSelectedProviderGroup(providerParams) {
+  const params = normalizeProviderParams(providerParams);
+  return !!String(params.zhenzhenGroup || params.t8Group || params.group || '').trim();
+}
+
+function ensureKeyOrSelectedGroup(settings, res, hint = '', label = '', providerParams = {}) {
+  if (!settings) {
+    res.status(400).json({ success: false, error: '未找到 settings 文件，请先在【设置】中配置 API Key' });
+    return false;
+  }
+  applyClassifiedKey(settings, hint || '');
+  if (settings.zhenzhenApiKey || hasSelectedProviderGroup(providerParams)) return true;
+  const tip = label
+    ? `未配置 ${label} 专属 API Key，且贞贞工坊通用 API Key 也为空（如已绑定 New API 分组令牌，请在节点上选择分组）`
+    : '未配置贞贞工坊 API Key（请在【设置】中填写，或绑定 New API 后在节点选择分组）';
+  res.status(400).json({ success: false, error: tip });
+  return false;
+}
+
+async function applyZhenzhenProviderContext(settings, options = {}) {
+  if (!settings) {
+    return {
+      apiKey: '',
+      taskMeta: {},
+    };
+  }
+  const providerParams = normalizeProviderParams(options.providerParams);
+  const selectedGroup = String(providerParams.zhenzhenGroup || providerParams.t8Group || providerParams.group || '').trim();
+  const result = await runLocalHooks('zhenzhen.resolveApiKey', {
+    provider: 'zhenzhen',
+    route: options.route || '',
+    kind: options.kind || '',
+    model: options.model || options.hint || '',
+    hint: options.hint || options.model || '',
+    apiKey: settings.zhenzhenApiKey,
+    providerParams,
+  });
+  if (result?.apiKey && typeof result.apiKey === 'string') {
+    settings.zhenzhenApiKey = result.apiKey;
+  }
+  if (selectedGroup && !settings.zhenzhenApiKey) {
+    throw new Error('已选择分组令牌，但当前未找到可用 API Key；请在 API Key 设置里启用并绑定 New API 分组令牌，或改用通用贞贞 API Key');
+  }
+  const taskMeta = {
+    ...(result?.taskMeta && typeof result.taskMeta === 'object' ? result.taskMeta : {}),
+  };
+  if (result?.group) taskMeta.group = result.group;
+  if (result?.groupLabel) taskMeta.groupLabel = result.groupLabel;
+  if (result?.model) taskMeta.model = result.model;
+  return {
+    apiKey: settings.zhenzhenApiKey,
+    taskMeta,
+  };
+}
+
+function isInvalidApiKeyError(errorText) {
+  return /无效的令牌|令牌无效|invalid\s+(?:access\s+)?token|unauthorized/i.test(String(errorText || ''));
+}
+
+async function invalidateZhenzhenProviderKey(providerContext, apiKey, errorText) {
+  const group = providerContext?.taskMeta?.group || providerContext?.taskMeta?.selectedGroup;
+  if (!group || !apiKey || !isInvalidApiKeyError(errorText)) return;
+  try {
+    await runLocalHooks('zhenzhen.invalidateApiKey', {
+      group,
+      apiKey,
+      error: String(errorText || '').slice(0, 500),
+    });
+  } catch (error) {
+    console.warn('[zhenzhen] invalidate group token failed:', error?.message || error);
+  }
 }
 
 // ========== 工具:保存上游返回的图像到本地 ==========
@@ -524,7 +646,7 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
     form.append('prompt', prompt);
     form.append('model', finalApiModel);
     form.append('aspect_ratio', isAuto ? '1:1' : ar);
-    if (String(finalApiModel).includes('nano-banana')) form.append('image_size', lvlUpper);
+    form.append('image_size', lvlUpper);
     for (let i = 0; i < refs.length; i++) {
       const conv = await refToBuffer(refs[i]);
       if (!conv) continue;
@@ -537,7 +659,7 @@ async function callImageUpstreamAsync({ apiKey, finalApiModel, paramKind, prompt
   }
   // 文生图 → JSON /generations?async=true
   const body = { prompt, model: finalApiModel, aspect_ratio: isAuto ? '1:1' : ar };
-  if (String(finalApiModel).includes('nano-banana')) body.image_size = lvlUpper;
+  body.image_size = lvlUpper;
   const url = `${upstreamBase}/generations?async=true`;
   console.log('[upstream] nano-banana JSON → /generations?async=true model:', finalApiModel, 'aspect_ratio:', body.aspect_ratio, 'image_size:', body.image_size);
   return await fetch(url, {
@@ -565,20 +687,27 @@ router.post('/image', async (req, res) => {
     model, apiModel, paramKind: paramKindIn,
     prompt, n,
     aspect_ratio, image_size,
-    images, image, size, quality,
+    images, image, size, quality, providerParams,
   } = req.body || {};
   // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, apiModel || model || '', '图像')) return;
+  if (!ensureKeyOrSelectedGroup(settings, res, apiModel || model || '', '图像', providerParams)) return;
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt 必填' });
-  const m = String(apiModel || model || '');
-  const ml = m.toLowerCase();
-  const paramKind = paramKindIn || (ml.includes('grok') && ml.includes('image') ? 'grok-image' : (ml.includes('nano-banana') ? 'banana-ratio' : 'gpt-size'));
-  const finalApiModel = apiModel || model;
+  const originalApiModel = String(apiModel || model || '');
+  const finalApiModel = normalizeImageApiModel(originalApiModel);
+  const ml = `${originalApiModel} ${finalApiModel}`.toLowerCase();
+  const paramKind = paramKindIn || (ml.includes('grok') && ml.includes('image') ? 'grok-image' : (isBananaImageModel(ml) ? 'banana-ratio' : 'gpt-size'));
   if (!finalApiModel) return res.status(400).json({ success: false, error: 'model 必填' });
   const refs = Array.isArray(images) ? images.filter(Boolean) : [];
   if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
 
   try {
+    const providerContext = await applyZhenzhenProviderContext(settings, {
+      route: 'image',
+      kind: 'image',
+      model: finalApiModel,
+      hint: apiModel || model || '',
+      providerParams,
+    });
     const r = await callImageUpstreamAsync({
       apiKey: settings.zhenzhenApiKey, finalApiModel, paramKind,
       prompt, n, aspect_ratio, image_size, refs, size, quality,
@@ -588,13 +717,16 @@ router.post('/image', async (req, res) => {
       return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 300) });
     }
     if (!r.ok) {
+      const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+      await invalidateZhenzhenProviderKey(providerContext, settings.zhenzhenApiKey, errorText);
       return res.status(r.status).json({
         success: false,
-        error: data?.error?.message || data?.message || `上游 HTTP ${r.status}`,
+        error: errorText,
       });
     }
     const norm = await normalizeImageResponse(data);
     if (norm.kind === 'failed') {
+      await invalidateZhenzhenProviderKey(providerContext, settings.zhenzhenApiKey, norm.error);
       return res.status(500).json({ success: false, error: norm.error || '上游图像任务失败', raw: data });
     }
     if (norm.kind === 'sync') {
@@ -622,19 +754,26 @@ router.post('/image/submit', async (req, res) => {
   const settings = loadRawSettings();
   try {
     const { model, apiModel, paramKind: paramKindIn, prompt, n,
-            aspect_ratio, image_size, images, image, size, quality } = req.body || {};
+            aspect_ratio, image_size, images, image, size, quality, providerParams } = req.body || {};
     // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-    if (!ensureKey(settings, res, apiModel || model || '', '图像')) return;
+    if (!ensureKeyOrSelectedGroup(settings, res, apiModel || model || '', '图像', providerParams)) return;
     if (!prompt) return res.status(400).json({ success: false, error: 'prompt 不得为空' });
-    const m = String(apiModel || model || '');
-    const ml = m.toLowerCase();
-    const paramKind = paramKindIn || (ml.includes('grok') && ml.includes('image') ? 'grok-image' : (ml.includes('nano-banana') ? 'banana-ratio' : 'gpt-size'));
-    const finalApiModel = apiModel || model;
+    const originalApiModel = String(apiModel || model || '');
+    const finalApiModel = normalizeImageApiModel(originalApiModel);
+    const ml = `${originalApiModel} ${finalApiModel}`.toLowerCase();
+    const paramKind = paramKindIn || (ml.includes('grok') && ml.includes('image') ? 'grok-image' : (isBananaImageModel(ml) ? 'banana-ratio' : 'gpt-size'));
     if (!finalApiModel) return res.status(400).json({ success: false, error: 'model 必填' });
     const refs = Array.isArray(images) ? images.filter(Boolean) : [];
     if (typeof image === 'string' && image && !refs.includes(image)) refs.unshift(image);
 
     // 完全对齐主项目 gpt-image-2-web:走 ?async=true,GPT2 强制 multipart edits + 白图占位
+    const providerContext = await applyZhenzhenProviderContext(settings, {
+      route: 'image/submit',
+      kind: 'image',
+      model: finalApiModel,
+      hint: apiModel || model || '',
+      providerParams,
+    });
     const r = await callImageUpstreamAsync({
       apiKey: settings.zhenzhenApiKey, finalApiModel, paramKind,
       prompt, n, aspect_ratio, image_size, refs, size, quality,
@@ -642,18 +781,21 @@ router.post('/image/submit', async (req, res) => {
     const text = await r.text();
     let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
     if (!r.ok) {
-      return res.status(r.status).json({ success: false, error: data?.error?.message || data?.message || `上游 HTTP ${r.status}`, raw: data });
+      const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+      await invalidateZhenzhenProviderKey(providerContext, settings.zhenzhenApiKey, errorText);
+      return res.status(r.status).json({ success: false, error: errorText, raw: data });
     }
 
     const norm = await normalizeImageResponse(data);
     if (norm.kind === 'failed') {
+      await invalidateZhenzhenProviderKey(providerContext, settings.zhenzhenApiKey, norm.error);
       return res.status(500).json({ success: false, error: norm.error || '上游图像任务失败', raw: data });
     }
     if (norm.kind === 'sync') {
       return res.json({ success: true, data: { sync: true, status: 'completed', progress: '100%', urls: norm.urls, raw: data } });
     }
     if (norm.kind === 'async') {
-      rememberTaskKey(norm.taskId, settings.zhenzhenApiKey);
+      rememberTaskKey(norm.taskId, settings.zhenzhenApiKey, { model: finalApiModel, ...providerContext.taskMeta });
       return res.json({ success: true, data: { sync: false, taskId: norm.taskId, status: 'pending', progress: '0%', raw: data } });
     }
     return res.status(500).json({ success: false, error: '未获取到 task_id 且无同步结果: ' + JSON.stringify(data).slice(0, 300) });
@@ -667,9 +809,9 @@ router.post('/image/submit', async (req, res) => {
 router.get('/image/status/:tid', async (req, res) => {
   const settings = loadRawSettings();
   // 优先从 submit 阶段记录的 (taskId → key) 映射恢复，防止前端未传 model 导致 fallback 错 key。
-  const remembered = recallTaskKey(req.params.tid);
-  if (remembered) {
-    if (settings) settings.zhenzhenApiKey = remembered;
+  const rememberedMeta = recallTaskMeta(req.params.tid);
+  if (rememberedMeta?.apiKey) {
+    if (settings) settings.zhenzhenApiKey = rememberedMeta.apiKey;
     else return res.status(400).json({ success: false, error: '未找到 settings' });
   } else {
     // v1.2.9.15: 一体化「专属优先 fallback 通用」校验（查询阶段可选传 ?model=xxx）
@@ -682,10 +824,14 @@ router.get('/image/status/:tid', async (req, res) => {
     const text = await r.text();
     let data; try { data = JSON.parse(text); } catch { data = { _raw: text }; }
     if (!r.ok) {
-      return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}`, raw: data });
+      const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+      await invalidateZhenzhenProviderKey({ taskMeta: rememberedMeta || {} }, settings.zhenzhenApiKey, errorText);
+      return res.status(r.status).json({ success: false, error: errorText, raw: data });
     }
     if (imageApiFailed(data)) {
-      return res.json({ success: false, data: { status: 'failed', progress: '0%', error: imageError(data) || '任务失败', raw: data } });
+      const errorText = imageError(data) || '任务失败';
+      await invalidateZhenzhenProviderKey({ taskMeta: rememberedMeta || {} }, settings.zhenzhenApiKey, errorText);
+      return res.json({ success: false, data: { status: 'failed', progress: '0%', error: errorText, raw: data } });
     }
     const statusRaw = imageStatus(data);
     const status = String(statusRaw || '').toLowerCase();
@@ -812,9 +958,9 @@ router.post('/image/fal/submit', async (req, res) => {
     aspect_ratio, resolution, safety_tolerance, seed,
     system_prompt, enable_web_search, image_mode,
   } = req.body || {};
-  // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, apiModel || '', '图像 FAL')) return;
-  const apiKey = settings.zhenzhenApiKey;
+  // FAL 全部固定使用通用贞贞 API Key，不参与 New API 分组令牌。
+  if (!ensureDefaultZhenzhenKey(settings, res, '图像 FAL')) return;
+  let apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
 
   if (!apiModel) return res.status(400).json({ success: false, error: 'apiModel 必填' });
@@ -940,6 +1086,7 @@ router.post('/image/fal/submit', async (req, res) => {
       return res.status(500).json({ success: false, error: '未获取到 request_id: ' + JSON.stringify(data).slice(0, 300) });
     }
     responseUrl = fixFalResponseUrl(responseUrl, baseUrl, endpoint, requestId);
+    rememberTaskKey(requestId, apiKey, { model: apiModel, endpoint });
     return res.json({
       success: true,
       data: { sync: false, requestId, responseUrl, endpoint, raw: data },
@@ -956,8 +1103,14 @@ router.post('/image/fal/submit', async (req, res) => {
 router.post('/image/fal/query', async (req, res) => {
   const settings = loadRawSettings();
   const { responseUrl: rawUrl, endpoint, requestId } = req.body || {};
-  // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, endpoint || rawUrl || '', '图像 FAL')) return;
+  const rememberedMeta = recallTaskMeta(requestId);
+  if (rememberedMeta?.apiKey) {
+    if (settings) settings.zhenzhenApiKey = rememberedMeta.apiKey;
+    else return res.status(400).json({ success: false, error: '未找到 settings' });
+  } else {
+    // FAL 查询和提交保持同一策略：只用通用贞贞 API Key。
+    if (!ensureDefaultZhenzhenKey(settings, res, '图像 FAL')) return;
+  }
   const apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
   const responseUrl = fixFalResponseUrl(rawUrl, baseUrl, endpoint, requestId);
@@ -1272,6 +1425,8 @@ router.post('/llm', async (req, res) => {
 // 协议(贞贞工坊): POST /v2/videos/generations + GET /v2/videos/generations/:tid
 //
 // 通过 model 字段自动选择上游 payload 协议:
+//   - veo-omni-10s  → Veo Omni 协议: POST /v1/videos multipart
+//                      { model=omni_flash-10s, prompt, size, seconds=10, watermark, input_reference }
 //   - 含 'veo'      → Veo3.1 协议:  { prompt, model, enhance_prompt, aspect_ratio, seed?, enable_upsample?, images?(base64,最多3) }
 //                       (主项目 runVeo3, index.html line 3372)
 //   - 含 'grok'     → Grok Video 协议: { prompt, model, ratio, duration(数字秒), resolution, seed?, images?(URL,最多7) }
@@ -1368,7 +1523,13 @@ function getFalVideoUrl(data) {
   const video = data && data.video;
   if (video && typeof video === 'object' && video.url) return video.url;
   if (typeof video === 'string') return video;
-  return data?.video_url || data?.url || data?.output?.video?.url || data?.data?.video?.url || '';
+  return data?.video_url
+    || data?.url
+    || data?.output?.video?.url
+    || data?.data?.output
+    || data?.data?.video_url
+    || data?.data?.video?.url
+    || '';
 }
 
 function splitSoraCharacterIds(raw) {
@@ -1384,6 +1545,71 @@ function splitGrokReferenceUrls(raw) {
   return values
     .map((s) => String(s || '').trim())
     .filter((s) => /^https?:\/\//i.test(s));
+}
+
+function stripDataUrlPrefix(value) {
+  const text = String(value || '').trim();
+  const match = /^data:[^,;]+;base64,(.+)$/i.exec(text);
+  return match ? match[1].trim() : text;
+}
+
+const VEO_OMNI_PUBLIC_MODEL = 'veo-omni-10s';
+const VEO_OMNI_UPSTREAM_MODEL = 'omni_flash-10s';
+
+function isVeoOmniModel(model) {
+  const m = String(model || '').trim().toLowerCase();
+  return m === VEO_OMNI_PUBLIC_MODEL || m === VEO_OMNI_UPSTREAM_MODEL;
+}
+
+function veoOmniSizeFromAspect(aspectRatio) {
+  return String(aspectRatio || '').trim() === '9:16' ? '720x1280' : '1280x720';
+}
+
+function normalizeVideoTaskStatus(status) {
+  const raw = String(status || '').trim();
+  const lower = raw.toLowerCase();
+  if (['success', 'succeeded', 'completed', 'complete', 'done'].includes(lower)) return 'SUCCESS';
+  if (['failure', 'failed', 'error', 'cancelled', 'canceled'].includes(lower)) return 'FAILURE';
+  if (['running', 'processing', 'in_progress', 'in-progress'].includes(lower)) return 'RUNNING';
+  if (['queued', 'pending', 'created', 'submitted'].includes(lower)) return 'PENDING';
+  return raw.toUpperCase();
+}
+
+function stringifyUpstreamErrorValue(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'object') {
+    if (typeof value.message === 'string') return value.message.trim();
+    if (typeof value.msg === 'string') return value.msg.trim();
+    if (typeof value.detail === 'string') return value.detail.trim();
+    try { return JSON.stringify(value).slice(0, 500); } catch { return ''; }
+  }
+  return String(value).trim();
+}
+
+function getUpstreamErrorMessage(data, text, status) {
+  const candidates = [
+    data?.error?.message,
+    data?.error,
+    data?.message,
+    data?.msg,
+    data?.detail,
+    data?.error_msg,
+    data?.fail_reason,
+    data?.data?.error?.message,
+    data?.data?.error,
+    data?.data?.message,
+    data?.data?.msg,
+    data?.data?.detail,
+    data?.data?.fail_reason,
+  ];
+  for (const candidate of candidates) {
+    const msg = stringifyUpstreamErrorValue(candidate);
+    if (msg) return `上游 HTTP ${status}: ${msg}`;
+  }
+  const rawText = String(text || '').trim();
+  if (rawText) return `上游 HTTP ${status}: ${rawText.slice(0, 500)}`;
+  return `上游 HTTP ${status}`;
 }
 
 // 保存远程视频到本地
@@ -1418,9 +1644,9 @@ router.post('/video/fal/submit', async (req, res) => {
   const rawApiModel = String(apiModel || '').trim();
   // 历史节点里可能保存过日期版 Sora2 选项；T8 现在只暴露稳定的 sora-2 FAL。
   const effectiveApiModel = /^sora-2(?:-\d{4}-\d{2}-\d{2})?$/.test(rawApiModel) ? 'sora-2' : rawApiModel;
-  // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, effectiveApiModel || '', '视频 FAL')) return;
-  const apiKey = settings.zhenzhenApiKey;
+  // FAL 全部固定使用通用贞贞 API Key，不参与 New API 分组令牌。
+  if (!ensureDefaultZhenzhenKey(settings, res, '视频 FAL')) return;
+  let apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
 
   if (!rawApiModel) return res.status(400).json({ success: false, error: 'apiModel 必填' });
@@ -1588,6 +1814,7 @@ router.post('/video/fal/submit', async (req, res) => {
       return res.status(500).json({ success: false, error: '未获取到 request_id: ' + JSON.stringify(data).slice(0, 300) });
     }
     responseUrl = fixFalResponseUrl(responseUrl, baseUrl, endpoint, requestId);
+    rememberTaskKey(requestId, apiKey, { model: effectiveApiModel, endpoint });
     return res.json({
       success: true,
       data: { sync: false, requestId, responseUrl, endpoint, raw: data },
@@ -1604,8 +1831,14 @@ router.post('/video/fal/submit', async (req, res) => {
 router.post('/video/fal/query', async (req, res) => {
   const settings = loadRawSettings();
   const { responseUrl: rawUrl, endpoint, requestId } = req.body || {};
-  // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, endpoint || rawUrl || '', '视频 FAL')) return;
+  const rememberedMeta = recallTaskMeta(requestId);
+  if (rememberedMeta?.apiKey) {
+    if (settings) settings.zhenzhenApiKey = rememberedMeta.apiKey;
+    else return res.status(400).json({ success: false, error: '未找到 settings' });
+  } else {
+    // FAL 查询和提交保持同一策略：只用通用贞贞 API Key。
+    if (!ensureDefaultZhenzhenKey(settings, res, '视频 FAL')) return;
+  }
   const apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
   const responseUrl = fixFalResponseUrl(rawUrl, baseUrl, endpoint, requestId);
@@ -1659,22 +1892,86 @@ router.post('/video/submit', async (req, res) => {
     // Grok 参数
     ratio, duration, resolution,
     // 通用
-    seed, images,
+    seed, private: privateVideo, is_private, watermark, images, providerParams,
   } = req.body || {};
   // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, model || '', '视频')) return;
+  if (!ensureKeyOrSelectedGroup(settings, res, model || '', '视频', providerParams)) return;
   if (!model || !prompt) {
     return res.status(400).json({ success: false, error: 'model 和 prompt 必填' });
   }
-  const upstream = `${config.ZHENZHEN_BASE_URL}/v2/videos/generations`;
-  const apiKey = settings.zhenzhenApiKey;
   const lowerModel = String(model).toLowerCase();
+  const isVeoOmni = isVeoOmniModel(lowerModel);
   const isGrok = lowerModel.includes('grok');
+  const isSoraZhenzhen = lowerModel === 'sora-2-zhenzhen';
   const isVeo = lowerModel.includes('veo');
   let body;
 
   try {
-    if (isGrok) {
+    const providerContext = await applyZhenzhenProviderContext(settings, {
+      route: 'video/submit',
+      kind: 'video',
+      model,
+      hint: model || '',
+      providerParams,
+    });
+    const apiKey = settings.zhenzhenApiKey;
+    if (isVeoOmni) {
+      // ===== Veo Omni 协议(参考 Comfly_veo_omini): POST /v1/videos multipart =====
+      const refs = Array.isArray(images) ? images.slice(0, 1) : [];
+      if (!refs.length) {
+        return res.status(400).json({ success: false, error: 'veo-omni-10s 需要 1 张参考图' });
+      }
+      const conv = await refToBuffer(refs[0]);
+      if (!conv) {
+        return res.status(400).json({ success: false, error: 'veo-omni-10s 参考图读取失败' });
+      }
+      const form = new FormData();
+      const seconds = ['4', '5', '6', '8', '10'].includes(String(duration)) ? String(duration) : '10';
+      const size = veoOmniSizeFromAspect(aspect_ratio || ratio || '16:9');
+      form.append('model', VEO_OMNI_UPSTREAM_MODEL);
+      form.append('prompt', prompt);
+      form.append('size', size);
+      form.append('seconds', seconds);
+      form.append('watermark', String(Boolean(watermark)).toLowerCase());
+      form.append('input_reference', new Blob([conv.buf], { type: conv.mime }), `input_reference.${conv.ext || 'png'}`);
+
+      const upstream = `${config.ZHENZHEN_BASE_URL}/v1/videos`;
+      console.log('[upstream] Veo Omni → /v1/videos model:', VEO_OMNI_UPSTREAM_MODEL, 'size:', size, 'seconds:', seconds, 'refs:', refs.length);
+      const r = await fetch(upstream, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      });
+      const text = await r.text();
+      let data;
+      try { data = JSON.parse(text); } catch {
+        return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) });
+      }
+      if (!r.ok) {
+        const errorText = getUpstreamErrorMessage(data, text, r.status);
+        await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+        return res.status(r.status).json({ success: false, error: errorText, raw: data });
+      }
+      const taskId = data?.task_id || data?.id;
+      if (!taskId) return res.status(500).json({ success: false, error: '未获取到 task_id: ' + text.slice(0, 200) });
+      rememberTaskKey(taskId, apiKey, { model: VEO_OMNI_PUBLIC_MODEL, ...providerContext.taskMeta });
+      return res.json({ success: true, data: { taskId, raw: data } });
+    } else if (isSoraZhenzhen) {
+      // ===== Sora2 Zhenzhen API 协议(参考 gpt-image-2-web runSora2) =====
+      body = {
+        prompt,
+        model: 'sora-2',
+        aspect_ratio: aspect_ratio || ratio || '16:9',
+        duration: String(duration ?? 15),
+        private: privateVideo !== false && is_private !== false,
+      };
+      if (seed && seed > 0) body.seed = seed;
+      if (Array.isArray(images) && images.length) {
+        const refs = images.slice(0, 1).map(stripDataUrlPrefix).filter(Boolean);
+        if (refs.length) body.images = refs;
+      }
+      console.log('[upstream] Sora2 Zhenzhen → /v2/videos/generations model:', body.model, 'aspect_ratio:', body.aspect_ratio, 'duration:', body.duration, 'private:', body.private, 'refs:', body.images?.length || 0);
+    } else if (isGrok) {
       // ===== Grok Video 协议(主项目 runGrok3 line 3863) =====
       body = {
         prompt,
@@ -1706,6 +2003,7 @@ router.post('/video/submit', async (req, res) => {
       console.log('[upstream] Veo/Default → /v2/videos/generations model:', model, 'aspect_ratio:', body.aspect_ratio, 'refs:', body.images?.length || 0, isVeo ? '(veo)' : '(legacy)');
     }
 
+    const upstream = `${config.ZHENZHEN_BASE_URL}/v2/videos/generations`;
     const r = await fetch(upstream, {
       method: 'POST',
       headers: {
@@ -1720,11 +2018,13 @@ router.post('/video/submit', async (req, res) => {
       return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) });
     }
     if (!r.ok) {
-      return res.status(r.status).json({ success: false, error: data?.error?.message || data?.message || `上游 HTTP ${r.status}` });
+      const errorText = getUpstreamErrorMessage(data, text, r.status);
+      await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+      return res.status(r.status).json({ success: false, error: errorText, raw: data });
     }
     const taskId = data?.task_id || data?.id;
     if (!taskId) return res.status(500).json({ success: false, error: '未获取到 task_id: ' + text.slice(0, 200) });
-    rememberTaskKey(taskId, apiKey);
+    rememberTaskKey(taskId, apiKey, { model, ...providerContext.taskMeta });
     res.json({ success: true, data: { taskId, raw: data } });
   } catch (e) {
     console.error('proxy/video/submit 错误:', e);
@@ -1735,17 +2035,21 @@ router.post('/video/submit', async (req, res) => {
 router.get('/video/query', async (req, res) => {
   const settings = loadRawSettings();
   const taskId = String(req.query.taskId || '').trim();
+  const rememberedMeta = recallTaskMeta(taskId);
+  const queryModel = String(req.query.model || rememberedMeta?.model || '').trim();
   // 优先从 submit 阶段记录的 (taskId → key) 映射恢复，防止前端未传 model 导致 fallback 错 key。
-  const remembered = recallTaskKey(taskId);
-  if (remembered) {
-    if (settings) settings.zhenzhenApiKey = remembered;
+  if (rememberedMeta?.apiKey) {
+    if (settings) settings.zhenzhenApiKey = rememberedMeta.apiKey;
     else return res.status(400).json({ success: false, error: '未找到 settings' });
   } else {
     // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-    if (!ensureKey(settings, res, String(req.query.model || ''), '视频')) return;
+    if (!ensureKey(settings, res, queryModel, '视频')) return;
   }
   if (!taskId) return res.status(400).json({ success: false, error: 'taskId 必填' });
-  const upstream = `${config.ZHENZHEN_BASE_URL}/v2/videos/generations/${encodeURIComponent(taskId)}`;
+  const isVeoOmni = isVeoOmniModel(queryModel);
+  const upstream = isVeoOmni
+    ? `${config.ZHENZHEN_BASE_URL}/v1/videos/${encodeURIComponent(taskId)}`
+    : `${config.ZHENZHEN_BASE_URL}/v2/videos/generations/${encodeURIComponent(taskId)}`;
   try {
     const r = await fetch(upstream, {
       headers: { Authorization: `Bearer ${settings.zhenzhenApiKey}` },
@@ -1756,37 +2060,25 @@ router.get('/video/query', async (req, res) => {
       return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) });
     }
     if (!r.ok) {
-      return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}` });
+      const errorText = getUpstreamErrorMessage(data, text, r.status);
+      await invalidateZhenzhenProviderKey({ taskMeta: rememberedMeta || {} }, settings.zhenzhenApiKey, errorText);
+      return res.status(r.status).json({ success: false, error: errorText, raw: data });
     }
-    const st = String(data?.status || '').toUpperCase();
+    const st = normalizeVideoTaskStatus(data?.status);
     let videoUrl = null;
     if (st === 'SUCCESS') {
-      const remote = data?.data?.output;
+      const remote = getFalVideoUrl(data);
       if (remote) {
-        // 转存视频到本地
-        try {
-          const vr = await fetch(remote);
-          if (vr.ok) {
-            const buf = Buffer.from(await vr.arrayBuffer());
-            const ext = (remote.match(/\.(mp4|webm|mov)/i)?.[1] || 'mp4').toLowerCase();
-            const filename = `vid_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.${ext}`;
-            fs.writeFileSync(path.join(config.OUTPUT_DIR, filename), buf);
-            videoUrl = `/files/output/${filename}`;
-          } else {
-            videoUrl = remote;
-          }
-        } catch {
-          videoUrl = remote;
-        }
+        videoUrl = await saveRemoteVideo(remote);
       }
     }
     res.json({
       success: true,
       data: {
         status: st || 'PENDING',
-        progress: data?.progress || '',
+        progress: data?.progress == null ? '' : String(data.progress),
         videoUrl,
-        failReason: data?.fail_reason || null,
+        failReason: data?.fail_reason || data?.failure_details || data?.error || data?.message || null,
         raw: data,
       },
     });
@@ -1811,8 +2103,7 @@ router.get('/video/query', async (req, res) => {
 router.post('/seedance/submit', async (req, res) => {
   const settings = loadRawSettings();
   // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, 'seedance', 'Seedance')) return;
-  const apiKey = settings.zhenzhenApiKey;
+  let apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
   const {
     model, prompt,
@@ -1822,12 +2113,22 @@ router.post('/seedance/submit', async (req, res) => {
     firstFrame, lastFrame,
     refImages,
     videos, audios,
+    providerParams,
   } = req.body || {};
+  if (!ensureKeyOrSelectedGroup(settings, res, 'seedance', 'Seedance', providerParams)) return;
 
   if (!model) return res.status(400).json({ success: false, error: 'model 必填' });
   if (!prompt) return res.status(400).json({ success: false, error: 'prompt 不得为空' });
 
   try {
+    const providerContext = await applyZhenzhenProviderContext(settings, {
+      route: 'seedance/submit',
+      kind: 'seedance',
+      model,
+      hint: model || 'seedance',
+      providerParams,
+    });
+    apiKey = settings.zhenzhenApiKey;
     const content = [{ type: 'text', text: String(prompt) }];
 
     const hasF = !!firstFrame;
@@ -1911,10 +2212,13 @@ router.post('/seedance/submit', async (req, res) => {
       return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) });
     }
     if (!r.ok) {
-      return res.status(r.status).json({ success: false, error: data?.error?.message || data?.message || `上游 HTTP ${r.status}` });
+      const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+      await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+      return res.status(r.status).json({ success: false, error: errorText });
     }
     const taskId = data?.id || data?.task_id;
     if (!taskId) return res.status(500).json({ success: false, error: '未获取到 task_id: ' + text.slice(0, 200) });
+    rememberTaskKey(taskId, apiKey, { model, ...providerContext.taskMeta });
     res.json({ success: true, data: { taskId, raw: data } });
   } catch (e) {
     console.error('proxy/seedance/submit 错误:', e);
@@ -1924,10 +2228,16 @@ router.post('/seedance/submit', async (req, res) => {
 
 router.get('/seedance/query', async (req, res) => {
   const settings = loadRawSettings();
-  // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, 'seedance', 'Seedance')) return;
   const taskId = String(req.query.taskId || '').trim();
   if (!taskId) return res.status(400).json({ success: false, error: 'taskId 必填' });
+  const rememberedMeta = recallTaskMeta(taskId);
+  if (rememberedMeta?.apiKey) {
+    if (settings) settings.zhenzhenApiKey = rememberedMeta.apiKey;
+    else return res.status(400).json({ success: false, error: '未找到 settings' });
+  } else {
+    // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
+    if (!ensureKey(settings, res, 'seedance', 'Seedance')) return;
+  }
 
   const apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
@@ -1941,7 +2251,9 @@ router.get('/seedance/query', async (req, res) => {
       return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) });
     }
     if (!r.ok) {
-      return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}` });
+      const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+      await invalidateZhenzhenProviderKey({ taskMeta: rememberedMeta || {} }, apiKey, errorText);
+      return res.status(r.status).json({ success: false, error: errorText });
     }
     // 状态归一(对齐主项目)
     let st = String(data?.status || '').toLowerCase();
@@ -2027,25 +2339,39 @@ function resolveSunoMv(version) {
 router.post('/audio/submit', async (req, res) => {
   const settings = loadRawSettings();
   // v1.2.9.15: 一体化「专属优先 fallback 通用」校验 —— 先 applyClassifiedKey('suno') 再校验 effective key
-  if (!ensureKey(settings, res, 'suno', 'Suno')) return;
-  const { mode, prompt, title, tags, version, seed, continue_clip_id, continue_at, cover_clip_id } = req.body || {};
+  const { mode, prompt, title, tags, version, seed, continue_clip_id, continue_at, cover_clip_id, providerParams } = req.body || {};
+  if (!ensureKeyOrSelectedGroup(settings, res, 'suno', 'Suno', providerParams)) return;
   const m = mode || 'generate';
   if (!prompt && m !== 'extend') {
     return res.status(400).json({ success: false, error: 'prompt 必填' });
   }
   const mv = resolveSunoMv(version);
-  const auth = { Authorization: `Bearer ${settings.zhenzhenApiKey}`, 'Content-Type': 'application/json' };
   try {
+    const providerContext = await applyZhenzhenProviderContext(settings, {
+      route: 'audio/submit',
+      kind: 'audio',
+      model: `suno-${version || 'v5.5'}`,
+      hint: 'suno',
+      providerParams,
+    });
+    const apiKey = settings.zhenzhenApiKey;
+    const auth = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
     if (m === 'generate') {
       const body = { prompt: prompt || '', tags: tags || '', mv, title: title || '' };
       if (seed && seed > 0) body.seed = seed;
       const r = await fetch(`${config.ZHENZHEN_BASE_URL}/suno/generate`, { method: 'POST', headers: auth, body: JSON.stringify(body) });
       const text = await r.text();
       let data; try { data = JSON.parse(text); } catch { return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) }); }
-      if (!r.ok) return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}` });
+      if (!r.ok) {
+        const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+        await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+        return res.status(r.status).json({ success: false, error: errorText });
+      }
       const taskId = data?.id;
       const clipIds = (data?.clips || []).map((c) => c.id).filter(Boolean);
       if (!taskId || clipIds.length < 1) return res.status(500).json({ success: false, error: '未获取到 task/clip: ' + text.slice(0, 200) });
+      rememberTaskKey(taskId, apiKey, { model: `suno-${version || 'v5.5'}`, ...providerContext.taskMeta });
+      for (const clipId of clipIds) rememberTaskKey(clipId, apiKey, { model: `suno-${version || 'v5.5'}`, taskId, ...providerContext.taskMeta });
       return res.json({ success: true, data: { taskId, clipIds, raw: data } });
     }
     if (m === 'extend') {
@@ -2055,10 +2381,16 @@ router.post('/audio/submit', async (req, res) => {
       const r = await fetch(`${config.ZHENZHEN_BASE_URL}/suno/generate`, { method: 'POST', headers: auth, body: JSON.stringify(body) });
       const text = await r.text();
       let data; try { data = JSON.parse(text); } catch { return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) }); }
-      if (!r.ok) return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}` });
+      if (!r.ok) {
+        const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+        await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+        return res.status(r.status).json({ success: false, error: errorText });
+      }
       const taskId = data?.id;
       const clipIds = (data?.clips || []).map((c) => c.id).filter(Boolean);
       if (!taskId) return res.status(500).json({ success: false, error: '未获取 task' });
+      rememberTaskKey(taskId, apiKey, { model: `suno-${version || 'v5.5'}`, ...providerContext.taskMeta });
+      for (const clipId of clipIds) rememberTaskKey(clipId, apiKey, { model: `suno-${version || 'v5.5'}`, taskId, ...providerContext.taskMeta });
       return res.json({ success: true, data: { taskId, clipIds, raw: data } });
     }
     if (m === 'cover') {
@@ -2073,10 +2405,16 @@ router.post('/audio/submit', async (req, res) => {
       const r = await fetch(`${config.ZHENZHEN_BASE_URL}/suno/submit/music`, { method: 'POST', headers: auth, body: JSON.stringify(body) });
       const text = await r.text();
       let data; try { data = JSON.parse(text); } catch { return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) }); }
-      if (!r.ok) return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}` });
+      if (!r.ok) {
+        const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+        await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+        return res.status(r.status).json({ success: false, error: errorText });
+      }
       const taskId = (typeof data?.data === 'string' ? data.data : data?.id) || '';
       const clipIds = Array.isArray(data?.data) ? data.data.map((c) => c.id || c.clip_id).filter(Boolean) : (data?.clips || []).map((c) => c.id);
       if (!taskId) return res.status(500).json({ success: false, error: '未获取 task: ' + text.slice(0, 200) });
+      rememberTaskKey(taskId, apiKey, { model: `suno-${version || 'v5.5'}`, ...providerContext.taskMeta });
+      for (const clipId of clipIds) rememberTaskKey(clipId, apiKey, { model: `suno-${version || 'v5.5'}`, taskId, ...providerContext.taskMeta });
       return res.json({ success: true, data: { taskId, clipIds, raw: data } });
     }
     return res.status(400).json({ success: false, error: `未知模式: ${m}` });
@@ -2088,10 +2426,16 @@ router.post('/audio/submit', async (req, res) => {
 
 router.get('/audio/query', async (req, res) => {
   const settings = loadRawSettings();
-  // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
-  if (!ensureKey(settings, res, 'suno', 'Suno')) return;
   const ids = String(req.query.clipIds || req.query.taskId || '').trim();
   if (!ids) return res.status(400).json({ success: false, error: 'clipIds 或 taskId 必填' });
+  const rememberedMeta = recallTaskMeta(ids.split(',')[0]?.trim() || ids);
+  if (rememberedMeta?.apiKey) {
+    if (settings) settings.zhenzhenApiKey = rememberedMeta.apiKey;
+    else return res.status(400).json({ success: false, error: '未找到 settings' });
+  } else {
+    // v1.2.9.15: 一体化「专属优先 fallback 通用」校验
+    if (!ensureKey(settings, res, 'suno', 'Suno')) return;
+  }
   // 是否将完成的音频转存到本地 output 目录(默认 true)
   const saveLocal = String(req.query.saveLocal ?? 'true').toLowerCase() !== 'false';
   try {
@@ -2100,7 +2444,11 @@ router.get('/audio/query', async (req, res) => {
     });
     const text = await r.text();
     let data; try { data = JSON.parse(text); } catch { return res.status(500).json({ success: false, error: '上游响应非 JSON: ' + text.slice(0, 200) }); }
-    if (!r.ok) return res.status(r.status).json({ success: false, error: data?.error?.message || `上游 HTTP ${r.status}` });
+    if (!r.ok) {
+      const errorText = data?.error?.message || data?.message || `上游 HTTP ${r.status}`;
+      await invalidateZhenzhenProviderKey({ taskMeta: rememberedMeta || {} }, settings.zhenzhenApiKey, errorText);
+      return res.status(r.status).json({ success: false, error: errorText });
+    }
     const clips = Array.isArray(data) ? data : (data?.clips || []);
     const tracks = [];
     for (const c of clips) {
@@ -2150,9 +2498,10 @@ router.post('/audio/upload', audioUpload.single('file'), async (req, res) => {
   // v1.2.9.15: 修复 BUG —— 之前完全缺失 applyClassifiedKey('suno')，
   // 导致 Suno cover/extend 上传步骤即使配置了 sunoApiKey 也始终用通用 zhenzhenApiKey，
   // 与 audio/submit · audio/query 的 key 不一致。改用 ensureKey 统一「专属优先 fallback 通用」。
-  if (!ensureKey(settings, res, 'suno', 'Suno')) return;
   if (!req.file) return res.status(400).json({ success: false, error: '未接收到音频文件 (field=file)' });
-  const apiKey = settings.zhenzhenApiKey;
+  const providerParams = parseProviderParams(req.body?.providerParams);
+  if (!ensureKeyOrSelectedGroup(settings, res, 'suno', 'Suno', providerParams)) return;
+  let apiKey = settings.zhenzhenApiKey;
   const baseUrl = config.ZHENZHEN_BASE_URL;
   const audioBuf = req.file.buffer;
   const filename = req.file.originalname || 'audio.mp3';
@@ -2160,13 +2509,25 @@ router.post('/audio/upload', audioUpload.single('file'), async (req, res) => {
   const mimeMap = { mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', ogg: 'audio/ogg', flac: 'audio/flac', aac: 'audio/aac', wma: 'audio/x-ms-wma' };
   const ct = mimeMap[ext] || req.file.mimetype || 'audio/mpeg';
   try {
+    const providerContext = await applyZhenzhenProviderContext(settings, {
+      route: 'audio/upload',
+      kind: 'audio',
+      model: 'suno-upload',
+      hint: 'suno',
+      providerParams,
+    });
+    apiKey = settings.zhenzhenApiKey;
     // 1) init
     const r1 = await fetch(`${baseUrl}/suno/uploads/audio`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ extension: ext }),
     });
-    if (!r1.ok) return res.status(r1.status).json({ success: false, error: `Upload init failed: ${r1.status} ${await r1.text()}` });
+    if (!r1.ok) {
+      const errorText = `Upload init failed: ${r1.status} ${await r1.text()}`;
+      await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+      return res.status(r1.status).json({ success: false, error: errorText });
+    }
     const r1Json = await r1.json();
     const upData = (r1Json.code && r1Json.data) ? r1Json.data : r1Json;
     const uploadId = upData.id;
@@ -2192,7 +2553,11 @@ router.post('/audio/upload', audioUpload.single('file'), async (req, res) => {
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ upload_type: 'file_upload', upload_filename: filename }),
     });
-    if (!r3.ok) return res.status(500).json({ success: false, error: `Upload finish failed: ${r3.status} ${await r3.text()}` });
+    if (!r3.ok) {
+      const errorText = `Upload finish failed: ${r3.status} ${await r3.text()}`;
+      await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+      return res.status(500).json({ success: false, error: errorText });
+    }
     // 4) poll status
     let clipId = '';
     for (let i = 0; i < 30; i++) {
@@ -2209,7 +2574,11 @@ router.post('/audio/upload', audioUpload.single('file'), async (req, res) => {
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
         });
-        if (!r4.ok) return res.status(500).json({ success: false, error: `Initialize clip failed: ${r4.status} ${await r4.text()}` });
+        if (!r4.ok) {
+          const errorText = `Initialize clip failed: ${r4.status} ${await r4.text()}`;
+          await invalidateZhenzhenProviderKey(providerContext, apiKey, errorText);
+          return res.status(500).json({ success: false, error: errorText });
+        }
         const r4Json = await r4.json();
         const initData = (r4Json.code && r4Json.data) ? r4Json.data : r4Json;
         clipId = initData.clip_id || initData.id || '';

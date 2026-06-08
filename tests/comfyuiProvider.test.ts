@@ -31,6 +31,151 @@ function jsonResponse(body: any, status = 200) {
   };
 }
 
+test('ComfyUI testProvider rejects remote base url by default', async () => {
+  const previousRemote = process.env.T8_COMFYUI_ALLOW_REMOTE;
+  const previousPrivate = process.env.T8_COMFYUI_ALLOW_PRIVATE;
+  delete process.env.T8_COMFYUI_ALLOW_REMOTE;
+  delete process.env.T8_COMFYUI_ALLOW_PRIVATE;
+  let fetched = false;
+  try {
+    const result = await comfyui.testProvider({
+      id: 'comfyui',
+      protocol: 'comfyui',
+      baseUrl: 'https://comfyui.example.test:8188',
+    }, {
+      fetchImpl: async () => {
+        fetched = true;
+        return jsonResponse({});
+      },
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'non_local_comfyui');
+    assert.equal(fetched, false);
+  } finally {
+    if (previousRemote === undefined) delete process.env.T8_COMFYUI_ALLOW_REMOTE;
+    else process.env.T8_COMFYUI_ALLOW_REMOTE = previousRemote;
+    if (previousPrivate === undefined) delete process.env.T8_COMFYUI_ALLOW_PRIVATE;
+    else process.env.T8_COMFYUI_ALLOW_PRIVATE = previousPrivate;
+  }
+});
+
+test('ComfyUI testProvider allows remote base url when provider high-risk switch is enabled', async () => {
+  const previousRemote = process.env.T8_COMFYUI_ALLOW_REMOTE;
+  const previousPrivate = process.env.T8_COMFYUI_ALLOW_PRIVATE;
+  delete process.env.T8_COMFYUI_ALLOW_REMOTE;
+  delete process.env.T8_COMFYUI_ALLOW_PRIVATE;
+  const calls: string[] = [];
+  try {
+    const result = await comfyui.testProvider({
+      id: 'comfyui',
+      protocol: 'comfyui',
+      allowRemote: true,
+      baseUrl: 'https://comfyui.example.test:8188',
+    }, {
+      fetchImpl: async (url: string) => {
+        calls.push(String(url));
+        return jsonResponse({ queue_running: [], queue_pending: [] });
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.code, 'connected');
+    assert.deepEqual(calls, ['https://comfyui.example.test:8188/queue']);
+  } finally {
+    if (previousRemote === undefined) delete process.env.T8_COMFYUI_ALLOW_REMOTE;
+    else process.env.T8_COMFYUI_ALLOW_REMOTE = previousRemote;
+    if (previousPrivate === undefined) delete process.env.T8_COMFYUI_ALLOW_PRIVATE;
+    else process.env.T8_COMFYUI_ALLOW_PRIVATE = previousPrivate;
+  }
+});
+
+test('ComfyUI testProvider allows remote base url when backend remote access is enabled', async () => {
+  const previousRemote = process.env.T8_COMFYUI_ALLOW_REMOTE;
+  process.env.T8_COMFYUI_ALLOW_REMOTE = '1';
+  const calls: string[] = [];
+  try {
+    const result = await comfyui.testProvider({
+      id: 'comfyui',
+      protocol: 'comfyui',
+      baseUrl: 'https://comfyui.example.test:8188',
+    }, {
+      fetchImpl: async (url: string) => {
+        calls.push(String(url));
+        return jsonResponse({ queue_running: [], queue_pending: [] });
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.code, 'connected');
+    assert.deepEqual(calls, ['https://comfyui.example.test:8188/queue']);
+  } finally {
+    if (previousRemote === undefined) delete process.env.T8_COMFYUI_ALLOW_REMOTE;
+    else process.env.T8_COMFYUI_ALLOW_REMOTE = previousRemote;
+  }
+});
+
+test('ComfyUI image generation submits to remote base url when backend remote access is enabled', async () => {
+  const previousRemote = process.env.T8_COMFYUI_ALLOW_REMOTE;
+  process.env.T8_COMFYUI_ALLOW_REMOTE = '1';
+  const calls: any[] = [];
+  try {
+    const provider = {
+      id: 'comfyui',
+      protocol: 'comfyui',
+      baseUrl: 'https://comfyui.example.test:8188',
+      enabled: true,
+      comfyuiConfig: {
+        workflows: [
+          {
+            id: 'remote-workflow',
+            name: 'Remote Workflow',
+            workflowJson: {
+              '1': { class_type: 'CLIPTextEncode', inputs: { text: '' } },
+              '9': { class_type: 'SaveImage', inputs: { images: ['8', 0] } },
+            },
+            fields: [
+              { nodeId: '1', fieldName: 'text', source: 'prompt' },
+            ],
+          },
+        ],
+      },
+    };
+
+    const result = await comfyui.generateImage(provider, {
+      prompt: 'remote prompt',
+      providerModel: 'remote-workflow',
+    }, {
+      pollIntervalMs: 1,
+      fetchImpl: async (url: string, init: any = {}) => {
+        if (String(url).endsWith('/prompt')) {
+          calls.push({ url, init, body: JSON.parse(init.body) });
+          return jsonResponse({ prompt_id: 'remote-pid' });
+        }
+        calls.push({ url, init });
+        return jsonResponse({
+          'remote-pid': {
+            outputs: {
+              '9': { images: [{ filename: 'remote-out.png', type: 'output', subfolder: '' }] },
+            },
+          },
+        });
+      },
+    });
+
+    assert.equal(result.ok, true);
+    const promptCall = calls.find((call) => String(call.url).endsWith('/prompt'));
+    assert.equal(String(promptCall.url), 'https://comfyui.example.test:8188/prompt');
+    assert.equal(promptCall.body.prompt['1'].inputs.text, 'remote prompt');
+    assert.deepEqual(result.imageUrls, [
+      'https://comfyui.example.test:8188/view?filename=remote-out.png&type=output&subfolder=',
+    ]);
+  } finally {
+    if (previousRemote === undefined) delete process.env.T8_COMFYUI_ALLOW_REMOTE;
+    else process.env.T8_COMFYUI_ALLOW_REMOTE = previousRemote;
+  }
+});
+
 test('ComfyUI image generation patches workflow, submits prompt, polls history and returns view urls', async () => {
   const calls: any[] = [];
   const provider = {
