@@ -95,6 +95,37 @@ test('Jimeng video generation builds image2video command when one reference imag
   assert.equal(result.taskId, 'sub-1');
 });
 
+test('Jimeng video generation accepts non-vip Seedance 2.0 CLI model aliases', async () => {
+  const commands: any[] = [];
+  const provider = {
+    id: 'jimeng-cli',
+    protocol: 'jimeng-cli',
+    videoModels: ['seedance2.0fast', 'seedance2.0'],
+    jimengConfig: { executablePath: 'dreamina', pollSeconds: 20 },
+  };
+
+  const result = await jimengCli.generateVideo(provider, {
+    prompt: 'street shot',
+    providerModel: 'seedance2.0fast',
+    duration: 5,
+    resolution: '1080p',
+    aspect_ratio: '16:9',
+  }, {
+    runCli: async (command: string, args: string[]) => {
+      commands.push({ command, args });
+      return { videos: ['C:\\tmp\\seedance-fast.mp4'], submit_id: 'vid-fast' };
+    },
+    storeOutput: async (value: string) => `/files/output/${value.split('\\').pop()}`,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.model, 'seedance2.0fast');
+  assert.equal(commands[0].args[0], 'text2video');
+  assert.ok(commands[0].args.includes('--model_version=seedance2.0fast'));
+  assert.ok(commands[0].args.includes('--video_resolution=720p'));
+  assert.deepEqual(result.videoUrls, ['/files/output/seedance-fast.mp4']);
+});
+
 test('Jimeng video generation downloads resource URLs to local temp files for CLI input', async () => {
   const commands: any[] = [];
   let fetchedUrl = '';
@@ -170,6 +201,35 @@ test('Jimeng generation queries async result when CLI only returns submit id', a
   assert.ok(commands[1].args.includes('--submit_id=img-sub-1'));
   assert.ok(commands[1].args.some((arg: string) => arg.startsWith('--download_dir=')));
   assert.deepEqual(result.imageUrls, ['/files/output/done.png']);
+});
+
+test('Jimeng image generation sends Seedream 4.7 model_version from CLI model option', async () => {
+  const commands: any[] = [];
+  const provider = {
+    id: 'jimeng-cli',
+    protocol: 'jimeng-cli',
+    imageModels: ['seedream-4.7'],
+    jimengConfig: { executablePath: 'dreamina', pollSeconds: 20 },
+  };
+
+  const result = await jimengCli.generateImage(provider, {
+    prompt: 'product poster',
+    providerModel: 'seedream-4.7',
+    size: '4096x4096',
+  }, {
+    runCli: async (command: string, args: string[]) => {
+      commands.push({ command, args });
+      return { images: ['C:\\tmp\\seedream47.png'], submit_id: 'img-47' };
+    },
+    storeOutput: async (value: string) => `/files/output/${value.split('\\').pop()}`,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.model, 'seedream-4.7');
+  assert.equal(commands[0].args[0], 'text2image');
+  assert.ok(commands[0].args.includes('--model_version=4.7'));
+  assert.ok(commands[0].args.includes('--resolution_type=4k'));
+  assert.deepEqual(result.imageUrls, ['/files/output/seedream47.png']);
 });
 
 test('Jimeng async video keeps polling until query_result returns downloaded path objects', async () => {

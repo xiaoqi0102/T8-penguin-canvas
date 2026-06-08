@@ -231,7 +231,14 @@ const FALLBACK_MODELS: Record<AdvancedProviderNodeKind, Partial<Record<string, s
       'black-forest-labs/FLUX.2-klein-9B',
     ],
     volcengine: ['doubao-seedream-4-0-250828'],
-    'jimeng-cli': ['jimeng-image-2k'],
+    'jimeng-cli': [
+      'seedream-4.7',
+      'seedream-4.6',
+      'seedream-4.5',
+      'seedream-5.0',
+      'jimeng-image-2k',
+      'jimeng-image-4k',
+    ],
   },
   video: {
     'openai-compatible': [],
@@ -243,7 +250,14 @@ const FALLBACK_MODELS: Record<AdvancedProviderNodeKind, Partial<Record<string, s
       'doubao-seedance-1-0-lite-t2v-250428',
       'doubao-seedance-1-0-lite-i2v-250428',
     ],
-    'jimeng-cli': ['seedance2.0fast_vip'],
+    'jimeng-cli': [
+      'seedance2.0fast_vip',
+      'seedance2.0_vip',
+      'seedance2.0fast',
+      'seedance2.0',
+      'jimeng-video-720p',
+      'jimeng-video-1080p',
+    ],
   },
   llm: {
     'openai-compatible': ['gpt-4o-mini'],
@@ -299,7 +313,12 @@ export function advancedProviderModelOptions(
     return uniqueCompact((provider.comfyuiConfig?.workflows || []).map((workflow) => workflow.id || workflow.name));
   }
   const explicit = uniqueCompact(listForKind(provider, kind));
-  if (explicit.length) return explicit;
+  if (explicit.length) {
+    const defaultModel = defaultModelForKind(provider, kind);
+    return defaultModel && explicit.includes(defaultModel)
+      ? uniqueCompact([defaultModel, ...explicit])
+      : explicit;
+  }
   return uniqueCompact([
     defaultModelForKind(provider, kind),
     ...(FALLBACK_MODELS[kind][provider.protocol] || []),

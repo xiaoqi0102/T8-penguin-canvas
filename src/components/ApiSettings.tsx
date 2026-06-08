@@ -23,6 +23,7 @@ import {
   type ComfyFieldMapping,
 } from '../utils/comfyuiWorkflow';
 import PromptTextarea from './PromptTextarea';
+import { LocalSettingsAddonSlot } from 'virtual:t8-local-extensions';
 
 interface ApiSettingsModalProps {
   open: boolean;
@@ -38,6 +39,7 @@ type KeyField =
   | 'nanoBananaApiKey'
   | 'mjApiKey'
   | 'veoApiKey'
+  | 'soraApiKey'
   | 'grokApiKey'
   | 'seedanceApiKey'
   | 'sunoApiKey';
@@ -59,7 +61,8 @@ const CLASSIFIED_KEYS: KeySpec[] = [
   { field: 'gptImageApiKey', label: 'gpt-image 系列', desc: 'GPT2 / gpt-image-1 等图像任务专用', bullet: 'bg-pink-400' },
   { field: 'nanoBananaApiKey', label: 'nano-banana 系列', desc: 'nano-banana / nano-banana-pro 专用', bullet: 'bg-yellow-400' },
   { field: 'mjApiKey', label: 'mj 系列', desc: 'Midjourney (turbo/fast/relax) 专用', bullet: 'bg-purple-400' },
-  { field: 'veoApiKey', label: 'veo / sora 系列', desc: 'Veo / Veo3.1 / Sora2 视频专用', bullet: 'bg-blue-400' },
+  { field: 'veoApiKey', label: 'veo 系列', desc: 'Veo 系列视频专用', bullet: 'bg-blue-400' },
+  { field: 'soraApiKey', label: 'sora2 系列', desc: 'Sora2 FAL / Zhenzhen API 视频专用', bullet: 'bg-sky-400' },
   { field: 'grokApiKey', label: 'grok 系列', desc: 'Grok Image / Grok Imagine Video 专用', bullet: 'bg-orange-400' },
   { field: 'seedanceApiKey', label: 'seedance 系列', desc: 'Seedance 视频专用', bullet: 'bg-teal-400' },
   { field: 'sunoApiKey', label: 'suno 系列', desc: 'Suno 音乐专用', bullet: 'bg-rose-400' },
@@ -85,7 +88,7 @@ const ADVANCED_PROVIDER_LABELS: Record<AdvancedProviderProtocol, string> = {
   'openai-compatible': 'OpenAI 兼容',
   modelscope: 'ModelScope',
   volcengine: '火山引擎',
-  comfyui: '本地 ComfyUI',
+  comfyui: 'ComfyUI',
   'jimeng-cli': '即梦 CLI',
   qiniu: '七牛云',
   grsai: 'Grsai',
@@ -121,18 +124,18 @@ const ADVANCED_PROVIDER_GUIDES: Record<AdvancedProviderProtocol, {
   },
   volcengine: {
     subtitle: '接入火山方舟 / Seedream / Seedance',
-    description: '适合用火山引擎做 Seedream 图像、Seedance 视频或方舟聊天模型。只在节点里选择高级来源时才会走这里。',
+    description: '适合用火山引擎做 Seedream 图像、Seedance 视频或方舟聊天模型。生成调用使用方舟 Ark API Key，不使用 Access Key ID / Secret Access Key；使用 Seedance2.0 前需要先在火山方舟控制台开通对应模型服务。',
     nodeScopes: ['图像节点', '视频节点', 'LLM 节点'],
-    connectionHint: 'Base URL 填火山方舟 API 地址；常规生成使用 API Key，素材上传能力可补充 AK/SK。',
-    modelHint: '图像、视频、聊天模型分别按火山控制台里的模型接入点填写，每行一个。',
+    connectionHint: 'Base URL 填火山方舟 API 地址；Seedream / Seedance / LLM 生成必须填方舟 Ark API Key。Access Key ID / Secret Access Key 是另一类凭证，请放到下方火山 AK/SK 高级项。',
+    modelHint: '图像、视频、聊天模型分别按火山控制台里的模型接入点填写，每行一个。Seedance2.0 / Seedance2.0 Fast 如果未在方舟控制台开通，提交会返回 ModelNotOpen / HTTP 404。',
     baseUrlPlaceholder: 'https://ark.cn-beijing.volces.com/api/v3',
-    keyLabel: '火山 API Key',
+    keyLabel: '方舟 Ark API Key（生成用，不是 AK/SK）',
   },
   comfyui: {
-    subtitle: '接入本机 ComfyUI 工作流',
-    description: '适合把本机 ComfyUI 的 API Workflow 接到图像节点。为安全起见这里只允许本机地址。',
+    subtitle: '接入 ComfyUI 工作流',
+    description: '默认适合把本机 ComfyUI 的 API Workflow 接到图像节点；开启高危远端开关或由后端环境启用后，也可接入其他可信 ComfyUI 地址。',
     nodeScopes: ['图像节点'],
-    connectionHint: '实例地址填本机 ComfyUI，例如 http://127.0.0.1:8188。多个实例可一行一个。',
+    connectionHint: '默认填写本机 ComfyUI，例如 http://127.0.0.1:8188；如需其他地址，可开启下方高危开关，或由后端设置 T8_COMFYUI_ALLOW_REMOTE=1。多个实例可一行一个。',
     modelHint: '图像节点里选择的是工作流 ID/名称，不需要填写模型列表。',
     baseUrlPlaceholder: 'http://127.0.0.1:8188',
   },
@@ -141,7 +144,7 @@ const ADVANCED_PROVIDER_GUIDES: Record<AdvancedProviderProtocol, {
     description: '适合已经在本机配置好即梦 CLI 的用户。它不走 API Key，而是调用本地命令并轮询任务结果。',
     nodeScopes: ['图像节点', '视频节点', 'SD2.0 节点'],
     connectionHint: '填写 dreamina 可执行文件路径；如果 CLI 装在 WSL 里，再打开 WSL 并填写发行版名称。',
-    modelHint: '模型名按 CLI 支持的命令参数填写，例如 seedance2.0fast_vip。每行一个。',
+    modelHint: '模型名按 CLI 支持的命令参数填写；图像可填 seedream-4.7，视频可填 seedance2.0fast_vip、seedance2.0_vip、seedance2.0fast、seedance2.0。每行一个。',
   },
   qiniu: {
     subtitle: '接入七牛云 AI 图像生成服务',
@@ -279,12 +282,12 @@ function AdvancedProviderFormBlock({
 const emptyMap = (): Record<KeyField, string> => ({
   zhenzhenApiKey: '', rhApiKey: '', llmApiKey: '',
   gptImageApiKey: '', nanoBananaApiKey: '', mjApiKey: '', veoApiKey: '',
-  grokApiKey: '', seedanceApiKey: '', sunoApiKey: '',
+  soraApiKey: '', grokApiKey: '', seedanceApiKey: '', sunoApiKey: '',
 });
 const emptyShow = (): Record<KeyField, boolean> => ({
   zhenzhenApiKey: false, rhApiKey: false, llmApiKey: false,
   gptImageApiKey: false, nanoBananaApiKey: false, mjApiKey: false, veoApiKey: false,
-  grokApiKey: false, seedanceApiKey: false, sunoApiKey: false,
+  soraApiKey: false, grokApiKey: false, seedanceApiKey: false, sunoApiKey: false,
 });
 
 export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProps) {
@@ -295,6 +298,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
 
   const [inputs, setInputs] = useState<Record<KeyField, string>>(emptyMap());
   const [shows, setShows] = useState<Record<KeyField, boolean>>(emptyShow());
+  const [clearedFields, setClearedFields] = useState<Partial<Record<KeyField, boolean>>>({});
   const [saved, setSaved] = useState(false);
   // v1.2.10.2: 文件自动保存路径输入
   const [fileSavePathInput, setFileSavePathInput] = useState<string>('');
@@ -333,6 +337,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     if (open) {
       setInputs(emptyMap());
       setShows(emptyShow());
+      setClearedFields({});
       revealedRef.current = {};
       setSaved(false);
       setBackupMessage('');
@@ -367,6 +372,14 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
 
   const setInputAt = (f: KeyField, v: string) => {
     setInputs((prev) => ({ ...prev, [f]: v }));
+    if (v.trim()) {
+      setClearedFields((prev) => {
+        if (!prev[f]) return prev;
+        const next = { ...prev };
+        delete next[f];
+        return next;
+      });
+    }
   };
 
   const getCurrentEditableSettings = (): Partial<ApiSettings> => ({
@@ -377,6 +390,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     nanoBananaApiKey: inputs.nanoBananaApiKey.trim(),
     mjApiKey: inputs.mjApiKey.trim(),
     veoApiKey: inputs.veoApiKey.trim(),
+    soraApiKey: inputs.soraApiKey.trim(),
     grokApiKey: inputs.grokApiKey.trim(),
     seedanceApiKey: inputs.seedanceApiKey.trim(),
     sunoApiKey: inputs.sunoApiKey.trim(),
@@ -484,6 +498,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
       return nextInputs;
     });
     setShows(emptyShow());
+    setClearedFields({});
     revealedRef.current = {};
     if (typeof patch.fileSavePath === 'string') setFileSavePathInput(patch.fileSavePath);
     if (typeof patch.canvasAutoSavePath === 'string') setCanvasAutoSavePathInput(patch.canvasAutoSavePath);
@@ -528,6 +543,13 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
   // 眼睛点击: 如果要切为“显示”且当前 input 为空但后端已存在 key,
   // 调 /api/settings/raw 拿明文填充。
   const handleToggleShow = async (f: KeyField) => {
+    if (clearedFields[f]) {
+      setClearedFields((prev) => {
+        const next = { ...prev };
+        delete next[f];
+        return next;
+      });
+    }
     const newShow = !shows[f];
     if (newShow && !inputs[f].trim() && (settings as any)[f]) {
       try {
@@ -544,9 +566,33 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     setShows((prev) => ({ ...prev, [f]: newShow }));
   };
 
+  const handleClearClassifiedKey = (f: KeyField) => {
+    if (clearedFields[f]) {
+      setClearedFields((prev) => {
+        const next = { ...prev };
+        delete next[f];
+        return next;
+      });
+      return;
+    }
+    setInputs((prev) => ({ ...prev, [f]: '' }));
+    setShows((prev) => ({ ...prev, [f]: false }));
+    if (revealedRef.current) {
+      delete (revealedRef.current as any)[f];
+    }
+    const hasSaved = !!String((settings as any)?.[f] || '').trim();
+    if (hasSaved) {
+      setClearedFields((prev) => ({ ...prev, [f]: true }));
+    }
+  };
+
   const handleSave = async () => {
     const patch: Partial<ApiSettings> = {};
     for (const f of ALL_FIELDS) {
+      if (clearedFields[f]) {
+        (patch as any)[f] = '';
+        continue;
+      }
       const v = inputs[f].trim();
       if (!v) continue;
       // 眼睛拉出明文未修改 → 跳过，不走一道上行请求
@@ -591,6 +637,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
       return;
     }
     await save(patch);
+    setClearedFields({});
     setSaved(true);
     setTimeout(() => {
       setSaved(false);
@@ -1416,7 +1463,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             className={formBlockCls}
             labelClassName={labelCls}
             hintClassName={hintCls}
-            title="2. 连接密钥"
+            title={isVolc ? '2. 生成连接密钥' : '2. 连接密钥'}
             note={guide?.connectionHint}
           >
             <label className="space-y-1 block">
@@ -1426,9 +1473,32 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 value={provider.apiKey || ''}
                 onChange={(e) => updateAdvancedProvider(provider.id, { apiKey: e.target.value })}
                 className={fieldInputCls}
-                placeholder={provider.hasApiKey || provider.apiKey ? '留空或保留 **** 表示不覆盖后端密钥' : '请输入 API Key'}
+                placeholder={
+                  provider.hasApiKey || provider.apiKey
+                    ? '留空或保留 **** 表示不覆盖后端密钥'
+                    : isVolc
+                      ? '请输入方舟 Ark API Key，不要填 Access Key ID / Secret'
+                      : '请输入 API Key'
+                }
               />
             </label>
+            {isVolc && (
+              <div className={guideBoxCls}>
+                <div className="font-bold">该填哪个 Key？</div>
+                <p>
+                  图像 Seedream、视频 Seedance 和方舟 LLM 生成使用「方舟 Ark API Key」。
+                  你在火山账号里看到的 Access Key ID / Secret Access Key 不能填在这里，
+                  需要放到下方「火山 AK/SK」高级项；目前它只作为素材签名类能力的预留凭证。
+                </p>
+                <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-400/15 px-3 py-2">
+                  <div className="font-bold">Seedance2.0 开通提醒</div>
+                  <p>
+                    使用 doubao-seedance-2-0-260128 或 doubao-seedance-2-0-fast-260128 前，
+                    需要先在火山方舟控制台开通对应模型服务；未开通时上游会返回 ModelNotOpen / HTTP 404。
+                  </p>
+                </div>
+              </div>
+            )}
             {provider.protocol === 'modelscope' && (
               <div className="flex flex-wrap gap-2">
                 <button
@@ -1457,8 +1527,8 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             className={formBlockCls}
             labelClassName={labelCls}
             hintClassName={hintCls}
-            title="3. 火山高级项（可选）"
-            note="普通 Ark / Seedream / Seedance 调用通常只需要上面的 API Key。只有需要素材上传或特定项目隔离时，再补充这些字段。"
+            title="3. 火山 AK/SK（可选，素材签名）"
+            note="这里不是生成 Key。普通 Ark / Seedream / Seedance 调用只需要上方的方舟 Ark API Key；AK/SK 仅用于素材上传、私域资产或签名类 OpenAPI。"
           >
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <label className="space-y-1">
@@ -1480,23 +1550,23 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 />
               </label>
               <label className="space-y-1">
-                <span className={`text-[11px] ${labelCls}`}>素材 Access Key ID</span>
+                <span className={`text-[11px] ${labelCls}`}>Access Key ID（AK，素材签名）</span>
                 <input
                   type="password"
                   value={provider.volcengineConfig?.accessKeyId || ''}
                   onChange={(e) => updateAdvancedProviderNested(provider.id, 'volcengineConfig', { accessKeyId: e.target.value })}
                   className={fieldInputCls}
-                  placeholder={provider.volcengineConfig?.hasAccessKeyId ? '留空保持不变' : '可选'}
+                  placeholder={provider.volcengineConfig?.hasAccessKeyId ? '留空保持不变' : '可选，不是方舟 API Key'}
                 />
               </label>
               <label className="space-y-1">
-                <span className={`text-[11px] ${labelCls}`}>素材 Secret Access Key</span>
+                <span className={`text-[11px] ${labelCls}`}>Secret Access Key（SK，素材签名）</span>
                 <input
                   type="password"
                   value={provider.volcengineConfig?.secretAccessKey || ''}
                   onChange={(e) => updateAdvancedProviderNested(provider.id, 'volcengineConfig', { secretAccessKey: e.target.value })}
                   className={fieldInputCls}
-                  placeholder={provider.volcengineConfig?.hasSecretAccessKey ? '留空保持不变' : '可选'}
+                  placeholder={provider.volcengineConfig?.hasSecretAccessKey ? '留空保持不变' : '可选，不是方舟 API Key'}
                 />
               </label>
             </div>
@@ -1524,6 +1594,28 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                 className={textareaCls}
                 placeholder={guide?.baseUrlPlaceholder || 'http://127.0.0.1:8188'}
               />
+            </label>
+            <label
+              className={
+                isPixel
+                  ? `t8-api-settings-guide border p-3 flex items-start gap-2 text-[11px] leading-relaxed ${labelCls}`
+                  : `t8-api-settings-guide rounded-lg border p-3 flex items-start gap-2 text-[11px] leading-relaxed ${labelCls}`
+              }
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={!!provider.allowRemote}
+                onChange={(e) => updateAdvancedProvider(provider.id, { allowRemote: e.target.checked })}
+              />
+              <span className="min-w-0">
+                <span className="font-black inline-flex items-center gap-1">
+                  <Lock size={11} /> 高危：允许此 ComfyUI 配置访问远端地址
+                </span>
+                <span className={`block mt-1 ${hintCls}`}>
+                  默认关闭，仅允许 127.0.0.1 / localhost。开启后后端会按这里填写的 URL 访问局域网或公网 ComfyUI，请只连接你信任和有权限使用的服务；Docker 也可通过环境变量 T8_COMFYUI_ALLOW_REMOTE=1 统一开启。
+                </span>
+              </span>
             </label>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <label className="space-y-1">
@@ -1823,7 +1915,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                   editorKind="lines"
                   mono
                   className={textareaCls}
-                  placeholder="例如 gpt-image-1"
+                  placeholder={isJimeng ? '例如 seedream-4.7' : '例如 gpt-image-1'}
                 />
               </label>
               <label className="space-y-1 min-w-0">
@@ -1835,7 +1927,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                   editorKind="lines"
                   mono
                   className={textareaCls}
-                  placeholder={isJimeng ? '例如 seedance2.0fast_vip' : '例如 video-model-name'}
+                  placeholder={isJimeng ? '例如 seedance2.0fast_vip / seedance2.0' : '例如 video-model-name'}
                 />
               </label>
               <label className="space-y-1 min-w-0">
@@ -1998,13 +2090,20 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
     const rawVal = (settings as any)[f] as string | undefined;
     const hasSaved = !!rawVal;
     const maskedDisplay = toMaskedDisplay(rawVal);
+    const pendingClear = !!clearedFields[f];
+    const showClearButton = !!opts.fallbackHint;
+    const clearDisabled = showClearButton && !pendingClear && !hasSaved && !inputs[f].trim();
     return (
       <div key={f} className="space-y-2">
         <label className={`text-sm font-medium flex items-center gap-2 flex-wrap ${labelCls}`}>
           <span className={`w-2 h-2 rounded-full ${spec.bullet}`} />
           {spec.label}
           <span className={`text-[11px] font-normal ${hintCls}`}>{spec.desc}</span>
-          {hasSaved && (
+          {pendingClear ? (
+            <span className="t8-api-settings-badge text-[10px] font-bold px-1.5 py-0.5 rounded border" data-tone="muted">
+              保存后清空
+            </span>
+          ) : hasSaved && (
             <span className="t8-api-settings-badge text-[10px] font-bold px-1.5 py-0.5 rounded border" data-tone="success">
               ✓ 已保存 {maskedDisplay}
             </span>
@@ -2020,17 +2119,31 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             type={shows[f] ? 'text' : 'password'}
             value={inputs[f]}
             onChange={(e) => setInputAt(f, e.target.value)}
-            placeholder={hasSaved ? '留空保持不变 / 输入新值覆盖' : (opts.fallbackHint ? '留空则使用通用 Key / 输入独立 Key' : '请输入 sk-...')}
+            placeholder={pendingClear ? '已标记清空，保存后回到通用 Key' : (hasSaved ? '留空保持不变 / 输入新值覆盖' : (opts.fallbackHint ? '留空则使用通用 Key / 输入独立 Key' : '请输入 sk-...'))}
             className={inputCls}
             autoComplete="off"
           />
           <button
+            type="button"
             onClick={() => handleToggleShow(f)}
             className={eyeBtnCls}
             title={shows[f] ? '隐藏' : '显示明文'}
+            aria-label={`${spec.label}${shows[f] ? '隐藏' : '显示明文'}`}
           >
             {shows[f] ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
+          {showClearButton && (
+            <button
+              type="button"
+              onClick={() => handleClearClassifiedKey(f)}
+              className={`${eyeBtnCls} disabled:opacity-40 disabled:cursor-not-allowed`}
+              title={clearDisabled ? '当前没有可清空的分类独立 Key' : (pendingClear ? '取消清空' : '清空该分类独立 Key')}
+              aria-label={`${spec.label}${pendingClear ? '取消清空' : '清空'}`}
+              disabled={clearDisabled}
+            >
+              {pendingClear ? <X size={16} /> : <Trash2 size={16} />}
+            </button>
+          )}
         </div>
         {(opts.baseUrlNote || renderGetKeyButtons(spec.field)) && (
           <div className={`flex items-center gap-2 flex-wrap text-[11px] ${hintCls}`}>
@@ -2097,6 +2210,13 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
         <div className="t8-api-settings-body p-5 space-y-5 overflow-y-auto">
           {/* 三套通用 Key */}
           {renderKey(COMMON_KEYS[0], { baseUrlNote: `Base URL 锁定: ${FIXED_ZHENZHEN_BASE}` })}
+          <LocalSettingsAddonSlot
+            open={open}
+            isPixel={isPixel}
+            isDark={isDark}
+            settings={settings as any}
+            onSaved={load}
+          />
           {renderKey(COMMON_KEYS[1], { baseUrlNote: `Base URL: ${RH_BASE}` })}
           {renderKey(COMMON_KEYS[2], { baseUrlNote: `Base URL 锁定: ${FIXED_ZHENZHEN_BASE} (与贞贞同地址, Key 独立)` })}
 
@@ -2190,7 +2310,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             {advancedOpen && (
               <div className="mt-3 space-y-3">
                 <div className={`text-[11px] leading-relaxed ${hintCls}`}>
-                  这里不是必填项。它只用于 ModelScope、火山引擎、本地 ComfyUI、即梦 CLI 和 OpenAI 兼容接口；平台开启后，还需要在具体节点的“高级来源”里选择它才会生效。
+                  这里不是必填项。它只用于 ModelScope、火山引擎、ComfyUI、即梦 CLI 和 OpenAI 兼容接口；平台开启后，还需要在具体节点的“高级来源”里选择它才会生效。
                   当前状态：已启用 {advancedSummary.enabledCount} 个，已配置密钥 {advancedSummary.configuredKeyCount} 个，ComfyUI {advancedSummary.comfyuiConfigured ? '已填写地址' : '未填写地址'}，即梦 CLI {advancedSummary.jimengConfigured ? '已填写路径' : '未填写路径'}。
                 </div>
                 {advancedProvidersInput.length === 0 ? (

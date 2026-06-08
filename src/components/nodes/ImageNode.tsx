@@ -72,6 +72,7 @@ import {
 } from '../../utils/materialExclusion';
 import { COMFY_APP_SOURCE_LABELS } from '../../utils/comfyuiApps';
 import { canonicalizeComfyFieldsByWorkflow } from '../../utils/comfyuiWorkflow';
+import { LocalNodeAddonSlot } from 'virtual:t8-local-extensions';
 
 /**
  * ImageNode - 图像生成(ZhenzhenMagic)
@@ -327,7 +328,10 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
   const aspectRatio = d?.aspectRatio || modelDef.defaultAspectRatio;
   const sizeLevel = d?.sizeLevel || modelDef.defaultSize;
   // 子模型变体(对齐 gpt-image-2-web 的 g_model/n_model)
-  const apiModel = d?.apiModel || modelDef.apiModel;
+  const savedApiModel = typeof d?.apiModel === 'string' ? d.apiModel : '';
+  const apiModel = modelDef.apiModelOptions.some((opt) => opt.value === savedApiModel)
+    ? savedApiModel
+    : modelDef.apiModel;
 
   // ========== FAL 渠道识别及参数(不影响其他模型) ==========
   const isFal = isFalModel(apiModel);
@@ -773,6 +777,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
           system_prompt: falKind === 'nbpro-fal' ? nbSysPrompt : undefined,
           enable_web_search: falKind === 'nbpro-fal' ? nbWebSearch : undefined,
           image_mode: falKind === 'nbpro-fal' ? nbImgMode : undefined,
+          providerParams,
         });
 
         // 同步完成
@@ -846,6 +851,7 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
         image_size: sizeLevel,
         images: allRefs,
         n: 1,
+        providerParams,
       });
 
       // 分支一:同步完成
@@ -1401,6 +1407,21 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             </select>
           </div>
         )}
+
+        <LocalNodeAddonSlot
+          nodeId={id}
+          nodeType="image"
+          data={d}
+          update={update}
+          context={{
+            providerSource: isExternalSelected ? providerSelection.providerSource : 'zhenzhen',
+            providerId: providerSelection.providerId,
+            providerModel: isExternalSelected ? externalProviderModel : apiModel,
+            model: modelDef.id,
+            apiModel,
+            providerKind: isFal ? 'fal' : modelDef.paramKind,
+          }}
+        />
 
         {/* 比例 + 尺寸 并排(非 FAL 且非 MJ 模型);Grok Image 只需要比例 */}
         {/* 七牛/Grsai 专属 UI 控件 */}
@@ -1977,6 +1998,11 @@ const ImageNode = ({ id, data, selected }: NodeProps) => {
             data-drag-url={imageUrl}
             data-drag-preview={imageUrl}
             data-drag-node-id={id}
+            data-resource-title={imageUrl.split('/').pop() || '生成图像'}
+            data-prompt-template-kind="image"
+            data-prompt-template-category="image-reference-edit"
+            data-prompt-template-prompt={d?.lastPrompt || localPrompt || String(providerParams.prompt ?? providerParams.positive ?? '')}
+            data-prompt-template-negative={String(providerParams.negative ?? providerParams.negativePrompt ?? '')}
             onMouseDown={(e) =>
               beginMaterialDrag(e, { kind: 'image', url: imageUrl, sourceNodeId: id, previewUrl: imageUrl })
             }

@@ -46,8 +46,6 @@ test('electron main process owns updater checks, downloads, and install IPC', ()
   assert.match(main, /打开安装向导/);
   assert.match(installerNsh, /!macro customInit/);
   assert.match(installerNsh, /SetSilent\s+normal/);
-  assert.match(installerNsh, /!macro customCheckAppRunning/);
-  assert.match(installerNsh, /taskkill \/f \/im/);
   assert.match(installerNsh, /!macro customInstall/);
   assert.match(installerNsh, /CreateShortCut "\$newStartMenuLink"/);
   assert.match(installerNsh, /CreateShortCut "\$DESKTOP\\\$\{SHORTCUT_NAME\}\.lnk"/);

@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CloudUpload, FolderPlus, Library, Plus, X } from 'lucide-react';
+import { BookmarkPlus, CloudUpload, FolderPlus, Library, Plus, X } from 'lucide-react';
 import { useThemeStore } from '../stores/theme';
 import { useCanvasStore } from '../stores/canvas';
 import { trackAchievementEvent } from '../stores/achievements';
 import * as api from '../services/api';
 import type { CloudUploadTargetConfig } from '../types/canvas';
 import type { ResourceCategory, ResourceKind, ResourceMaterialSetKind, ResourceMediaKind } from '../services/api';
+import type { PromptTemplateKind } from '../data/promptTemplateLibrary';
+import {
+  getPromptTemplateCategories,
+  getPromptTemplateCategoryLabel,
+  type PromptTemplateCategory,
+} from '../data/promptTemplateLibrary';
+import {
+  createPromptTemplateFromMaterial,
+  loadPromptTemplateUserState,
+  savePromptTemplateUserState,
+} from '../services/promptTemplateLibrary';
 import SmartImage from './SmartImage';
 
 interface MenuState {
@@ -18,6 +29,10 @@ interface MenuState {
   title?: string;
   materialSetKind?: ResourceMaterialSetKind;
   materialSetItems?: NonNullable<Parameters<typeof api.addResourceSet>[0]['materialSetItems']>;
+  promptTemplateKind?: PromptTemplateKind;
+  promptTemplateCategoryId?: string;
+  promptTemplatePrompt?: string;
+  promptTemplateNegative?: string;
 }
 
 function isResourceKind(value: string | null): value is ResourceMediaKind {
@@ -34,6 +49,10 @@ function baseName(url: string) {
   }
 }
 
+function normalizePromptTemplateKind(value: string | null, fallback: PromptTemplateKind): PromptTemplateKind {
+  return value === 'image' || value === 'video' ? value : fallback;
+}
+
 export default function MaterialContextMenu() {
   const { theme, style } = useThemeStore();
   const activeCanvasId = useCanvasStore((s) => s.activeId);
@@ -43,6 +62,7 @@ export default function MaterialContextMenu() {
   const [categories, setCategories] = useState<ResourceCategory[]>([]);
   const [cloudTargets, setCloudTargets] = useState<CloudUploadTargetConfig[]>([]);
   const [cloudUploadingId, setCloudUploadingId] = useState('');
+  const [promptCategoryId, setPromptCategoryId] = useState('');
   const [message, setMessage] = useState('');
   const [cloudResult, setCloudResult] = useState<api.CloudUploadAssetResult | null>(null);
 
@@ -51,6 +71,7 @@ export default function MaterialContextMenu() {
     setMessage('');
     setCloudUploadingId('');
     setCloudResult(null);
+    setPromptCategoryId('');
   }, []);
 
   const loadCategories = useCallback(async (kind: ResourceKind) => {
@@ -86,8 +107,16 @@ export default function MaterialContextMenu() {
         previewUrl: source.getAttribute('data-drag-preview') || url,
         sourceNodeId: source.getAttribute('data-drag-node-id') || '',
         title: source.getAttribute('data-resource-title') || source.getAttribute('alt') || baseName(url),
+        promptTemplateKind: normalizePromptTemplateKind(
+          source.getAttribute('data-prompt-template-kind'),
+          kind === 'image' ? 'image' : 'video',
+        ),
+        promptTemplateCategoryId: source.getAttribute('data-prompt-template-category') || '',
+        promptTemplatePrompt: source.getAttribute('data-prompt-template-prompt') || '',
+        promptTemplateNegative: source.getAttribute('data-prompt-template-negative') || '',
       };
       setMenu(next);
+      setPromptCategoryId(next.promptTemplateCategoryId || '');
       setMessage('');
       setCloudResult(null);
       loadCategories(kind);
@@ -108,6 +137,7 @@ export default function MaterialContextMenu() {
         materialSetItems,
       });
       setMessage('');
+      setPromptCategoryId('');
       setCloudResult(null);
       loadCategories('set');
     };
@@ -171,6 +201,75 @@ export default function MaterialContextMenu() {
     } else {
       setMessage(r.error || '加入失败');
     }
+  };
+
+  const promptTemplateState = menu && menu.kind !== 'set' ? loadPromptTemplateUserState() : null;
+  const promptTemplateKind = menu && menu.kind !== 'set'
+    ? normalizePromptTemplateKind(String(menu.promptTemplateKind || ''), menu.kind === 'image' ? 'image' : 'video')
+    : 'image';
+  const promptTemplateCategories: PromptTemplateCategory[] = promptTemplateState
+    ? getPromptTemplateCategories(promptTemplateKind, promptTemplateState.customCategories)
+    : [];
+  const selectedPromptCategoryId =
+    promptCategoryId ||
+    menu?.promptTemplateCategoryId ||
+    promptTemplateCategories[0]?.id ||
+    '';
+
+  const saveToPromptTemplate = () => {
+    if (!menu || menu.kind === 'set' || !menu.url) return;
+    let prompt = (menu.promptTemplatePrompt || '').trim();
+    if (!prompt) {
+      prompt = window.prompt('没有检测到这个素材的提示词，请补充后保存到模板库：', '')?.trim() || '';
+    }
+    if (!prompt) {
+      setMessage('未保存：缺少提示词');
+      return;
+    }
+    const titleBase = (menu.title || baseName(menu.url)).replace(/\.[a-z0-9]{2,8}$/i, '').trim();
+    const item = createPromptTemplateFromMaterial({
+      mediaKind: menu.kind as ResourceMediaKind,
+      url: menu.url,
+      previewUrl: menu.previewUrl,
+      prompt,
+      negative: menu.promptTemplateNegative,
+      title: titleBase || prompt.slice(0, 32),
+      templateKind: menu.promptTemplateKind,
+      categoryId: selectedPromptCategoryId,
+      sourceNodeId: menu.sourceNodeId,
+    });
+    const current = loadPromptTemplateUserState();
+    savePromptTemplateUserState({
+      ...current,
+      customItems: [item, ...current.customItems],
+    });
+    window.dispatchEvent(new CustomEvent('penguin:prompt-templates-changed', { detail: { id: item.id } }));
+    setMessage(`已保存到提示词模板库：${item.titleZh}`);
+  };
+
+  const createPromptTemplateCategory = () => {
+    if (!menu || menu.kind === 'set') return;
+    const name = window.prompt(promptTemplateKind === 'image' ? '新建图像模板分类' : '新建视频模板分类');
+    if (!name?.trim()) return;
+    const current = loadPromptTemplateUserState();
+    const id = `custom-${promptTemplateKind}-${Date.now().toString(36)}`;
+    const category: PromptTemplateCategory = {
+      id,
+      kind: promptTemplateKind,
+      labelZh: name.trim(),
+      labelEn: name.trim(),
+      descriptionZh: '从素材右键保存时创建的分类',
+      descriptionEn: 'Created while saving material to prompt templates',
+      order: 1000 + current.customCategories.length,
+      builtIn: false,
+    };
+    savePromptTemplateUserState({
+      ...current,
+      customCategories: [...current.customCategories, category],
+    });
+    setPromptCategoryId(id);
+    window.dispatchEvent(new CustomEvent('penguin:prompt-templates-changed', { detail: { categoryId: id } }));
+    setMessage(`已创建模板分类：${category.labelZh}`);
   };
 
   const createCategory = async () => {
@@ -263,6 +362,51 @@ export default function MaterialContextMenu() {
       {menu.kind === 'set' && (
         <div className={`px-3 py-2 text-[11px] ${isPixel ? 'bg-[var(--px-muted)]' : isDark ? 'bg-white/5 text-white/65' : 'bg-black/5 text-zinc-600'}`}>
           {menu.title || '素材集'} · {menu.materialSetItems?.length || 0} 项
+        </div>
+      )}
+      {menu.kind !== 'set' && (
+        <div
+          className="space-y-1 py-1 px-2"
+          style={{
+            borderBottom: isPixel ? '2px solid #1A1410' : `1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)'}`,
+          }}
+        >
+          <div className="flex items-center gap-1.5">
+            <select
+              value={selectedPromptCategoryId}
+              onChange={(event) => setPromptCategoryId(event.target.value)}
+              className="min-w-0 flex-1 rounded border px-2 py-1.5 text-[11px] outline-none"
+              style={{
+                borderColor: isPixel ? '#1A1410' : isDark ? 'rgba(255,255,255,.16)' : 'rgba(0,0,0,.14)',
+                background: isPixel ? '#FFF7C2' : isDark ? 'rgba(255,255,255,.08)' : '#fff',
+                color: isPixel ? '#1A1410' : isDark ? '#fff' : '#18181b',
+              }}
+              title="选择保存到哪个提示词模板分类"
+            >
+              {promptTemplateCategories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {getPromptTemplateCategoryLabel(cat, 'zh')}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={isPixel ? 'px-btn px-btn--sm px-btn--ghost !px-2 !py-1' : 'rounded border px-2 py-1.5 text-[11px] hover:bg-black/5'}
+              onClick={createPromptTemplateCategory}
+              title="新建模板分类"
+            >
+              <FolderPlus size={12} />
+            </button>
+          </div>
+          <button className={`${itemCls} !px-1`} onClick={saveToPromptTemplate}>
+            <BookmarkPlus size={12} />
+            <span className="truncate">保存到提示词模板库</span>
+          </button>
+          {!menu.promptTemplatePrompt && (
+            <div className={`px-3 pb-1 text-[10px] ${isPixel ? 'opacity-75' : isDark ? 'text-white/45' : 'text-zinc-500'}`}>
+              未检测到来源提示词时会询问补充。
+            </div>
+          )}
         </div>
       )}
       <div className="max-h-56 overflow-y-auto py-1">

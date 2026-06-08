@@ -7,14 +7,18 @@ import {
   Download,
   FileDown,
   FileUp,
+  Image as ImageIcon,
   Languages,
   Library,
+  Music,
+  Paperclip,
   Pencil,
   Plus,
   RotateCcw,
   Save,
   Search,
   Trash2,
+  Video,
   X,
 } from 'lucide-react';
 import {
@@ -26,6 +30,7 @@ import {
   getPromptTemplateText,
   getPromptTemplateTitle,
   type PromptTemplateCategory,
+  type PromptTemplateAttachment,
   type PromptTemplateItem,
   type PromptTemplateKind,
   type PromptTemplateLanguage,
@@ -39,6 +44,8 @@ import {
   type PromptTemplateUserState,
 } from '../services/promptTemplateLibrary';
 import * as api from '../services/api';
+import ImageHoverPreview from './ImageHoverPreview';
+import SmartImage from './SmartImage';
 
 interface PromptTemplateLibraryModalProps {
   open: boolean;
@@ -65,6 +72,7 @@ interface EditDraft {
   negativeZh: string;
   negativeEn: string;
   tags: string;
+  attachments: PromptTemplateAttachment[];
 }
 
 function textForSearch(item: PromptTemplateItem) {
@@ -78,6 +86,7 @@ function textForSearch(item: PromptTemplateItem) {
     item.negativeZh,
     item.negativeEn,
     item.tags.join(' '),
+    (item.attachments || []).map((attachment) => attachment.title || attachment.url).join(' '),
     item.source,
   ].join(' ').toLowerCase();
 }
@@ -131,7 +140,20 @@ function makeEditDraft(item: PromptTemplateItem | null, kind: PromptTemplateKind
     negativeZh: item?.negativeZh || '',
     negativeEn: item?.negativeEn || item?.negativeZh || '',
     tags: item?.tags?.join(', ') || '',
+    attachments: item?.attachments || [],
   };
+}
+
+function attachmentKindLabel(kind: PromptTemplateAttachment['kind']) {
+  if (kind === 'image') return '图像';
+  if (kind === 'video') return '视频';
+  return '音频';
+}
+
+function attachmentIcon(kind: PromptTemplateAttachment['kind']) {
+  if (kind === 'image') return <ImageIcon size={12} />;
+  if (kind === 'video') return <Video size={12} />;
+  return <Music size={12} />;
 }
 
 export default function PromptTemplateLibraryModal({
@@ -165,6 +187,16 @@ export default function PromptTemplateLibraryModal({
       setEditDraft(null);
     }
   }, [initialKind, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPromptTemplatesChanged = () => {
+      const next = loadPromptTemplateUserState();
+      setState(next);
+    };
+    window.addEventListener('penguin:prompt-templates-changed', onPromptTemplatesChanged);
+    return () => window.removeEventListener('penguin:prompt-templates-changed', onPromptTemplatesChanged);
+  }, [open]);
 
   const persist = useCallback((updater: (prev: PromptTemplateUserState) => PromptTemplateUserState) => {
     setState((prev) => savePromptTemplateUserState(updater(prev)));
@@ -290,6 +322,7 @@ export default function PromptTemplateLibraryModal({
       negativeZh: editDraft.negativeZh,
       negativeEn: editDraft.negativeEn,
       tags: editDraft.tags.split(/[,，\n]/).map((tag) => tag.trim()).filter(Boolean),
+      attachments: editDraft.attachments,
     });
     persist((prev) => {
       const exists = prev.customItems.some((item) => item.id === nextItem.id);
@@ -427,6 +460,12 @@ export default function PromptTemplateLibraryModal({
         materialSetItems: [
           { kind: 'text', name: '正向提示词', text: prompt },
           ...(negative ? [{ kind: 'text' as const, name: '负向提示词', text: negative }] : []),
+          ...((selected.attachments || []).map((attachment) => ({
+            kind: attachment.kind,
+            name: attachment.title || attachmentKindLabel(attachment.kind),
+            url: attachment.url,
+            mime: attachment.mime,
+          }))),
           {
             kind: 'text',
             name: '模板信息',
@@ -476,7 +515,7 @@ export default function PromptTemplateLibraryModal({
               <span>提示词模板库</span>
             </div>
             <div className={`mt-0.5 text-[11px] ${subtle}`}>
-              图像 / 视频双库 · 内置常用小类每类至少 100 条 · 支持我的模板、导入导出、资源库保存
+              图像 / 视频双库 · 我的模板可带图像 / 视频 / 音频附件 · 支持导入导出、资源库保存
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -611,7 +650,14 @@ export default function PromptTemplateLibraryModal({
                       >
                         <div className="flex items-start justify-between gap-2">
                           <span className="min-w-0 truncate text-xs font-bold">{getPromptTemplateTitle(item, language)}</span>
-                          <span className={`shrink-0 text-[10px] ${subtle}`}>{sourceLabel(item, language)}</span>
+                          <span className={`flex shrink-0 items-center gap-1 text-[10px] ${subtle}`}>
+                            {(item.attachments?.length || 0) > 0 && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <Paperclip size={10} /> {item.attachments?.length}
+                              </span>
+                            )}
+                            {sourceLabel(item, language)}
+                          </span>
                         </div>
                         <div className={`mt-1 line-clamp-2 text-[10px] leading-relaxed ${subtle}`}>
                           {getPromptTemplateDescription(item, language) || getPromptTemplateText(item, language).slice(0, 120)}
@@ -664,6 +710,11 @@ export default function PromptTemplateLibraryModal({
                   <textarea className={`${inputClass} min-h-[110px] resize-none`} value={editDraft.negativeEn} onChange={(event) => setEditDraft({ ...editDraft, negativeEn: event.target.value })} placeholder="English negative prompt (optional)" />
                 </div>
                 <input className={inputClass} value={editDraft.tags} onChange={(event) => setEditDraft({ ...editDraft, tags: event.target.value })} placeholder="标签，用逗号分隔" />
+                {editDraft.attachments.length > 0 && (
+                  <div className={`rounded border px-2 py-1.5 text-[11px] ${isPixel ? 'border-[var(--px-ink)] bg-[var(--px-muted)]' : isDark ? 'border-white/10 bg-white/[0.03] text-white/60' : 'border-black/10 bg-black/[0.025] text-zinc-500'}`}>
+                    已关联 {editDraft.attachments.length} 个配套素材，保存文字修改时会一并保留。
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <button type="button" className={buttonClass} onClick={() => setEditDraft(null)}>取消</button>
                   <button type="button" className={primaryClass} onClick={saveDraft}>
@@ -693,6 +744,70 @@ export default function PromptTemplateLibraryModal({
                 <div className={`mt-3 rounded-lg border p-3 text-xs leading-relaxed ${isPixel ? 'border-[var(--px-ink)] bg-[var(--px-muted)]' : isDark ? 'border-white/10 bg-white/[0.03]' : 'border-black/10 bg-black/[0.025]'}`}>
                   {getPromptTemplateDescription(selected, language)}
                 </div>
+
+                {(selected.attachments?.length || 0) > 0 && (
+                  <div
+                    data-prompt-template-media-preview
+                    className={`mt-3 rounded-lg border p-3 ${
+                      isPixel ? 'border-[var(--px-ink)] bg-[var(--px-muted)]' : isDark ? 'border-white/10 bg-white/[0.03]' : 'border-black/10 bg-black/[0.025]'
+                    }`}
+                  >
+                    <div className={`mb-2 flex items-center justify-between gap-2 text-[10px] font-bold ${subtle}`}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Paperclip size={12} /> 配套素材
+                      </span>
+                      <span>{selected.attachments?.length || 0} 项 · 仅加载当前模板</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+                      {(selected.attachments || []).map((attachment) => (
+                        <div
+                          key={attachment.id}
+                          className={`overflow-hidden rounded-md border ${
+                            isPixel ? 'border-[var(--px-ink)] bg-[var(--px-surface)]' : isDark ? 'border-white/10 bg-black/20' : 'border-black/10 bg-white/70'
+                          }`}
+                        >
+                          <div className="group/prompt-media relative h-28 overflow-hidden bg-black/80">
+                            {attachment.kind === 'image' ? (
+                              <>
+                                <SmartImage
+                                  src={attachment.previewUrl || attachment.url}
+                                  alt={attachment.title || '配套图像'}
+                                  className="h-full w-full object-contain"
+                                  thumbSize={360}
+                                  draggable={false}
+                                />
+                                <ImageHoverPreview
+                                  src={attachment.url}
+                                  alt={attachment.title || '配套图像'}
+                                  buttonClassName="absolute right-1.5 top-1.5 z-10 h-7 w-7 p-0 opacity-0 shadow-md transition group-hover/prompt-media:opacity-100 focus:opacity-100"
+                                />
+                              </>
+                            ) : attachment.kind === 'video' ? (
+                              <video
+                                src={attachment.url}
+                                poster={attachment.previewUrl}
+                                controls
+                                preload="metadata"
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-2 text-white">
+                                <Music size={28} />
+                                <audio src={attachment.url} controls preload="none" className="w-full" />
+                              </div>
+                            )}
+                          </div>
+                          <div className={`flex items-center gap-1.5 px-2 py-1.5 text-[10px] ${subtle}`}>
+                            {attachmentIcon(attachment.kind)}
+                            <span className="min-w-0 flex-1 truncate" title={attachment.title || attachment.url}>
+                              {attachment.title || attachment.url.split('/').pop() || attachmentKindLabel(attachment.kind)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3 grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden">
                   <div className="min-h-0 overflow-y-auto rounded-lg border p-3 text-xs leading-relaxed whitespace-pre-wrap select-text" style={{

@@ -589,6 +589,12 @@ export interface EagleImportResult {
   failures: Array<{ kind: string; name: string; error: string }>;
 }
 
+export interface FigmaImportResult {
+  base: string;
+  sent: number;
+  result?: any;
+}
+
 export function sendToEagle(payload: {
   materials: EagleImportMaterial[];
   tags?: string[];
@@ -596,6 +602,17 @@ export function sendToEagle(payload: {
   eagleApiBase?: string;
 }) {
   return safeRequest<EagleImportResult>(`${BASE}/eagle/import`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function sendToFigma(payload: {
+  materials: EagleImportMaterial[];
+  tags?: string[];
+  figmaApiBase?: string;
+}) {
+  return safeRequest<FigmaImportResult>(`${BASE}/figma/import`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -648,7 +665,9 @@ export type AchievementEventType =
   | 'resource.saved'
   | 'workflow.saved'
   | 'panorama.generated'
-  | 'parsehub.resolved';
+  | 'parsehub.resolved'
+  | 'dragon_ball.collected'
+  | 'dragon_ball.set_completed';
 
 export interface AchievementEventPayload {
   type: AchievementEventType;
@@ -656,6 +675,7 @@ export interface AchievementEventPayload {
   amountSeconds?: number;
   nodeType?: string;
   kind?: string;
+  mode?: string;
   category?: string;
 }
 
@@ -669,6 +689,71 @@ export interface AchievementSummary {
   unlockedFilmCount: number;
   recentUnlocks: AchievementDefinitionData[];
   recentFilms: AchievementUnlockedFilm[];
+  dailyTasks?: AchievementDailyTask[];
+  weeklyPassport?: AchievementWeeklyPassport;
+  creativeReview?: AchievementCreativeReview;
+  themeShowcases?: Record<string, AchievementThemeShowcase>;
+}
+
+export interface AchievementDailyTask {
+  id: string;
+  theme: string;
+  themeLabel: string;
+  accent: string;
+  achievementId: string;
+  title: string;
+  description: string;
+  progress: number;
+  target: number;
+  ratio: number;
+  targetKind: string;
+  todaySeconds: number;
+}
+
+export interface AchievementWeeklyPassportTheme {
+  theme: string;
+  themeLabel: string;
+  shortLabel: string;
+  accent: string;
+  weeklySeconds: number;
+  actionCount: number;
+  completed: boolean;
+}
+
+export interface AchievementWeeklyPassport {
+  weekStart: string;
+  weekEnd: string;
+  targetThemeCount: number;
+  completedThemeCount: number;
+  ratio: number;
+  themes: AchievementWeeklyPassportTheme[];
+}
+
+export interface AchievementCreativeReview {
+  topTheme?: { theme: string; themeLabel: string; activeSeconds: number } | null;
+  todayTopTheme?: { theme: string; themeLabel: string; todaySeconds: number } | null;
+  weeklyActiveSeconds: number;
+  weeklyThemeCount: number;
+  mostUsedNodeType?: { key: string; value: number } | null;
+  recentCreativeEventCount: number;
+  nodesCreated: number;
+  runsSucceeded: number;
+  resourcesSaved: number;
+  workflowsSaved: number;
+  hiddenModeActivations: number;
+}
+
+export interface AchievementThemeShowcase {
+  theme: string;
+  themeLabel: string;
+  resourcesSaved: number;
+  workflowsSaved: number;
+  panoramasGenerated: number;
+  parseHubResolved: number;
+  topCategory: string;
+  topCategoryCount: number;
+  lastActivityAt: string;
+  hasShowcase: boolean;
 }
 
 export interface AchievementDefinitionData {
@@ -730,6 +815,7 @@ export interface AchievementProfileData {
   summary: AchievementSummary;
   event?: Record<string, any>;
   ignored?: boolean;
+  ignoredReason?: string;
 }
 
 export function getAchievementProfile() {

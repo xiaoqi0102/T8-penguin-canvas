@@ -3,6 +3,7 @@ const DEFAULT_VOLCENGINE_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const DEFAULT_QINIU_BASE_URL = 'https://openai.qiniu.com';
 const DEFAULT_GRSAI_BASE_URL = 'https://grsai.dakka.com.cn';
 const DEFAULT_GEEKNOW_BASE_URL = 'https://api.geeknow.ai';
+const { isAllowedComfyuiUrl } = require('./comfyuiAccess');
 
 const DEFAULT_MODELSCOPE_IMAGE_MODELS = [
   'Tongyi-MAI/Z-Image-Turbo',
@@ -61,6 +62,24 @@ const DEFAULT_VOLCENGINE_VIDEO_MODELS = [
 
 const DEFAULT_VOLCENGINE_CHAT_MODELS = [
   'doubao-seed-1-6-250615',
+];
+
+const DEFAULT_JIMENG_IMAGE_MODELS = [
+  'seedream-4.7',
+  'seedream-4.6',
+  'seedream-4.5',
+  'seedream-5.0',
+  'jimeng-image-2k',
+  'jimeng-image-4k',
+];
+
+const DEFAULT_JIMENG_VIDEO_MODELS = [
+  'seedance2.0fast_vip',
+  'seedance2.0_vip',
+  'seedance2.0fast',
+  'seedance2.0',
+  'jimeng-video-720p',
+  'jimeng-video-1080p',
 ];
 
 const SUPPORTED_PROTOCOLS = new Set([
@@ -128,7 +147,7 @@ const DEFAULT_ADVANCED_PROVIDERS = [
   },
   {
     id: 'comfyui',
-    label: '本地 ComfyUI',
+    label: 'ComfyUI',
     protocol: 'comfyui',
     baseUrl: 'http://127.0.0.1:8188',
     enabled: false,
@@ -147,8 +166,8 @@ const DEFAULT_ADVANCED_PROVIDERS = [
     protocol: 'jimeng-cli',
     baseUrl: '',
     enabled: false,
-    imageModels: ['jimeng-image-2k', 'jimeng-image-4k'],
-    videoModels: ['jimeng-video-720p', 'jimeng-video-1080p', 'seedance2.0fast_vip', 'seedance2.0_vip'],
+    imageModels: DEFAULT_JIMENG_IMAGE_MODELS,
+    videoModels: DEFAULT_JIMENG_VIDEO_MODELS,
     chatModels: [],
     defaults: {},
     jimengConfig: {
@@ -303,17 +322,6 @@ function normalizeUrl(value) {
   return text;
 }
 
-function isLocalUrl(url) {
-  if (!url) return true;
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
-  } catch {
-    return false;
-  }
-}
-
 function normalizeBoolean(value, fallback = false) {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
@@ -392,13 +400,13 @@ function normalizeVolcengineConfig(value, previous = {}) {
   };
 }
 
-function normalizeComfyuiConfig(value) {
+function normalizeComfyuiConfig(value, options = {}) {
   const raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const instances = [];
   const rawInstances = Array.isArray(raw.instances) ? raw.instances : [];
   for (const item of rawInstances) {
     const url = normalizeUrl(item);
-    if (url && isLocalUrl(url) && !instances.includes(url)) instances.push(url);
+    if (url && isAllowedComfyuiUrl(url, options) && !instances.includes(url)) instances.push(url);
   }
   const workflows = Array.isArray(raw.workflows)
     ? raw.workflows
@@ -445,8 +453,9 @@ function normalizeProvider(raw, previous = null) {
   if (!baseUrl && protocol === 'volcengine') baseUrl = DEFAULT_VOLCENGINE_BASE_URL;
   if (protocol === 'jimeng-cli') baseUrl = '';
   if (protocol === 'comfyui') {
+    const allowRemote = normalizeBoolean(raw.allowRemote, false);
     if (!baseUrl) baseUrl = 'http://127.0.0.1:8188';
-    if (!isLocalUrl(baseUrl) && !normalizeBoolean(raw.allowRemote, false)) return null;
+    if (!isAllowedComfyuiUrl(baseUrl, { allowRemote })) return null;
   } else if (baseUrl && !normalizeUrl(baseUrl)) {
     return null;
   }
@@ -479,6 +488,10 @@ function normalizeProvider(raw, previous = null) {
     }
   }
 
+  if (protocol === 'comfyui' && normalizeBoolean(raw.allowRemote, false)) {
+    provider.allowRemote = true;
+  }
+
   if (id === 'modelscope' && protocol === 'modelscope') {
     provider.imageModels = mergeModelLists(DEFAULT_MODELSCOPE_IMAGE_MODELS, provider.imageModels);
     provider.chatModels = mergeModelLists(DEFAULT_MODELSCOPE_CHAT_MODELS, provider.chatModels);
@@ -506,9 +519,13 @@ function normalizeProvider(raw, previous = null) {
     provider.volcengineConfig = normalizeVolcengineConfig(raw.volcengineConfig || raw.volcengine_config, previousConfig.volcengineConfig);
   }
   if (protocol === 'comfyui') {
-    provider.comfyuiConfig = normalizeComfyuiConfig(raw.comfyuiConfig || raw.comfyui_config);
+    provider.comfyuiConfig = normalizeComfyuiConfig(raw.comfyuiConfig || raw.comfyui_config, {
+      allowRemote: !!provider.allowRemote,
+    });
   }
   if (protocol === 'jimeng-cli') {
+    provider.imageModels = mergeModelLists(DEFAULT_JIMENG_IMAGE_MODELS, provider.imageModels);
+    provider.videoModels = mergeModelLists(DEFAULT_JIMENG_VIDEO_MODELS, provider.videoModels);
     provider.jimengConfig = normalizeJimengConfig(raw.jimengConfig || raw.jimeng_config);
   }
 
@@ -597,6 +614,8 @@ module.exports = {
   DEFAULT_VOLCENGINE_IMAGE_MODELS,
   DEFAULT_VOLCENGINE_VIDEO_MODELS,
   DEFAULT_VOLCENGINE_BASE_URL,
+  DEFAULT_JIMENG_IMAGE_MODELS,
+  DEFAULT_JIMENG_VIDEO_MODELS,
   SUPPORTED_PROTOCOLS,
   getEnabledAdvancedProviders,
   maskAdvancedProviders,

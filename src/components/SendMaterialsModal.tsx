@@ -35,6 +35,7 @@ interface SendMaterialsModalProps {
   onSendToCanvas: (targetCanvasId: string, mode: SendTargetMode, switchAfter: boolean) => Promise<void> | void;
   onSaveToResource: (mode: SendTargetMode) => Promise<void> | void;
   onSendToEagle: () => Promise<void> | void;
+  onSendToFigma: () => Promise<void> | void;
 }
 
 const MODE_OPTIONS: Array<{ value: SendTargetMode; label: string; desc: string; icon: typeof PackagePlus }> = [
@@ -132,6 +133,7 @@ export default function SendMaterialsModal({
   onSendToCanvas,
   onSaveToResource,
   onSendToEagle,
+  onSendToFigma,
 }: SendMaterialsModalProps) {
   const { theme, style } = useThemeStore();
   const isDark = theme === 'dark';
@@ -528,6 +530,16 @@ export default function SendMaterialsModal({
             >
               <ExternalLink size={14} className="inline-block mr-1" />
               {busy === 'eagle' ? '发送中...' : '发送到 Eagle'}
+            </button>
+            <button
+              type="button"
+              className={ghostBtn}
+              disabled={!!busy || materials.length === 0}
+              onClick={() => runAction('figma', onSendToFigma)}
+              title={materials.length > 0 ? '发送到本机 Figma bridge，需先启动对应插件/桥接服务' : 'Figma 只接收图像、视频、音频或文本素材'}
+            >
+              <ExternalLink size={14} className="inline-block mr-1" />
+              {busy === 'figma' ? '发送中...' : '发送到 Figma'}
             </button>
           </div>
           <button

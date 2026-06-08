@@ -4,24 +4,15 @@ const {
   mimeFromPath,
   resolveMediaRef,
 } = require('./mediaResolver');
+const { isAllowedComfyuiUrl } = require('./comfyuiAccess');
 
 const DEFAULT_TIMEOUT_MS = 5000;
 const GENERATION_TIMEOUT_MS = 60 * 60 * 1000;
-const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 const SUCCESS_STATUSES = new Set(['SUCCESS', 'SUCCEEDED', 'COMPLETED', 'DONE', 'OK']);
 const FAILURE_STATUSES = new Set(['FAILED', 'FAILURE', 'ERROR', 'CANCELED', 'CANCELLED']);
 
 function cleanBaseUrl(value) {
   return String(value || '').trim().replace(/\/+$/, '') || 'http://127.0.0.1:8188';
-}
-
-function isLocalUrl(value) {
-  try {
-    const parsed = new URL(value);
-    return ['http:', 'https:'].includes(parsed.protocol) && LOCAL_HOSTS.has(parsed.hostname.toLowerCase());
-  } catch {
-    return false;
-  }
 }
 
 async function fetchWithTimeout(url, options = {}) {
@@ -122,13 +113,13 @@ function classifyComfyUiError(raw, fallback = 'ComfyUI 调用失败。') {
   if (/aborterror|timeout|timed out|超时/.test(low)) {
     return {
       code: 'timeout',
-      error: withDetail('ComfyUI 响应超时。请确认本机 ComfyUI 没有卡在加载模型，或稍后在队列空闲时重试。'),
+      error: withDetail('ComfyUI 响应超时。请确认目标 ComfyUI 没有卡在加载模型，或稍后在队列空闲时重试。'),
     };
   }
   if (/econnrefused|failed to fetch|fetch failed|network|connect|connection refused|不在线|无法连接/.test(low)) {
     return {
       code: 'comfyui_offline',
-      error: withDetail('没有连上本机 ComfyUI。请先启动 ComfyUI，并确认地址是 http://127.0.0.1:8188 或 localhost。'),
+      error: withDetail('没有连上 ComfyUI。请确认 ComfyUI 已启动，并且当前后端环境允许访问该地址。'),
     };
   }
   if (/class_type.*(does not exist|missing|not found)|node type.*not found|custom node|no module named|import failed|cannot import|was not found/.test(low)) {
@@ -140,7 +131,7 @@ function classifyComfyUiError(raw, fallback = 'ComfyUI 调用失败。') {
   if (/(ckpt_name|checkpoint|model_name|lora_name|vae_name|clip_name|control_net_name|unet_name).*(not in list|not found|does not exist|missing|no such file)|value not in list|not in list.*(safetensors|ckpt|vae|lora|clip)|model.*(not found|does not exist|missing)/.test(low)) {
     return {
       code: 'missing_model',
-      error: withDetail('ComfyUI 缺少模型或模型名不匹配。请把 Checkpoint / LoRA / VAE / CLIP 等参数改成本机 ComfyUI 已安装的文件名。'),
+      error: withDetail('ComfyUI 缺少模型或模型名不匹配。请把 Checkpoint / LoRA / VAE / CLIP 等参数改成目标 ComfyUI 已安装的文件名。'),
     };
   }
   if (/invalid prompt|prompt outputs failed validation|node_errors|validation/.test(low)) {
@@ -656,13 +647,13 @@ async function pollHistory(baseUrl, promptId, options = {}) {
 
 async function generateImage(provider, input = {}, options = {}) {
   const baseUrl = cleanBaseUrl(provider?.baseUrl || provider?.comfyuiConfig?.instances?.[0]);
-  if (!isLocalUrl(baseUrl)) {
+  if (!isAllowedComfyuiUrl(baseUrl, { allowRemote: !!provider?.allowRemote })) {
     return {
       ok: false,
       code: 'non_local_comfyui',
       providerId: provider.id,
       protocol: 'comfyui',
-      error: 'ComfyUI 默认只允许 localhost/127.0.0.1 地址。',
+      error: 'ComfyUI 默认只允许本机地址；如需接入其他地址，请在后端启用远端 ComfyUI 访问。',
     };
   }
   const promptText = String(input.prompt || '').trim();
@@ -725,13 +716,13 @@ async function generateImage(provider, input = {}, options = {}) {
 
 async function testProvider(provider, options = {}) {
   const baseUrl = cleanBaseUrl(provider?.baseUrl || provider?.comfyuiConfig?.instances?.[0]);
-  if (!isLocalUrl(baseUrl)) {
+  if (!isAllowedComfyuiUrl(baseUrl, { allowRemote: !!provider?.allowRemote })) {
     return {
       ok: false,
       code: 'non_local_comfyui',
       providerId: provider.id,
       protocol: 'comfyui',
-      error: 'ComfyUI 默认只允许 localhost/127.0.0.1 地址。',
+      error: 'ComfyUI 默认只允许本机地址；如需接入其他地址，请在后端启用远端 ComfyUI 访问。',
     };
   }
 
@@ -741,12 +732,15 @@ async function testProvider(provider, options = {}) {
       code: 'dry_run_ok',
       providerId: provider.id,
       protocol: 'comfyui',
-      message: '本地 ComfyUI 地址格式可用，已跳过真实请求。',
+      message: 'ComfyUI 地址格式可用，已跳过真实请求。',
     };
   }
 
   try {
-    const res = await fetchWithTimeout(`${baseUrl}/queue`, { timeoutMs: options.timeoutMs });
+    const res = await fetchWithTimeout(`${baseUrl}/queue`, {
+      timeoutMs: options.timeoutMs,
+      fetchImpl: options.fetchImpl,
+    });
     if (!res.ok) {
       return {
         ok: false,

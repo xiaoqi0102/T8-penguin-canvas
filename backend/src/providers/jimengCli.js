@@ -100,8 +100,19 @@ function imageResolution(model, size) {
   return Math.max(w, h) > 2048 ? '4k' : '2k';
 }
 
+function imageModelVersion(model) {
+  const text = String(model || '').trim().toLowerCase();
+  if (!text) return '';
+  const found = text.match(/(?:seedream[-_\s]?)?v?((?:3\.[01])|(?:4\.[01567])|(?:5\.0))/i);
+  return found ? found[1] : '';
+}
+
 function videoResolution(model, resolution) {
+  const modelVersion = videoModelVersion(model);
   const value = String(resolution || '').trim().toUpperCase();
+  if (modelVersion.startsWith('seedance2.0')) {
+    return modelVersion === 'seedance2.0_vip' && value === '1080P' ? '1080P' : '720P';
+  }
   if (['480P', '720P', '1080P'].includes(value)) return value;
   const text = String(model || '').toLowerCase();
   if (text.includes('1080')) return '1080P';
@@ -660,6 +671,8 @@ async function generateImage(provider, input = {}, options = {}) {
     } else {
       args.push('text2image', `--prompt=${prompt}`, `--ratio=${ratioFromSize(input.size || '1024x1024')}`);
     }
+    const modelVersion = imageModelVersion(model);
+    if (modelVersion) args.push(`--model_version=${modelVersion}`);
     args.push(`--resolution_type=${imageResolution(model, input.size || '1024x1024')}`, `--poll=${pollSeconds(provider)}`);
     const raw = await runCli(provider, args, options, 120);
     const imageUrls = await storeOutputs(raw, 'image', provider, options);

@@ -164,11 +164,20 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
           pushText(sid, item, `text-array:${sid}:${textArrayField}:${index}`, undefined, textMeta);
         });
       } else {
-        // 文本: outputText (用户编辑覆盖) > reply > prompt > text
+        // 文本: outputText (用户编辑覆盖) > reply > promptResolved(@素材已解析) > prompt > text
         pushText(sid, ud.outputText, `text-field:${sid}:outputText`, undefined, textMeta);
         pushText(sid, ud.reply, `text-field:${sid}:reply`, undefined, textMeta);
-        pushText(sid, ud.prompt, `text-field:${sid}:prompt`, undefined, textMeta);
-        pushText(sid, ud.text, `text-field:${sid}:text`, undefined, textMeta);
+        let primaryPromptText = '';
+        if (typeof ud.promptResolved === 'string' && ud.promptResolved.trim()) {
+          primaryPromptText = ud.promptResolved.trim();
+          pushText(sid, ud.promptResolved, `text-field:${sid}:promptResolved`, undefined, textMeta);
+        } else {
+          primaryPromptText = typeof ud.prompt === 'string' ? ud.prompt.trim() : '';
+          pushText(sid, ud.prompt, `text-field:${sid}:prompt`, undefined, textMeta);
+        }
+        if (typeof ud.text === 'string' && ud.text.trim() !== primaryPromptText) {
+          pushText(sid, ud.text, `text-field:${sid}:text`, undefined, textMeta);
+        }
       }
 
       // === v1.2.8.3: FramePair 双端口语义 ===

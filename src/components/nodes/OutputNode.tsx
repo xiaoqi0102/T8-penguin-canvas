@@ -404,6 +404,51 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
   const overrideText: string = typeof d.outputText === 'string' ? d.outputText : '';
   const liveText = collected.texts.join('\n\n──────\n\n');
   const displayText = overrideText !== '' ? overrideText : liveText;
+  const mediaPromptByUrl = useMemo(() => {
+    const map = new Map<string, { prompt: string; negative: string }>();
+    const clean = (value: any) => (typeof value === 'string' ? value.trim() : '');
+    const readPrompt = (ud: any) => clean(ud?.lastPrompt) || clean(ud?.prompt) || clean(ud?.outputText) || clean(ud?.text) || clean(ud?.reply);
+    const readNegative = (ud: any) => clean(ud?.negativePrompt) || clean(ud?.negative) || clean(ud?.providerParams?.negativePrompt) || clean(ud?.providerParams?.negative);
+    const add = (value: any, prompt: string, negative: string) => {
+      const url = clean(value);
+      if (!url || map.has(url)) return;
+      map.set(url, { prompt, negative });
+    };
+    const addArray = (values: any, prompt: string, negative: string) => {
+      if (Array.isArray(values)) values.forEach((url) => add(url, prompt, negative));
+    };
+
+    const list = Array.isArray(upstreamNodes) ? upstreamNodes : [];
+    for (const node of list) {
+      const ud: any = (node as any)?.data || {};
+      const prompt = readPrompt(ud);
+      const negative = readNegative(ud);
+      if (!prompt) continue;
+      add(ud.imageUrl, prompt, negative);
+      addArray(ud.imageUrls, prompt, negative);
+      addArray(ud.urls, prompt, negative);
+      addArray(ud.generatedImages, prompt, negative);
+      add(ud.firstFrameUrl, prompt, negative);
+      add(ud.lastFrameUrl, prompt, negative);
+      add(ud.videoUrl, prompt, negative);
+      addArray(ud.videoUrls, prompt, negative);
+      add(ud.audioUrl, prompt, negative);
+      add(ud.audioUrl_1, prompt, negative);
+      addArray(ud.audioUrls, prompt, negative);
+    }
+
+    const ownPrompt = clean(d.lastPrompt) || clean(d.prompt) || clean(d.directOutputText) || displayText.trim();
+    const ownNegative = readNegative(d);
+    if (ownPrompt) {
+      add(d.directImageUrl, ownPrompt, ownNegative);
+      addArray(d.directImageUrls, ownPrompt, ownNegative);
+      add(d.directVideoUrl, ownPrompt, ownNegative);
+      addArray(d.directVideoUrls, ownPrompt, ownNegative);
+      add(d.directAudioUrl, ownPrompt, ownNegative);
+      addArray(d.directAudioUrls, ownPrompt, ownNegative);
+    }
+    return map;
+  }, [d.directAudioUrl, d.directAudioUrls, d.directImageUrl, d.directImageUrls, d.directOutputText, d.directVideoUrl, d.directVideoUrls, d.lastPrompt, d.negative, d.negativePrompt, d.prompt, d.providerParams, displayText, upstreamNodes, upstreamSig]);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -965,6 +1010,10 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
                       data-drag-preview={u}
                       data-drag-node-id={id}
                       data-resource-title={u.split('/').pop()}
+                      data-prompt-template-kind="image"
+                      data-prompt-template-category="image-reference-edit"
+                      data-prompt-template-prompt={mediaPromptByUrl.get(u)?.prompt || displayText}
+                      data-prompt-template-negative={mediaPromptByUrl.get(u)?.negative || ''}
                       onMouseDown={(e) =>
                         beginMaterialDrag(e, { kind: 'image', url: u, sourceNodeId: id, previewUrl: u })
                       }
@@ -1047,6 +1096,10 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
                   data-drag-preview={u}
                   data-drag-node-id={id}
                   data-resource-title={u.split('/').pop()}
+                  data-prompt-template-kind="video"
+                  data-prompt-template-category="video-image-to-video"
+                  data-prompt-template-prompt={mediaPromptByUrl.get(u)?.prompt || displayText}
+                  data-prompt-template-negative={mediaPromptByUrl.get(u)?.negative || ''}
                   onMouseDown={(e) =>
                     beginMaterialDrag(e, { kind: 'video', url: u, sourceNodeId: id, previewUrl: u })
                   }
@@ -1094,6 +1147,10 @@ const OutputNode = ({ id, data, selected }: NodeProps) => {
                   data-drag-url={u}
                   data-drag-node-id={id}
                   data-resource-title={u.split('/').pop()}
+                  data-prompt-template-kind="video"
+                  data-prompt-template-category="video-music-audio"
+                  data-prompt-template-prompt={mediaPromptByUrl.get(u)?.prompt || displayText}
+                  data-prompt-template-negative={mediaPromptByUrl.get(u)?.negative || ''}
                   onMouseDown={(e) =>
                     beginMaterialDrag(e, { kind: 'audio', url: u, sourceNodeId: id })
                   }

@@ -60,12 +60,15 @@ const imageOpsRouter = require('./routes/imageOps');
 const resourcesRouter = require('./routes/resources');
 const themesRouter = require('./routes/themes');
 const eagleRouter = require('./routes/eagle');
+const figmaRouter = require('./routes/figma');
 const externalProvidersRouter = require('./routes/externalProviders');
 const aiWatermarkRouter = require('./routes/aiWatermark');
 const cloudUploadsRouter = require('./routes/cloudUploads');
 const parseHubRouter = require('./routes/parseHub');
 const achievementsRouter = require('./routes/achievements');
 const topazRouter = require('./routes/topaz');
+const { registerLocalExtensions } = require('./extensions/localExtensions');
+const localHooks = require('./extensions/runtimeHooks');
 
 app.use('/api/canvas', canvasRouter);
 app.use('/api/settings', settingsRouter);
@@ -76,11 +79,13 @@ app.use('/api/image', imageOpsRouter);
 app.use('/api/resources', resourcesRouter);
 app.use('/api/themes', themesRouter);
 app.use('/api/eagle', eagleRouter);
+app.use('/api/figma', figmaRouter);
 app.use('/api/ai-watermark', aiWatermarkRouter);
 app.use('/api/cloud-uploads', cloudUploadsRouter);
 app.use('/api/parsehub', parseHubRouter);
 app.use('/api/achievements', achievementsRouter);
 app.use('/api/topaz', topazRouter);
+registerLocalExtensions(app, { config, express, logger: console, hooks: localHooks });
 
 // ========== 前端静态资源(仅打包模式) ==========
 // 开发模式下不启用,避免与 Vite dev server 打架。

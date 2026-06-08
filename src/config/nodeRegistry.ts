@@ -18,7 +18,7 @@ export const NODE_REGISTRY: NodeMeta[] = [
   // ========== Core 核心节点(6) ==========
   { type: 'text', label: '文本', category: 'core', description: '提示词文本节点', icon: 'Type', color: 'sky' },
   { type: 'image', label: '图像', category: 'core', description: 'GPT Image 2 / Nano Banana Pro / Nano Banana 2 (多 TAB 模型切换)', icon: 'Image', color: 'amber' },
-  { type: 'video', label: '视频', category: 'core', description: 'Veo 3.1 / Grok Video', icon: 'Video', color: 'rose' },
+  { type: 'video', label: '视频', category: 'core', description: 'Veo / Grok Video', icon: 'Video', color: 'rose' },
   { type: 'seedance', label: 'SD2.0', category: 'core', description: 'Seedance 2.0 视频分镜', icon: 'Film', color: 'fuchsia' },
   { type: 'audio', label: '音频', category: 'core', description: 'Suno V5.5 全模式(生成/翻唱/续写)', icon: 'Music', color: 'violet' },
   { type: 'llm', label: 'LLM', category: 'core', description: '多提供商 LLM 推理（直连/Geeknow TAB 切换，支持 GPT/Claude/Gemini/DeepSeek/Qwen）', icon: 'Brain', color: 'emerald' },
@@ -35,7 +35,7 @@ export const NODE_REGISTRY: NodeMeta[] = [
   ...DEV_NODE_REGISTRY,
 
   // ========== ComfyUI 本地工作流节点 ==========
-  { type: 'comfyui-store', label: 'ComfyUI超市', category: 'comfyui', description: '本地 ComfyUI 应用库：导入制作好的工作流应用，接上游素材后一键运行', icon: 'Boxes', color: 'cyan' },
+  { type: 'comfyui-store', label: 'ComfyUI超市', category: 'comfyui', description: 'ComfyUI 应用库：导入制作好的工作流应用，接上游素材后一键运行', icon: 'Boxes', color: 'cyan' },
   { type: 'comfyui-app-maker', label: 'ComfyUI应用制作工具', category: 'comfyui', description: '上传 ComfyUI API Workflow JSON，自动识别参数并保存为可复用应用', icon: 'FileJson', color: 'emerald' },
 
   // ========== Special 特殊节点(5) ==========

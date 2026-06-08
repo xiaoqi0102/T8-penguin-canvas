@@ -32,6 +32,7 @@ import {
 } from '../../utils/textSplit';
 import { useUpdateNodeData } from './useUpdateNodeData';
 import { useUpstreamMaterials } from './useUpstreamMaterials';
+import PromptTextarea from '../PromptTextarea';
 
 const MODE_OPTIONS = Object.entries(TEXT_SPLIT_MODE_LABEL) as Array<[TextSplitMode, string]>;
 const TEXT_SPLIT_PRESET_SCHEMA = 't8-text-split-presets';
@@ -830,13 +831,14 @@ const TextSplitNode = ({ id, data, selected }: NodeProps) => {
             <Type size={13} />
             <span>原始文本</span>
           </div>
-          <textarea
+          <PromptTextarea
+            title="文本分割原始文本"
             className="t8-input nodrag nowheel h-28 w-full resize-none px-2 py-1.5 text-[11px] leading-relaxed"
             value={sourceText}
             placeholder={upstreamText ? '当前优先使用上游文本，也可在这里覆盖/备用...' : '粘贴整套提示词、分镜文本或模板...'}
-            spellCheck={false}
+            promptTemplateKind="image"
             onMouseDown={(e) => e.stopPropagation()}
-            onChange={(e) => resetOverrides({ sourceText: e.target.value })}
+            onValueChange={(value) => resetOverrides({ sourceText: value })}
           />
           {upstreamText && preferUpstream && (
             <div className="rounded-md border border-current/20 px-2 py-1 text-[10px] opacity-75">

@@ -1,6 +1,18 @@
 export type PromptTemplateKind = 'image' | 'video';
 export type PromptTemplateLanguage = 'zh' | 'en';
 export type PromptTemplateSource = 'curated' | 'infinite-canvas' | 'custom';
+export type PromptTemplateAttachmentKind = 'image' | 'video' | 'audio';
+
+export interface PromptTemplateAttachment {
+  id: string;
+  kind: PromptTemplateAttachmentKind;
+  url: string;
+  previewUrl?: string;
+  title?: string;
+  mime?: string;
+  sourceNodeId?: string;
+  createdAt?: string;
+}
 
 export interface PromptTemplateCategory {
   id: string;
@@ -26,6 +38,7 @@ export interface PromptTemplateItem {
   negativeZh?: string;
   negativeEn?: string;
   tags: string[];
+  attachments?: PromptTemplateAttachment[];
   source: PromptTemplateSource;
   builtIn?: boolean;
   createdAt?: string;
