@@ -290,6 +290,16 @@ const emptyShow = (): Record<KeyField, boolean> => ({
   soraApiKey: false, grokApiKey: false, seedanceApiKey: false, sunoApiKey: false,
 });
 
+function formatCloudError(error: string, data?: any) {
+  const parts = [
+    error,
+    data?.hint,
+    data?.providerCode ? `Code: ${data.providerCode}` : '',
+    data?.requestId ? `RequestId: ${data.requestId}` : '',
+  ].filter(Boolean);
+  return parts.join('；');
+}
+
 export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProps) {
   const { theme, style } = useThemeStore();
   const { settings, loading, error, load, save, loaded } = useApiKeysStore();
@@ -804,7 +814,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
           ok: result.success ? result.data.ok : false,
           message: result.success
             ? (result.data.message || '配置可用')
-            : (result.error || '配置检查失败'),
+            : formatCloudError(result.error || '配置检查失败', result.data),
         },
       }));
     } catch (e: any) {
@@ -945,7 +955,7 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
             labelClassName={labelCls}
             hintClassName={hintCls}
             title="2. 腾讯云 COS"
-            note="SecretId / SecretKey 留空或保留 **** 表示不覆盖后端已保存密钥。"
+            note="SecretId / SecretKey 留空或保留 **** 表示不覆盖后端已保存密钥；SecretKey 只在创建密钥时显示一次。"
           >
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               <label className="space-y-1">
@@ -986,6 +996,28 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                   placeholder={target.tencentCos?.hasSecretKey ? '留空保持不变' : '请输入 SecretKey'}
                 />
               </label>
+            </div>
+            <div className={`text-[11px] leading-relaxed ${hintCls}`}>
+              <div className="font-bold">控制台入口</div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                <a
+                  href="https://console.cloud.tencent.com/cam/capi"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 underline"
+                >
+                  腾讯云 API 控制台 <ExternalLink size={11} />
+                </a>
+                <a
+                  href="https://console.cloud.tencent.com/lighthouse/cos/index?rid=5"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 underline"
+                >
+                  腾讯云对象存储 <ExternalLink size={11} />
+                </a>
+              </div>
+              <div>提醒：腾讯云 SecretKey 只会在新建密钥时显示一次，后续列表只能看到 SecretId，找不到就需要新建一组密钥。</div>
             </div>
           </AdvancedProviderFormBlock>
         )}
@@ -1037,6 +1069,28 @@ export default function ApiSettingsModal({ open, onClose }: ApiSettingsModalProp
                   placeholder={target.aliyunOss?.hasAccessKeySecret ? '留空保持不变' : '请输入 AccessKeySecret'}
                 />
               </label>
+            </div>
+            <div className={`text-[11px] leading-relaxed ${hintCls}`}>
+              <div className="font-bold">控制台入口</div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                <a
+                  href="https://ram.console.aliyun.com/manage/ak"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 underline"
+                >
+                  阿里云 AccessKey 控制台 <ExternalLink size={11} />
+                </a>
+                <a
+                  href="https://oss.console.aliyun.com/bucket"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 underline"
+                >
+                  阿里云对象存储 OSS <ExternalLink size={11} />
+                </a>
+              </div>
+              <div>提醒：阿里云 AccessKey Secret 只会在创建时显示一次，后续找不到明文时需要新建或改用已保存的密钥。</div>
             </div>
           </AdvancedProviderFormBlock>
         )}

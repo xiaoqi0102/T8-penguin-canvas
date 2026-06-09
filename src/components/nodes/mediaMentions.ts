@@ -19,6 +19,10 @@ const TOKEN_PREFIX: Record<MediaMentionKind, string> = {
   audio: 'audio',
 };
 
+function tokenMatchesMentionKind(mention: Pick<MediaMention, 'kind' | 'token'>): boolean {
+  return new RegExp(`^@${TOKEN_PREFIX[mention.kind]}\\d+\\b`).test(mention.token);
+}
+
 export function isMentionableMaterial(material: Material): material is Material & { kind: MediaMentionKind } {
   return material.kind === 'image' || material.kind === 'video' || material.kind === 'audio';
 }
@@ -120,7 +124,7 @@ export function resolveMediaMentions(text: string, mentions: MediaMention[], mat
 
   let next = text;
   const validMentions = mentions
-    .filter((mention) => text.slice(mention.start, mention.end) === mention.token)
+    .filter((mention) => tokenMatchesMentionKind(mention) && text.slice(mention.start, mention.end) === mention.token)
     .sort((a, b) => b.start - a.start);
   for (const mention of validMentions) {
     const material = byKey.get(mention.materialKey);

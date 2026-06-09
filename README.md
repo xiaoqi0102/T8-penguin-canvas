@@ -39,6 +39,7 @@ My favorite girl Go YounJung
 - 🧺 **画布级批量导入 + 素材合集打散**：上传节点支持一次选择多张图 / 多个视频 / 多段音频；也可直接把剪贴板或文件拖到画布，同类型多素材自动形成合集，上传和输出合集都可一键打散为多个独立素材节点
 - 👁️ **上传 / 输出图像原图悬停预览**（v1.8.7）：上传素材与输出素材的图像卡片在 hover 时显示小眼睛按钮，鼠标停在按钮上可按 100% 原尺寸预览，超出视口时自动等比收进可见区域，输出素材入口位于图像对比按钮下方
 - 🧾 **提示词模板库媒体套件**（v2.1.2）：图像 / 视频 / 音频 / 文本素材可从节点右键直接保存到提示词模板库，连同原 Prompt、标题、标签和配套媒体一起沉淀；右键保存时可选择或新建模板分类，模板库支持分类新增 / 删除 / 重命名，预览采用懒加载并支持图像 100% 查看
+- 🧭 **Figma / 云上传 / 画布教程可用化**（v2.1.4）：Figma Bridge 随后端自动启动，发送弹窗提示插件导入位置，Figma 插件改为二进制导入本机图片；腾讯云 COS / 阿里云 OSS 配置检查使用真实 signed location 连通测试；顶部新增“画布教程”入口并移除 RunningHub 弹窗里的 RH ApiKey 快捷项
 - 🧲 **放置栏 + 外拖文件夹**（v2.1.2）：发送、粘贴和自动输出的素材节点会进入左下角放置栏映射，折叠显示最近 5 个、展开显示最近 20 个；拖动放置栏卡片会移动原节点到落点而不是复制；生成好的图像 / 视频 / 音频素材也可直接拖到浏览器外的文件夹
 - 🧩 **LLM / 文本 / 画布交互修复**（v2.1.2）：LLM 多轮流式结果可单条删除且不会在下次生成时复活；文本节点支持上游图像 / 视频 / 音频 `@` 提及预览，文本分割输入框接入提示词模板与放大编辑；复杂大画布框选用屏幕拖拽矩形复核，降低漂移误选
 - 🧭 **New API 分组令牌高级模式**（v2.1.1）：公开版新增本地扩展插槽与节点级 `providerParams` 透传，私有分组令牌能力可在 API Key 设置页默认关闭、按需启用；FAL 模型继续固定使用通用贞贞 Key，避免新手被分组配置打扰
@@ -67,6 +68,18 @@ My favorite girl Go YounJung
 - 🎥 **视频运镜组合器**：视频运镜节点支持成片场景、运镜动作、路径、节奏、稳定和主体约束各 50 项，带可响应 50 项动作 / 50 项路径的路线示意、中英文 prompt、收藏复用、JSON 导入/导出和一键运行输出
 - 🌐 **3D 全景节点**：新增 3D 分类与全景预览节点，使用项目依赖按需加载 Three.js，支持全景贴图拖拽旋转、FOV、缩放、比例控制和当前视角导出；图片预览采用 lazy loading 与 async decoding，降低大画布首屏压力
 - 🔗 **聚合解析节点**：工具箱新增聚合解析，基于 ParseHub bridge 支持 17+ 社媒分享短链 / 分享码解析，前端强制合规确认，后端同样校验 `acceptedCompliance`；默认保存到本地输出目录，远端地址解析作为高级模式保留，避免平台临时 CDN 链接直接打开 403
+
+### Figma Bridge 本机联动
+
+`发送到 Figma` 会由 T8 后端自动启动本机 bridge，用户通常不需要再手动打开脚本：
+
+1. 打开 Figma Desktop，在 `插件 / Plugins -> Development -> Import plugin from manifest...` 导入 `tools\figma-bridge\plugin\manifest.json`。不要走 `Widgets / 小组件 -> Import widget from manifest...`；如果看到 `manifest.containsWidget` 报错，说明当前选的是小组件导入入口。
+2. 在 Figma 当前文件里运行插件 `T8 Penguin Canvas Bridge`，保持插件窗口打开。
+3. 回到 T8 画布点击 `发送到 Figma`，素材会先进本机队列，再由 Figma 插件自动导入。
+
+`npm run figma:bridge` 和 `tools\figma-bridge\start-figma-bridge.cmd` 仍保留为排障入口；只有设置了 `T8_FIGMA_BRIDGE_AUTOSTART=0` 禁用自动启动时，才需要手动运行。
+
+图像会以 Figma 图片图层插入，文本会以文本图层插入；视频和音频会以引用卡片形式插入，方便保留素材地址。
 - 🧍 **肖像大师**：工具箱新增捏人 Prompt 设计器，内置 9 大类词库，每个小参数 100 个可选词条，支持不选、锁定、权重、自定义补充、Avatar 分层方向预览、角色库收藏、JSON 导入导出、资源库角色分类、跨画布发送配置 / Prompt、高级随机、风格随机包、种子复现和批量输出文本节点 / 文本素材集
 - 🧍‍♂️ **姿势大师**：支持 100 种常用姿势、多人骨架、MediaPipe 识别、手部控制、A/B 关键帧、姿势库、批量分镜，并可在节点内切换线稿 / OpenPose / COCO 预览与运行输出；OpenPose/COCO keypoints JSON 可单独导出给 ComfyUI / ControlNet 复用
 - 🧪 **Grok Image / Sora2 FAL / Grok Video FAL / 即梦 CLI Seedance**：图像节点新增 Grok Image TAB；视频节点模型类型默认 `Grok Video → Veo → Sora2`，Veo 分类默认 `veo-omni-10s`，Grok Video TAB 默认 `Grok Video 1.5 (FAL)`，图像传入默认 base64，最多 1 张参考图且不发送比例参数；选择即梦 CLI Seedance 时支持 9 张图像、3 个视频、3 段音频参考，旧版 Grok FAL / Sora2 FAL 仍保留兼容入口
@@ -127,15 +140,9 @@ npm run dev
 | RunningHub API Key | RunningHub 个人工作流 | `https://www.runninghub.cn` |
 | RH 钱包应用 APIKEY | RH 企业级共享 APIKEY（钱包应用专用） | `https://www.runninghub.cn` |
 | 扩展平台 API Key / Token | OpenAI 兼容、ModelScope、火山引擎、即梦 CLI 等高级来源 | 在「扩展 API 平台【高级/可选】」里按平台填写 Base URL / Token / AK/SK / CLI 路径 |
-<<<<<<< HEAD
 | 本地 ComfyUI | 本机 ComfyUI 工作流、ComfyUI 超市、ComfyUI 应用制作工具 | 默认 `http://127.0.0.1:8188`，需先启动本机 ComfyUI |
 
-传统 Key、扩展平台密钥和本地 ComfyUI 配置都会保存到 `data/settings.json`；前端 GET 接口仅返回 `****xxxx` 脱敏值或可用状态，明文仅供后端代理本地使用，永不泄露。ComfyUI 默认只允许连接本机 `localhost / 127.0.0.1` 服务。
-=======
-| ComfyUI | ComfyUI 工作流、ComfyUI 超市、ComfyUI 应用制作工具 | 默认 `http://127.0.0.1:8188`，需先启动 ComfyUI |
-
-传统 Key、扩展平台密钥和 ComfyUI 配置都会保存到 `data/settings.json`；前端 GET 接口仅返回 `****xxxx` 脱敏值或可用状态，明文仅供后端代理本地使用，永不泄露。ComfyUI 默认只允许连接本机 `localhost / 127.0.0.1` 服务；如需接入其他可信地址，可以在 API 设置里为该 ComfyUI 配置开启“允许远端地址”高危开关，也可以在后端运行环境中设置 `T8_COMFYUI_ALLOW_REMOTE=1`。随附的 Docker Compose 部署已启用该变量，便于容器后端连接其他主机或容器中的 ComfyUI。
->>>>>>> upstream/main
+传统 Key、扩展平台密钥和本地 ComfyUI 配置都会保存到 `data/settings.json`；前端 GET 接口仅返回 `****xxxx` 脱敏值或可用状态，明文仅供后端代理本地使用，永不泄露。ComfyUI 默认只允许连接本机 `localhost / 127.0.0.1` 服务；如需接入其他可信地址，可以在 API 设置里为该 ComfyUI 配置开启”允许远端地址”高危开关，也可以在后端运行环境中设置 `T8_COMFYUI_ALLOW_REMOTE=1`。随附的 Docker Compose 部署已启用该变量，便于容器后端连接其他主机或容器中的 ComfyUI。
 
 > **不需要全部配置**：只填需要使用的那一类即可，其它节点会在运行时友好提示「未配置 XXX API Key」。
 

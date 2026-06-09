@@ -7,7 +7,7 @@ import { getCornerResizeBehavior } from '../../utils/nodeResizeBehavior';
 import { normalizeRhNodeId } from '../../utils/rhTextBinding';
 import MentionPromptInput from './MentionPromptInput';
 import { resolveMediaMentions, type MediaMention } from './mediaMentions';
-import { useUpstreamMaterials } from './useUpstreamMaterials';
+import { useDownstreamMediaMaterials, useUpstreamMaterials, type Material } from './useUpstreamMaterials';
 import { useThemeStore } from '../../stores/theme';
 
 /**
@@ -21,6 +21,16 @@ import { useThemeStore } from '../../stores/theme';
  *       测量异常 (measured.width=0 → NodeResizeControl 算出 aspectRatio=0 → 只能纵向拉大) 的问题。
  *       同时 root 始终有具体 px → wrapper measured 准确 → handleBounds 准确, 连线稳定。
  */
+function uniqueMentionMaterials(materials: Material[]): Material[] {
+  const seen = new Set<string>();
+  return materials.filter((material) => {
+    const key = `${material.kind}:${material.url}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 const TextNode = ({ id, data, selected }: NodeProps) => {
   const update = useUpdateNodeData(id);
   const updateNodeInternals = useUpdateNodeInternals();
@@ -30,9 +40,16 @@ const TextNode = ({ id, data, selected }: NodeProps) => {
   const text = (d?.prompt as string) || '';
   const promptMentions: MediaMention[] = Array.isArray(d?.promptMentions) ? d.promptMentions : [];
   const upstream = useUpstreamMaterials(id);
+  const downstreamMedia = useDownstreamMediaMaterials(id);
   const mentionMaterials = useMemo(
-    () => [...upstream.images, ...upstream.videos, ...upstream.audios, ...upstream.texts],
-    [upstream.images, upstream.videos, upstream.audios, upstream.texts],
+    () => uniqueMentionMaterials([
+      ...upstream.images,
+      ...upstream.videos,
+      ...upstream.audios,
+      ...downstreamMedia,
+      ...upstream.texts,
+    ]),
+    [upstream.images, upstream.videos, upstream.audios, downstreamMedia, upstream.texts],
   );
   const resolvedPrompt = useMemo(
     () => resolveMediaMentions(text, promptMentions, mentionMaterials),

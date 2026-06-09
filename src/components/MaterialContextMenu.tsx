@@ -53,6 +53,16 @@ function normalizePromptTemplateKind(value: string | null, fallback: PromptTempl
   return value === 'image' || value === 'video' ? value : fallback;
 }
 
+function formatCloudError(error: string, data?: any) {
+  const parts = [
+    error,
+    data?.hint,
+    data?.providerCode ? `Code: ${data.providerCode}` : '',
+    data?.requestId ? `RequestId: ${data.requestId}` : '',
+  ].filter(Boolean);
+  return parts.join('；');
+}
+
 export default function MaterialContextMenu() {
   const { theme, style } = useThemeStore();
   const activeCanvasId = useCanvasStore((s) => s.activeId);
@@ -314,7 +324,7 @@ export default function MaterialContextMenu() {
         setMessage(`已上传到 ${target.label || '云端'}`);
       }
     } else {
-      setMessage(r.error || '云端上传失败');
+      setMessage(formatCloudError(r.error || '云端上传失败', r.data));
     }
   };
 

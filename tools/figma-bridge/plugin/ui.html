@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: Inter, Arial, sans-serif;
+      font-size: 12px;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--figma-color-bg, #fff);
+      color: var(--figma-color-text, #111);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+    .muted {
+      color: var(--figma-color-text-secondary, #666);
+      line-height: 1.5;
+    }
+    .panel {
+      margin-top: 12px;
+      border: 1px solid var(--figma-color-border, #ddd);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--figma-color-bg-secondary, #f7f7f7);
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    button {
+      border: 1px solid var(--figma-color-border, #bbb);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: var(--figma-color-bg-brand, #18a0fb);
+      color: var(--figma-color-text-onbrand, #fff);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.secondary {
+      background: var(--figma-color-bg, #fff);
+      color: var(--figma-color-text, #111);
+    }
+    code {
+      border-radius: 4px;
+      padding: 1px 4px;
+      background: rgba(127, 127, 127, 0.16);
+      word-break: break-all;
+    }
+    #log {
+      max-height: 180px;
+      overflow: auto;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+    .ok { color: #0b8f4d; }
+    .bad { color: #d2372a; }
+  </style>
+</head>
+<body>
+  <h1>T8 Penguin Canvas Bridge</h1>
+    <div class="muted">
+      Keep this plugin open while using <code>Send to Figma</code> in T8.
+    The plugin polls <code>localhost:3845</code> and imports queued materials.
+  </div>
+
+  <div class="panel">
+    <div id="status">Checking bridge...</div>
+    <div class="row">
+      <button id="pull">Import next job</button>
+      <button id="toggle" class="secondary">Pause</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="muted">Log</div>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const BASE = 'http://localhost:3845';
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const pullBtn = document.getElementById('pull');
+    const toggleBtn = document.getElementById('toggle');
+    let paused = false;
+    let busy = false;
+    let bridgeReady = false;
+    let currentJobId = '';
+
+    function log(text, cls) {
+      const line = document.createElement('div');
+      if (cls) line.className = cls;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+      logEl.prepend(line);
+    }
+
+    window.addEventListener('error', (event) => {
+      log(event.message || 'Plugin UI error', 'bad');
+      event.preventDefault();
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event.reason && event.reason.message ? event.reason.message : String(event.reason || 'Plugin UI promise error');
+      log(reason, 'bad');
+      event.preventDefault();
+    });
+
+    async function post(path, body) {
+      const resp = await fetch(`${BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || data.success === false) {
+        throw new Error(data.error || `HTTP ${resp.status}`);
+      }
+      return data;
+    }
+
+    async function refreshStatus() {
+      try {
+        const resp = await fetch(`${BASE}/health`, { cache: 'no-store' });
+        const data = await resp.json();
+        bridgeReady = data && data.service === 't8-figma-bridge' && Number(data.version || 0) >= 2 && data.assetBase === BASE;
+        if (bridgeReady) {
+          statusEl.innerHTML = `<span class="ok">Bridge online</span> · queued ${data.queued || 0} · claimed ${data.claimed || 0}`;
+        } else {
+          statusEl.innerHTML = `<span class="bad">Old bridge detected</span> · close the old bridge window and restart <code>start-figma-bridge.cmd</code>`;
+        }
+      } catch (e) {
+        bridgeReady = false;
+        statusEl.innerHTML = `<span class="bad">Bridge offline</span> · go back to T8 and click <code>Send to Figma</code> once to auto-start it`;
+      }
+    }
+
+    async function claimNext() {
+      if (paused || busy) return;
+      busy = true;
+      try {
+        await refreshStatus();
+        if (!bridgeReady) return;
+        const data = await post('/claim', {});
+        const job = data.data;
+        if (!job) return;
+        currentJobId = job.id;
+        log(`Received job ${job.id} (${(job.materials || []).length} item(s))`);
+        parent.postMessage({ pluginMessage: { type: 'import-job', job } }, '*');
+      } catch (e) {
+        log(e.message || String(e), 'bad');
+      } finally {
+        busy = false;
+      }
+    }
+
+    window.onmessage = async (event) => {
+      const message = event.data && event.data.pluginMessage;
+      if (!message || message.type !== 'import-complete') return;
+      try {
+        await post('/complete', {
+          jobId: message.jobId || currentJobId,
+          ok: message.ok !== false,
+          message: message.message || '',
+        });
+        log(message.ok === false ? `Job ${message.jobId} failed` : `Imported job ${message.jobId}`, message.ok === false ? 'bad' : 'ok');
+      } catch (e) {
+        log(e.message || String(e), 'bad');
+      }
+      currentJobId = '';
+      refreshStatus();
+    };
+
+    pullBtn.onclick = claimNext;
+    toggleBtn.onclick = () => {
+      paused = !paused;
+      toggleBtn.textContent = paused ? 'Resume' : 'Pause';
+      log(paused ? 'Paused polling' : 'Resumed polling');
+    };
+
+    refreshStatus();
+    setInterval(refreshStatus, 3000);
+    setInterval(claimNext, 1800);
+  </script>
+</body>
+</html>

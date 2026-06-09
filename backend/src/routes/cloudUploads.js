@@ -9,8 +9,8 @@ const {
 } = require('../cloudUploads/settings');
 const {
   classifyCloudUploadError,
+  testCloudTargetConnectivity,
   uploadCloudAsset,
-  validateTargetConfig,
 } = require('../cloudUploads/uploader');
 
 const router = express.Router();
@@ -48,16 +48,17 @@ router.get('/status', (_req, res) => {
   });
 });
 
-router.post('/test', (req, res) => {
+router.post('/test', async (req, res) => {
+  let target = null;
   try {
     const currentTargets = loadNormalizedTargets();
-    const target = req.body?.target
+    target = req.body?.target
       ? normalizeTransientTarget(req.body.target, currentTargets)
       : findTarget(currentTargets, req.body?.targetId);
     if (!target) {
       return res.status(404).json({ success: false, error: '云端目标不存在' });
     }
-    const result = validateTargetConfig(target);
+    const result = await testCloudTargetConnectivity(target);
     res.json({
       success: true,
       data: {
@@ -67,10 +68,11 @@ router.post('/test', (req, res) => {
       },
     });
   } catch (e) {
+    const classified = classifyCloudUploadError(target, e);
     res.status(400).json({
       success: false,
-      error: e?.message || String(e),
-      data: { ok: false },
+      error: classified.message,
+      data: { ok: false, ...classified },
     });
   }
 });

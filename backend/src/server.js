@@ -3,6 +3,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const { startFigmaBridgeOnAppStart } = require('./utils/figmaBridge');
 
 const app = express();
 
@@ -110,6 +111,8 @@ app.listen(PORT, HOST, () => {
   console.log(`   环境: ${config.NODE_ENV}`);
   console.log(`   数据目录: ${config.DATA_DIR}`);
   console.log(`   输出目录: ${config.OUTPUT_DIR}`);
+  console.log('   Figma Bridge: 自动启动中（如需禁用可设置 T8_FIGMA_BRIDGE_AUTOSTART=0）');
   console.log('   按 Ctrl+C 停止服务器...');
   console.log('--------------------------------------------------');
+  startFigmaBridgeOnAppStart(console);
 });
