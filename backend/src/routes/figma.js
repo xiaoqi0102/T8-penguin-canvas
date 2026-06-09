@@ -4,10 +4,12 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const { ensureFigmaBridgeRunning } = require('../utils/figmaBridge');
 
 const router = express.Router();
 
-const DEFAULT_FIGMA_BRIDGE_BASE = 'http://127.0.0.1:3845';
+const DEFAULT_FIGMA_BRIDGE_BASE = 'http://localhost:3845';
+const FIGMA_BRIDGE_TIMEOUT_MS = 8000;
 
 function safeText(value, fallback = '', limit = 1000) {
   return String(value || fallback).trim().slice(0, limit);
@@ -63,7 +65,7 @@ function resolveFigmaBase(rawValue) {
   const raw = safeText(rawValue || process.env.FIGMA_BRIDGE_BASE || DEFAULT_FIGMA_BRIDGE_BASE, DEFAULT_FIGMA_BRIDGE_BASE);
   const u = new URL(raw);
   const host = u.hostname.toLowerCase();
-  if (u.protocol !== 'http:') throw new Error('Figma 桥接接口只允许 http://127.0.0.1');
+  if (u.protocol !== 'http:') throw new Error('Figma 桥接接口只允许 http://localhost / 127.0.0.1');
   if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
     throw new Error('Figma 桥接接口只允许本机地址');
   }
@@ -103,23 +105,35 @@ function materialToBridgeItem(item) {
 }
 
 async function postFigma(base, endpoint, body) {
-  const resp = await fetch(`${base}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const text = await resp.text();
-  let json = null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FIGMA_BRIDGE_TIMEOUT_MS);
   try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
+    const resp = await fetch(`${base}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const text = await resp.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+    if (!resp.ok) throw new Error(json?.message || json?.error || `Figma bridge HTTP ${resp.status}`);
+    if (json && (json.success === false || json.status === 'error')) {
+      throw new Error(json.message || json.error || 'Figma 导入失败');
+    }
+    return json || { success: true };
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      throw new Error(`Figma bridge ${endpoint} 超时，请确认插件已启动并监听 ${base}`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  if (!resp.ok) throw new Error(json?.message || json?.error || `Figma bridge HTTP ${resp.status}`);
-  if (json && (json.success === false || json.status === 'error')) {
-    throw new Error(json.message || json.error || 'Figma 导入失败');
-  }
-  return json || { success: true };
 }
 
 router.post('/import', express.json({ limit: '8mb' }), async (req, res) => {
@@ -128,6 +142,10 @@ router.post('/import', express.json({ limit: '8mb' }), async (req, res) => {
     const materials = normalizeMaterials(req.body?.materials);
     if (materials.length === 0) {
       return res.status(400).json({ success: false, error: '没有可发送到 Figma 的素材' });
+    }
+    const bridgeReady = await ensureFigmaBridgeRunning({ base, logger: console });
+    if (!bridgeReady.ok) {
+      throw new Error(bridgeReady.message || 'Figma bridge 自动启动失败');
     }
     const payload = {
       app: 't8-penguin-canvas',
@@ -153,7 +171,7 @@ router.post('/import', express.json({ limit: '8mb' }), async (req, res) => {
   } catch (e) {
     res.status(500).json({
       success: false,
-      error: `${e?.message || String(e)}。请确认本机 Figma bridge / 插件已启动。`,
+      error: `${e?.message || String(e)}。画布会自动启动本机 Figma bridge；请确认 Figma 插件窗口已打开。`,
     });
   }
 });

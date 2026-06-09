@@ -503,7 +503,7 @@ export const DEFAULT_SUNO_VERSION = 'v5.5';
 
 // ========== LLM/Vision ==========
 // 完全对齐 gpt-image-2-web Chat Tab(index.html L1600 chat_model select)
-// 默认: gemini-3.1-flash-lite-preview
+// 默认: gemini-3.5-flash
 // 特殊模型: gpt-image-2-all — 图文双向(非流式,可返回 image_url)
 export interface LlmModelDef {
   id: string;
@@ -528,7 +528,7 @@ export const LLM_MODELS: LlmModelDef[] = [
   { id: 'gpt-image-2-all', label: 'GPT Image 2 All (图文)', provider: 'llm-direct', vision: true, imageOutput: true, nonStreaming: true, description: '可自动调用图像生成' },
 ];
 
-export const DEFAULT_LLM_MODEL = 'gemini-3.1-flash-lite-preview';
+export const DEFAULT_LLM_MODEL = 'gemini-3.5-flash';
 
 /** 是否为出图模型(需走非流式 + 检测 generate_image 指令) */
 export function isImageOutputLlm(modelId: string): boolean {

@@ -486,7 +486,7 @@ const INITIAL_DATA: Record<string, Record<string, any>> = {
   'penguin-portrait': { preset: 'penguin-portrait' },
   audio: { mode: 'generate', version: 'v5.5', title: '', tags: '', seed: 0, continueAt: 28 },
   llm: {
-    model: 'gemini-3.1-flash-lite-preview',
+    model: 'gemini-3.5-flash',
     system: '',
     prompt: '',
     temperature: 0.7,
@@ -1170,7 +1170,7 @@ function hasFileTransfer(dataTransfer: DataTransfer | null | undefined): boolean
   return Array.from(dataTransfer?.types || []).includes('Files');
 }
 
-type PlacementShelfSource = '粘贴' | '发送' | '生成';
+type PlacementShelfSource = '粘贴' | '发送' | '生成' | '画布';
 
 interface PlacementShelfItem {
   id: string;
@@ -1237,6 +1237,15 @@ function placementShelfItemFromNode(node: Node, source: PlacementShelfSource): P
     };
   }
   return null;
+}
+
+function placementShelfItemsFromCanvasNodes(nodes: Node[], source: PlacementShelfSource): PlacementShelfItem[] {
+  return nodes
+    .slice()
+    .reverse()
+    .map((node) => placementShelfItemFromNode(node, source))
+    .filter((item): item is PlacementShelfItem => !!item)
+    .slice(0, 60);
 }
 
 function findUploadNodeIdFromTarget(target: EventTarget | Element | null | undefined): string {
@@ -1369,9 +1378,8 @@ function PlacementShelf({
     };
   }, [drag, onMoveNode]);
 
-  if (items.length === 0) return null;
-
   const visible = items.slice(0, open ? 20 : 5);
+  const displayLimit = Math.min(items.length, open ? 20 : 5);
   const shellStyle: CSSProperties = isPixel
     ? {
         border: '2px solid var(--px-ink, #1A1410)',
@@ -1403,7 +1411,7 @@ function PlacementShelf({
     <>
       <div
         data-canvas-floating-ui="placement-shelf"
-        className="fixed bottom-4 left-4 z-40 max-w-[calc(100vw-2rem)] p-2"
+        className="t8-placement-shelf p-2"
         style={shellStyle}
       >
         <div className="mb-2 flex items-center justify-between gap-2">
@@ -1414,7 +1422,7 @@ function PlacementShelf({
             title={open ? '收起放置栏，只显示最近 5 个' : '展开放置栏，显示最近 20 个'}
           >
             <LucideIcons.Inbox size={13} className="mr-1 inline-block" />
-            放置栏 {visible.length}/{Math.min(items.length, open ? 20 : 5)}
+            放置栏 {visible.length}/{displayLimit}
           </button>
           <button
             type="button"
@@ -1425,7 +1433,12 @@ function PlacementShelf({
             {open ? <LucideIcons.ChevronDown size={14} /> : <LucideIcons.ChevronUp size={14} />}
           </button>
         </div>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="t8-placement-shelf__grid grid grid-cols-5 gap-2">
+          {visible.length === 0 && (
+            <div className="t8-placement-shelf__empty col-span-5 px-2 py-1 text-[10px] opacity-70">
+              暂无素材
+            </div>
+          )}
           {visible.map((item) => {
             const Icon = item.kind === 'image' ? LucideIcons.Image : item.kind === 'video' ? LucideIcons.Video : LucideIcons.Music;
             return (
@@ -1826,6 +1839,8 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
       nextNodeSerialIdRef.current = 1;
       setNodes([]);
       setEdges([]);
+      setPlacementShelfItems([]);
+      setPlacementShelfOpen(false);
       setLoaded(false);
       setLoadedCanvasId(null);
       histReset();
@@ -1859,6 +1874,8 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
         const baselineNextNodeSerialId = normalized.changed
           ? savedNextNodeSerialId || 1
           : normalized.nextNodeSerialId;
+        setPlacementShelfItems(placementShelfItemsFromCanvasNodes(fixedNs, '画布'));
+        setPlacementShelfOpen(false);
         lastSavedByCanvasRef.current.set(requestedCanvasId, JSON.stringify({
           nodes: baselineNodes,
           edges: es,
@@ -1876,6 +1893,8 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
         nextNodeSerialIdRef.current = 1;
         setNodes([]);
         setEdges([]);
+        setPlacementShelfItems([]);
+        setPlacementShelfOpen(false);
         histReset();
         setLoadedCanvasId(requestedCanvasId);
         setLoaded(true);
@@ -2702,7 +2721,7 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
   }, [sendModal]);
 
   const handleSendMaterialsToFigma = useCallback(async () => {
-    if (!sendModal || sendModal.materials.length === 0) return;
+    if (!sendModal || sendModal.materials.length === 0) throw new Error('没有可发送到 Figma 的素材');
     const result = await api.sendToFigma({
       materials: sendModal.materials.map((item) => ({
         id: item.id,
@@ -2714,10 +2733,19 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
       tags: ['T8', '贞贞画布'],
     });
     if (!result.success) {
-      logBus.warn(result.error || '发送到 Figma 失败，请确认本机 Figma bridge / 插件已启动', 'Figma');
-      return;
+      const message = result.error || '发送到 Figma 失败：画布会自动启动本机 bridge，请确认 Figma 插件窗口已打开';
+      logBus.warn(message, 'Figma');
+      throw new Error(message);
     }
-    logBus.success(`已发送 ${result.data.sent || sendModal.materials.length} 项到 Figma`, 'Figma');
+    const bridgeResult = (result.data as any)?.result;
+    const bridgeData = bridgeResult?.data || bridgeResult || {};
+    const bridgeJobId = bridgeData.jobId || bridgeResult?.jobId || '';
+    const bridgeQueued = !!(bridgeData.queued || bridgeResult?.queued);
+    const message = bridgeQueued
+      ? `已发送 ${result.data.sent || sendModal.materials.length} 项到 Figma Bridge 队列，保持 Figma 插件窗口打开会自动导入${bridgeJobId ? `（任务 ${bridgeJobId}）` : ''}`
+      : `已发送 ${result.data.sent || sendModal.materials.length} 项到 Figma`;
+    logBus.success(message, 'Figma');
+    return message;
   }, [sendModal]);
 
   const handleCanvasPointerMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -5496,32 +5524,43 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
           </ViewportPortal>
         )}
         <div className="t8-control-rail nodrag nopan" data-canvas-floating-ui="control-rail">
-          <button
-            type="button"
-            className={`t8-control-rail-help t8-mini-icon-button${modelHelpOpen ? ' is-active' : ''}`}
-            data-canvas-floating-ui="model-help-toggle"
-            aria-label="模型注意事项"
-            title="模型注意事项"
-            aria-expanded={modelHelpOpen}
-            onClick={(event) => {
-              event.stopPropagation();
-              setModelHelpOpen((value) => !value);
-            }}
-          >
-            <LucideIcons.CircleHelp size={16} />
-          </button>
-          <ThemeMusicToggle template={currentTemplate} />
-          <Controls
-            style={{
-              background: isOp
-                ? themeTokens.panelBg
-                : isDark ? 'rgba(20,20,22,.9)' : 'rgba(255,255,255,.9)',
-              border: isOp
-                ? `3px solid ${themeTokens.textMain}`
-                : `1px solid ${isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.08)'}`,
-              borderRadius: isOp ? '16px 16px 8px 8px' : 8,
-              boxShadow: isOp ? `4px 4px 0 ${themeTokens.textMain}` : undefined,
-            }}
+          <div className="t8-control-stack">
+            <button
+              type="button"
+              className={`t8-control-rail-help t8-mini-icon-button${modelHelpOpen ? ' is-active' : ''}`}
+              data-canvas-floating-ui="model-help-toggle"
+              aria-label="模型注意事项"
+              title="模型注意事项"
+              aria-expanded={modelHelpOpen}
+              onClick={(event) => {
+                event.stopPropagation();
+                setModelHelpOpen((value) => !value);
+              }}
+            >
+              <LucideIcons.CircleHelp size={16} />
+            </button>
+            <ThemeMusicToggle template={currentTemplate} />
+            <Controls
+              style={{
+                background: isOp
+                  ? themeTokens.panelBg
+                  : isDark ? 'rgba(20,20,22,.9)' : 'rgba(255,255,255,.9)',
+                border: isOp
+                  ? `3px solid ${themeTokens.textMain}`
+                  : `1px solid ${isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.08)'}`,
+                borderRadius: isOp ? '16px 16px 8px 8px' : 8,
+                boxShadow: isOp ? `4px 4px 0 ${themeTokens.textMain}` : undefined,
+              }}
+            />
+          </div>
+          <PlacementShelf
+            items={placementShelfItems}
+            open={placementShelfOpen}
+            isDark={isDark}
+            isPixel={isPixel}
+            onToggle={() => setPlacementShelfOpen((prev) => !prev)}
+            onMoveNode={movePlacementShelfNode}
+            onRemove={(id) => setPlacementShelfItems((prev) => prev.filter((item) => item.id !== id))}
           />
         </div>
         {modelHelpOpen && (
@@ -5745,16 +5784,6 @@ function CanvasInner({ onAddNodeRef, onInsertWorkflowRef }: CanvasInnerProps) {
           </div>
         </>
       )}
-
-      <PlacementShelf
-        items={placementShelfItems}
-        open={placementShelfOpen}
-        isDark={isDark}
-        isPixel={isPixel}
-        onToggle={() => setPlacementShelfOpen((prev) => !prev)}
-        onMoveNode={movePlacementShelfNode}
-        onRemove={(id) => setPlacementShelfItems((prev) => prev.filter((item) => item.id !== id))}
-      />
 
       <SendMaterialsModal
         open={!!sendModal}

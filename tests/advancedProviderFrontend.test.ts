@@ -320,6 +320,12 @@ test('local private zhenzhen group extension is opt-in and keeps FAL out when pr
   assert.match(frontend, /isFalChannel/);
   assert.match(frontend, /if \(!status\?\.enabled\) return null/);
   assert.match(frontend, /\/api\/local\/zhenzhen-groups\/enabled/);
+  assert.match(frontend, /const GROUP_STATUS_EVENT = 't8:zhenzhen-groups-status-changed'/);
+  assert.match(frontend, /function notifyGroupStatusChanged/);
+  assert.match(frontend, /notifyGroupStatusChanged\(nextStatus\)/);
+  assert.match(frontend, /window\.addEventListener\(GROUP_STATUS_EVENT, handleStatusChanged\)/);
+  assert.match(frontend, /const \[statusRevision, setStatusRevision\] = useState\(0\)/);
+  assert.match(frontend, /fetchGroupStatus\(model, statusRevision > 0\)/);
   assert.match(frontend, /JSON\.stringify\(\{ userId, accessToken, enabled: true, bootstrap: true \}\)/);
   assert.match(frontend, /正在后台建立分组令牌/);
   assert.match(frontend, /status\?\.bootstrapJob\?\.status !== 'running'/);

@@ -164,6 +164,12 @@ export interface CloudUploadTestResult {
   supported?: boolean;
   message?: string;
   error?: string;
+  code?: string;
+  hint?: string;
+  statusCode?: number;
+  providerCode?: string;
+  providerMessage?: string;
+  requestId?: string;
   target?: CloudUploadTargetConfig;
 }
 
@@ -301,7 +307,7 @@ export interface AddRHToolPayload {
 }
 
 export type OkData<T> = { success: true; data: T };
-export type ErrData = { success: false; error: string };
+export type ErrData = { success: false; error: string; data?: any };
 export type Result<T> = OkData<T> | ErrData;
 
 async function safeRequest<T>(url: string, init?: RequestInit): Promise<Result<T>> {
@@ -311,7 +317,7 @@ async function safeRequest<T>(url: string, init?: RequestInit): Promise<Result<T
       ...init,
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) return { success: false, error: json.error || `HTTP ${res.status}` };
+    if (!res.ok) return { success: false, error: json.error || `HTTP ${res.status}`, data: json.data };
     if (json && typeof json === 'object' && 'success' in json) return json as Result<T>;
     return { success: true, data: json as T };
   } catch (e: any) {

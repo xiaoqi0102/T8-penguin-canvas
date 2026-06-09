@@ -96,6 +96,15 @@ test('ApiSettings classified API keys expose explicit clear actions', () => {
   assert.match(apiSettingsSource, /aria-label=\{`\$\{spec\.label\}\$\{pendingClear \? '取消清空' : '清空'\}`\}/);
 });
 
+test('ApiSettings cloud upload panels link to vendor consoles and secret key reminders', () => {
+  assert.match(apiSettingsSource, /https:\/\/console\.cloud\.tencent\.com\/cam\/capi/);
+  assert.match(apiSettingsSource, /https:\/\/console\.cloud\.tencent\.com\/lighthouse\/cos\/index\?rid=5/);
+  assert.match(apiSettingsSource, /腾讯云 SecretKey 只会在新建密钥时显示一次/);
+  assert.match(apiSettingsSource, /https:\/\/ram\.console\.aliyun\.com\/manage\/ak/);
+  assert.match(apiSettingsSource, /https:\/\/oss\.console\.aliyun\.com\/bucket/);
+  assert.match(apiSettingsSource, /阿里云 AccessKey Secret 只会在创建时显示一次/);
+});
+
 test('Dragon Ball theme defaults to bundled mp3 music and packaging validates the asset', () => {
   const postBuild = readFileSync(new URL('../electron/_post_build.cjs', import.meta.url), 'utf8');
   const musicAsset = new URL('../src/assets/theme-music/dragonball-makafushigi-adventure.mp3', import.meta.url);

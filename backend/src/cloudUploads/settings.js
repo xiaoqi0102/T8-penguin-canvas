@@ -113,7 +113,7 @@ function normalizeBoolean(value, fallback = false) {
 }
 
 function isMaskedSecret(value) {
-  return typeof value === 'string' && /^\*{2,}/.test(value.trim());
+  return typeof value === 'string' && /^[*•●·﹡＊]{2,}/.test(value.trim());
 }
 
 function cleanSecret(value, previous = '') {
@@ -140,7 +140,11 @@ function cleanRegion(value, fallback = '') {
 
 function cleanEndpoint(value) {
   const text = String(value || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  return text.replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 180);
+  const cleaned = text.replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 180);
+  if (!cleaned) return '';
+  if (/^oss-[a-z0-9-]+$/i.test(cleaned)) return `${cleaned}.aliyuncs.com`;
+  if (/^(cn|ap|us|eu|me)-[a-z0-9-]+$/i.test(cleaned)) return `oss-${cleaned}.aliyuncs.com`;
+  return cleaned;
 }
 
 function cleanPrefix(value, fallback = '') {

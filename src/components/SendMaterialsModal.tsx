@@ -35,7 +35,7 @@ interface SendMaterialsModalProps {
   onSendToCanvas: (targetCanvasId: string, mode: SendTargetMode, switchAfter: boolean) => Promise<void> | void;
   onSaveToResource: (mode: SendTargetMode) => Promise<void> | void;
   onSendToEagle: () => Promise<void> | void;
-  onSendToFigma: () => Promise<void> | void;
+  onSendToFigma: () => Promise<string | void> | string | void;
 }
 
 const MODE_OPTIONS: Array<{ value: SendTargetMode; label: string; desc: string; icon: typeof PackagePlus }> = [
@@ -59,6 +59,8 @@ function chunkModeLabel(label: string) {
 
 const SEND_HISTORY_KEY = 't8.sendMaterials.history.v1';
 const MAX_SEND_HISTORY = 12;
+const FIGMA_PLUGIN_IMPORT_HINT =
+  '首次发送到 Figma：打开 Figma 桌面软件，菜单 Plugins / 插件 -> Development -> Import plugin from manifest...，选择 tools\\figma-bridge\\plugin\\manifest.json；打包版位置是应用目录 resources\\tools\\figma-bridge\\plugin\\manifest.json。导入后运行 T8 Penguin Canvas Bridge 并保持插件窗口打开。';
 
 interface SendHistoryEntry {
   id: string;
@@ -143,6 +145,7 @@ export default function SendMaterialsModal({
   const [q, setQ] = useState('');
   const [switchAfter, setSwitchAfter] = useState(false);
   const [busy, setBusy] = useState('');
+  const [actionNotice, setActionNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const [sendHistory, setSendHistory] = useState<SendHistoryEntry[]>([]);
   const busyRef = useRef(false);
 
@@ -154,6 +157,7 @@ export default function SendMaterialsModal({
     setQ('');
     setSwitchAfter(false);
     setBusy('');
+    setActionNotice(null);
     busyRef.current = false;
   }, [open, defaultMode, activeCanvasId, canvases]);
 
@@ -245,12 +249,24 @@ export default function SendMaterialsModal({
         ? materials.length > 0 || hasNodeFragment
         : materials.length > 0);
 
-  const runAction = async (label: string, action: () => Promise<void> | void) => {
+  const runAction = async (label: string, action: () => Promise<string | void> | string | void) => {
     if (busyRef.current) return;
     try {
       busyRef.current = true;
       setBusy(label);
-      await action();
+      setActionNotice(null);
+      const message = await action();
+      const defaultMessage =
+        label === 'figma'
+          ? '已发送到 Figma'
+          : label === 'eagle'
+            ? '已发送到 Eagle'
+            : label === 'resource'
+              ? '已保存到资源库'
+              : '发送完成';
+      setActionNotice({ kind: 'success', text: message || defaultMessage });
+    } catch (e: any) {
+      setActionNotice({ kind: 'error', text: e?.message || '操作失败' });
     } finally {
       busyRef.current = false;
       setBusy('');
@@ -504,6 +520,36 @@ export default function SendMaterialsModal({
           <div className="basis-full text-xs opacity-70">
             当前选择：{selectedMode.label} → {selectedCanvas?.name || '未选择画布'}{switchAfter ? '，发送后会自动切换并定位到新内容' : ''}
           </div>
+          {actionNotice && (
+            <div
+              className={`basis-full flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs ${
+                actionNotice.kind === 'success'
+                  ? isPixel
+                    ? 'border-2 border-[var(--px-ink)] bg-[var(--px-mint)] text-[var(--px-ink)]'
+                    : 'border border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+                  : isPixel
+                    ? 'border-2 border-[var(--px-ink)] bg-[var(--px-yellow)] text-[var(--px-ink)]'
+                    : 'border border-amber-400/35 bg-amber-500/10 text-amber-200'
+              }`}
+            >
+              {actionNotice.kind === 'success' ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" /> : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
+              <span className="break-all">{actionNotice.text}</span>
+            </div>
+          )}
+          {materials.length > 0 && (
+            <div
+              className={`basis-full flex items-start gap-1.5 rounded-md px-2 py-1.5 text-xs ${
+                isPixel
+                  ? 'border-2 border-[var(--px-ink)] bg-[var(--px-yellow)] text-[var(--px-ink)]'
+                  : isDark
+                    ? 'border border-sky-400/30 bg-sky-500/10 text-sky-100'
+                    : 'border border-sky-300 bg-sky-50 text-sky-900'
+              }`}
+            >
+              <ExternalLink size={14} className="mt-0.5 shrink-0" />
+              <span>{FIGMA_PLUGIN_IMPORT_HINT}</span>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -536,7 +582,7 @@ export default function SendMaterialsModal({
               className={ghostBtn}
               disabled={!!busy || materials.length === 0}
               onClick={() => runAction('figma', onSendToFigma)}
-              title={materials.length > 0 ? '发送到本机 Figma bridge，需先启动对应插件/桥接服务' : 'Figma 只接收图像、视频、音频或文本素材'}
+              title={materials.length > 0 ? `发送到本机 Figma Bridge 队列：画布会自动启动本机桥接。${FIGMA_PLUGIN_IMPORT_HINT}` : 'Figma 只接收图像、视频、音频或文本素材'}
             >
               <ExternalLink size={14} className="inline-block mr-1" />
               {busy === 'figma' ? '发送中...' : '发送到 Figma'}

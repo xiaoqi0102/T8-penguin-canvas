@@ -1,0 +1,20 @@
+{
+  "name": "T8 Penguin Canvas Bridge",
+  "id": "1480835294760027136",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": [
+    "figma"
+  ],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": [
+      "http://localhost:3845"
+    ],
+    "devAllowedDomains": [
+      "http://localhost:3845"
+    ],
+    "reasoning": "The plugin reads materials from the user's local T8 Penguin Canvas bridge and imports them into the current Figma file."
+  }
+}

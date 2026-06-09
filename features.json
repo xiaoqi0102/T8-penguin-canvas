@@ -1,16 +1,222 @@
 {
   "$schema": "本文件为 T8-penguin-canvas 节点清单防丢失锁,任何节点删减都需要在 roadmap.md 中说明并更新本文件。",
   "version": "2.3.0",
-  "lastUpdated": "2026-06-08-merge-upstream-v2.1.3-fork-v2.3.0",
+  "lastUpdated": "2026-06-09-merge-upstream-v2.1.4-fork-v2.3.0",
   "sourceReleaseV230": {
     "version": "2.3.0",
     "status": "fork-merge",
-    "date": "2026-06-08",
-    "description": "v2.3.0 合并 upstream v2.0.7→v2.1.3（七个版本）：龙珠 Shenron 隐藏模式 + 3D 动作导演（Panorama3DNode +5830 行）+ 媒体提示词模板库 + Remote ComfyUI 高危开关 + Docker 部署 + New API group-token 钩子 + Nano Banana 2 映射修复 + LLM 流式删除 + Figma 发送 + 左下角放置栏 + 即梦 CLI seedream-4.7 + Seedance 2.0 完整变体。保留 fork 的 Geeknow/Grsai/Qiniu 中转站 + T8ENC1 加密 + AI 去水印 sidecar + NSIS 覆盖安装修复。",
+    "date": "2026-06-09",
+    "description": "v2.3.0 合并 upstream v2.0.7→v2.1.4（八个版本）：龙珠 Shenron 隐藏模式 + 3D 动作导演（Panorama3DNode +5830 行）+ 媒体提示词模板库 + Remote ComfyUI 高危开关 + Docker 部署 + New API group-token 钩子 + Nano Banana 2 映射修复 + LLM 流式删除 + Figma 发送 + 左下角放置栏 + 即梦 CLI seedream-4.7 + Seedance 2.0 完整变体 + Figma Bridge 自动启动 + COS/OSS 连通性签名增强 + 画布教程顶栏入口 + Prompt/@ 媒体引用修复。保留 fork 的 Geeknow/Grsai/Qiniu 中转站 + T8ENC1 加密 + AI 去水印 sidecar + NSIS 覆盖安装修复。",
     "highlights": [
-      "全量接受 upstream v2.0.7~v2.1.3 共 7 版本所有新功能",
+      "全量接受 upstream v2.0.7~v2.1.4 共 8 版本所有新功能",
       "Fork 私有 Geeknow LLM + Grsai/七牛图像 + T8ENC1 加密链路完整保留",
       "8 处版本号同步：package.json / vite.config.ts / backend/src/config.js / electron/main.cjs / features.json / README.md"
+    ]
+  },
+  "electronReleaseV214": {
+    "version": "2.1.4",
+    "status": "electron-release",
+    "date": "2026-06-08",
+    "description": "v2.1.4 Electron 自动更新发布：集中打包 Figma Bridge 可用化、云端上传连通性、Prompt/@ 媒体引用、放置栏恢复、顶部画布教程入口和 LLM 默认模型调整，并按规范创建 GitHub Release 自动更新资产。",
+    "highlights": [
+      "Figma Bridge 随后端自动启动，发送到 Figma 前会兜底确保 localhost:3845 bridge 在线；Figma 插件对本机图片改为 fetch 二进制后 figma.createImage(bytes)，避免 image failed 引用卡片。",
+      "发送素材弹窗在 Figma 按钮附近常驻插件导入路径提示：开发版 tools\\figma-bridge\\plugin\\manifest.json，打包版 resources\\tools\\figma-bridge\\plugin\\manifest.json。",
+      "腾讯云 COS / 阿里云 OSS 配置检查改为 signed GET ?location 真实连通测试，上传错误透传 Code / Message / RequestId 和签名、权限、Region、Bucket 等分类提示；设置页补充云厂商控制台入口与 SecretKey 创建提醒。",
+      "Prompt / @ 引用修复：中文输入、即梦 CLI 节点本地 Prompt、文本节点读取下游生成节点旁路图像 / 视频 / 音频素材，以及 token kind 校验全部补齐。",
+      "左下角放置栏支持从已有画布素材节点回填最近素材，空列表也保持外壳，避免刷新后看起来消失。",
+      "顶部栏新增“画布教程”入口，整理第一弹到第九弹 Bilibili / Youtube 教程；“最新应用 · RunningHub”移除“获取 RH ApiKey”快捷入口。",
+      "LLM 新建节点默认模型调整为下拉第二项 gemini-3.5-flash；旧画布已有 model 字段不被强制迁移。"
+    ],
+    "sourceSync": [
+      "package.json / package-lock.json",
+      "vite.config.ts / vite.config.js",
+      "electron/main.cjs APP_VERSION",
+      "backend/src/config.js APP_VERSION",
+      "features.json",
+      "README.md",
+      "release-notes/v2.1.4.md"
+    ],
+    "packaging": {
+      "script": "npm run dist:release",
+      "installer": "dist_electron/T8-PenguinCanvas-Setup-2.1.4.exe",
+      "blockmap": "dist_electron/T8-PenguinCanvas-Setup-2.1.4.exe.blockmap",
+      "latestYml": "dist_electron/latest.yml",
+      "updater": "GitHub Release v2.1.4 作为 latest.yml 自动更新源；安装继续使用前台 NSIS 向导，不静默安装。"
+    },
+    "releaseBoundary": [
+      "公开源码继续禁止 skill.md、roadmap.md、local-private/** 和任何私有计费/支付/充值/分组令牌实现进入 GitHub。",
+      "Electron 用户包可在本机 dist:release 时包含 ignored local-private 加密扩展；GitHub Source code zip/tar.gz 不包含这些源码。",
+      "发布前必须运行 npm run public:check 并检查 staged 文件列表。"
+    ],
+    "verification": [
+      "node --test tests\\updateMdRegressions.test.ts tests\\electronPackaging.test.ts tests\\cloudUploads.test.ts tests\\promptEditor.test.ts tests\\apiSettingsTheme.test.ts tests\\advancedProviderFrontend.test.ts",
+      "npm run type-check",
+      "npm run build",
+      "npm run public:check",
+      "npm run dist:release",
+      "npm run release:verify"
+    ]
+  },
+  "canvasTutorialTopbarPanel": {
+    "status": "implemented",
+    "date": "2026-06-08",
+    "description": "顶部栏在“最新应用”左侧新增“画布教程”入口，按第一弹到第九弹整理 T8 画布教程 Bilibili / Youtube 链接；“最新应用 · RunningHub”弹窗移除“获取 RH ApiKey”快捷入口，只保留 RunningHub 国内/海外站和邀请码提示。",
+    "paths": [
+      "src/App.tsx",
+      "tests/updateMdRegressions.test.ts",
+      "features.json",
+      "skill.md"
+    ],
+    "tutorials": [
+      {
+        "title": "基础功能教程第一弹1.2.3版",
+        "bilibili": "https://www.bilibili.com/video/BV18sG76AE9Y/",
+        "youtube": "https://www.youtube.com/watch?v=V8oCBhemmCQ"
+      },
+      {
+        "title": "教程第二弹（循环系统，RH超市等）",
+        "bilibili": "https://www.bilibili.com/video/BV1CVGx6kEMV/",
+        "youtube": "https://www.youtube.com/watch?v=hSpoXclezqw"
+      },
+      {
+        "title": "教程第三弹（节点回避算法，资产库，自定义主题等）",
+        "bilibili": "https://www.bilibili.com/video/BV1qeVP6kEZi/",
+        "youtube": "https://www.youtube.com/watch?v=oJUbD88kvnk"
+      },
+      {
+        "title": "教程第四弹（RH主题隐藏模式Red,素材集节点，导演节点三件套，多角度可视化，图像对比，高级版多宫格剪裁）",
+        "bilibili": "https://www.bilibili.com/video/BV1gfGm6HERH/",
+        "youtube": "https://www.youtube.com/watch?v=9Bn0BjsfwlE"
+      },
+      {
+        "title": "教程第五弹（人造人系统，灵魂画手控制系统，贞贞无限画布！火影忍者，EVA，幽游白书主题，设计师专属优化多画布及Eagle发送）",
+        "bilibili": "https://www.bilibili.com/video/BV1KhVY6MEFP/",
+        "youtube": "https://www.youtube.com/watch?v=_lmRmlPZ2y0"
+      },
+      {
+        "title": "教程第六弹（灌篮高手主题上线！新Red隐藏模式，姿势大师节点，全新交互及连线方式）",
+        "bilibili": "https://www.bilibili.com/video/BV1RjVZ69En1/",
+        "youtube": "https://www.youtube.com/watch?v=pSLqhcpmpn8"
+      },
+      {
+        "title": "教程第七弹（即梦CLI调用，Seedance2.0不卡人脸！支持modelscope免费版生成，OpenAI兼容调用，RH超市，画板功能再升级！宫格编辑！新增AI检测消除功能）",
+        "bilibili": "https://www.bilibili.com/video/BV18eVz68ENs/",
+        "youtube": "https://www.youtube.com/watch?v=PQ5rKtOZ-tM"
+      },
+      {
+        "title": "教程第八弹（本地Comfyui植入贞贞的无限画布！超简单超好用！新增足球小将主题，视频解析功能，节点对齐，即梦CLI修复多参，免费版魔搭API Lora支持，素材黏贴新模式，APIKEY导入导出功能）",
+        "bilibili": "https://www.bilibili.com/video/BV1ha7R6DES5/",
+        "youtube": "https://www.youtube.com/watch?v=LViGXsMTFhs"
+      },
+      {
+        "title": "教程第九弹（新增3D全景功能及资产库，一键自动更新功能，输入框放大按钮，修复即梦CLI的多参问题，AI去水印节点功能升级，新增聚合解析功能，可获取17个平台无水印视频，优化启动速度，优化画布加载如慢加载，支持自定义快捷键设置）",
+        "bilibili": "https://www.bilibili.com/video/BV1gSEA6GEDQ/",
+        "youtube": "https://www.youtube.com/watch?v=-nmX9oB-MX"
+      }
+    ],
+    "verification": [
+      "node --test tests\\updateMdRegressions.test.ts",
+      "npm run type-check",
+      "npm run build"
+    ]
+  },
+  "figmaBridgeImportHotfix": {
+    "status": "implemented",
+    "date": "2026-06-08",
+    "description": "修复 Figma Bridge 首次使用和重复启动报错：Figma manifest 不再声明 127.0.0.1:3845，改用 Figma 接受的 localhost:3845，并补 documentAccess=dynamic-page；bridge 对 Figma 暴露的 assetUrl 固定为 localhost；bridge 重复启动遇到 EADDRINUSE 时会探测已有 T8 bridge，新版本会保留状态窗口，旧版本会提示关闭旧窗口后重启。",
+    "paths": [
+      "tools/figma-bridge/server.cjs",
+      "tools/figma-bridge/start-figma-bridge.cmd",
+      "tools/figma-bridge/plugin/manifest.json",
+      "tools/figma-bridge/plugin/code.js",
+      "tools/figma-bridge/plugin/ui.html",
+      "tools/figma-bridge/README.md",
+      "backend/src/routes/figma.js",
+      "backend/src/utils/figmaBridge.js",
+      "README.md",
+      "tests/updateMdRegressions.test.ts"
+    ],
+    "notes": [
+      "Figma 开发插件导入时 localhost:端口可用，127.0.0.1:端口会被当前 manifest 校验拒绝。",
+      "T8 Bridge 是 Figma Plugin，不是 Widget；如果导入时报 manifest.containsWidget 必须为 true，说明选到了 Widgets / Import widget from manifest，需要改用 Plugins / Import plugin from manifest。",
+      "Bridge 实际监听默认使用 127.0.0.1，避免 Windows localhost 只绑定到 IPv6；对 Figma 暴露的 assetUrl 固定使用 localhost。",
+      "如果启动脚本提示 already running 且保持状态窗口，说明新版 bridge 已经在 3845 端口运行，用户直接回 Figma 运行插件即可。",
+      "如果插件面板提示 Old bridge detected，需要关闭旧 bridge 窗口或旧 node.exe，再重新启动 start-figma-bridge.cmd。",
+      "插件主脚本使用保守语法并内置 showUI / notify 兜底；如果 Figma 没有把 ui.html 注入为 __html__，code.js 会直接使用内联完整 Bridge UI，不再停在“未绑定 UI”诊断页。",
+      "start-figma-bridge.cmd 在 node 0 退出时也会暂停显示状态，避免用户双击后窗口一闪而过；若仍红条，需要查看 DevTools Console 第一条 code.js 报错。",
+      "后端启动和 /api/figma/import 发送前都会自动确保 localhost:3845 bridge 在线，用户通常不需要手动运行 npm run figma:bridge。",
+      "发送内容弹窗会在“发送到 Figma”按钮附近常驻提示：打开 Figma 桌面软件，走 Plugins / 插件 -> Development -> Import plugin from manifest...，导入 tools\\figma-bridge\\plugin\\manifest.json；打包版插件位于应用目录 resources\\tools\\figma-bridge\\plugin\\manifest.json。",
+      "Figma 插件对 localhost/127.0.0.1 图片改用 fetch 二进制 + figma.createImage(bytes)，避免 createImageAsync(localhost) 失败后只生成 image failed 引用卡片。"
+    ]
+  },
+  "cloudUploadCosConnectivityFix": {
+    "status": "implemented",
+    "date": "2026-06-08",
+    "description": "腾讯云 COS 上传排查增强：配置检查从仅校验字段改为 signed GET ?location 真实连通测试；COS 上传签名抽为统一 V5 签名 helper，URL path 使用严格 percent-encode；COS/OSS XML 错误会提取 Code/Message/RequestId 并透传到前端提示。",
+    "notes": [
+      "COS 不需要单独填写 AppID；Bucket 名形如 t8-1312665347，其中 1312665347 已是 AppID。",
+      "腾讯云 SecretKey 只在新建密钥时显示一次，旧密钥列表只能看到 SecretId；用户找不到 SecretKey 时必须新建一组 CAM API 密钥。",
+      "密钥输入框如果误传浏览器密码点/星号，后端会当作 masked secret 保留旧值，避免覆盖真实密钥。",
+      "API 设置页 COS / OSS 配置块直接提供腾讯云 API 控制台、腾讯云对象存储、阿里云 AccessKey 控制台和阿里云 OSS 控制台入口，降低用户找入口成本。"
+    ],
+    "paths": [
+      "backend/src/cloudUploads/settings.js",
+      "backend/src/cloudUploads/uploader.js",
+      "backend/src/routes/cloudUploads.js",
+      "src/components/ApiSettings.tsx",
+      "src/components/MaterialContextMenu.tsx",
+      "src/services/api.ts",
+      "tests/cloudUploads.test.ts"
+    ],
+    "verification": [
+      "node -c backend\\src\\cloudUploads\\uploader.js",
+      "node -c backend\\src\\routes\\cloudUploads.js",
+      "node --test tests\\cloudUploads.test.ts",
+      "真实 COS signed location 连通测试：bucket=t8-1312665347, region=ap-nanjing 通过"
+    ]
+  },
+  "cloudUploadOssEndpointAuthFix": {
+    "status": "implemented",
+    "date": "2026-06-08",
+    "description": "阿里云 OSS 上传修复：Endpoint 支持 oss-cn-beijing / cn-beijing 等简写并归一为 oss-cn-beijing.aliyuncs.com；配置检查和上传统一使用 Header Authorization 签名，避免 URL Query V1 签名被 Bucket 策略拒绝。",
+    "notes": [
+      "用户在设置页填 oss-cn-beijing 或 cn-beijing 都会保存为 oss-cn-beijing.aliyuncs.com；历史设置未重新保存时上传路径也会再次归一。",
+      "阿里云 OSS 配置检查不再把 OSSAccessKeyId 写入 URL，改为 Date + Authorization 头。",
+      "真实测试使用 bucket=t8star / endpoint=oss-cn-beijing 完成 signed location 检查、上传小文件和删除测试对象；聊天里暴露过的测试 AccessKey 应尽快禁用或轮换。"
+    ],
+    "paths": [
+      "backend/src/cloudUploads/settings.js",
+      "backend/src/cloudUploads/uploader.js",
+      "tests/cloudUploads.test.ts",
+      "skill.md"
+    ],
+    "verification": [
+      "node -c backend\\src\\cloudUploads\\settings.js",
+      "node -c backend\\src\\cloudUploads\\uploader.js",
+      "node --test tests\\cloudUploads.test.ts",
+      "真实 OSS 测试：bucket=t8star, endpoint=oss-cn-beijing 配置检查、上传、删除测试对象通过"
+    ]
+  },
+  "figmaBridgeLocalTool": {
+    "status": "implemented-local-tool",
+    "date": "2026-06-08",
+    "description": "发送到 Figma 不再只预留 localhost 接口；项目内置 tools/figma-bridge 本机服务和 Figma 开发插件，用户运行 npm run figma:bridge 并在 Figma 导入 plugin/manifest.json 后即可把画布素材导入当前 Figma 文件。",
+    "paths": [
+      "tools/figma-bridge/server.cjs",
+      "tools/figma-bridge/start-figma-bridge.cmd",
+      "tools/figma-bridge/plugin/manifest.json",
+      "tools/figma-bridge/plugin/code.js",
+      "tools/figma-bridge/plugin/ui.html"
+    ],
+    "protocol": [
+      "T8 后端启动时自动拉起 localhost:3845 bridge；发送前再次兜底确保 bridge 在线。",
+      "T8 后端 POST http://127.0.0.1:3845/import 将素材放入本机队列。",
+      "Figma 插件轮询 /claim，导入图像和文本；视频 / 音频以引用卡片保留素材地址。",
+      "Bridge 通过 /asset/:jobId/:itemId 代理本机 input/output 素材，Figma 插件侧只访问 manifest 允许的 localhost:3845。"
+    ],
+    "packaging": [
+      "package.json build.extraResources 复制 tools/figma-bridge 到 Electron resources/tools/figma-bridge。",
+      "electron/_post_build.cjs 检查 bridge server、启动脚本和插件 manifest/code/ui 是否存在。"
     ]
   },
   "sourceReleaseV213": {
@@ -677,11 +883,11 @@
       "T8_RUNTIME_CACHE_DIR": "可选，覆盖运行时归档解压缓存目录；默认打包模式为 %APPDATA%/t8-penguin-canvas/runtime-cache",
       "T8_ENABLE_LOCAL_PRIVATE": "可选，0=强制关闭本机 local-private/extensions 私有扩展；默认只要本机 ignored 私有扩展存在，开发环境和本机打包 release 都会自动带入。GitHub/clean clone 因为没有 local-private 目录，所以不会带充值实现。"
     },
-    "version": "2.1.3",
-    "semverVersion": "2.1.3",
+    "version": "2.1.4",
+    "semverVersion": "2.1.4",
     "versionNumberPolicy": "T8 版本号仍采用 x.y.z 三段，但每一段只允许 0-9；任一段到 9 后下一次发布必须向左进位，禁止任一段出现两位数字。例：1.9.9 的下一版必须是 2.0.0。",
-    "versionNote": "v1.3.0 起统一采用三段阶段号 x.y.z；当前源码版本为 v2.1.3：补齐即梦 CLI seedream-4.7 图像模型和完整 Seedance 2.0 视频模型变体，后端按新版 dreamina help 传递 model_version。本次只推 GitHub 源码，不打包 Electron，不发布 GitHub Release 自动更新资产；GitHub 公开源码仍排除本地私有计费/支付/充值/分组令牌实现。",
-    "installer": "v2.1.3 为 source-only 版本，不生成 T8-PenguinCanvas-Setup-2.1.3.exe、.blockmap 或 latest.yml；如需 Electron 自动更新包，后续必须重新走 clean public worktree + npm run dist:release + npm run release:verify。",
+    "versionNote": "v1.3.0 起统一采用三段阶段号 x.y.z；当前发布版本为 v2.1.4：集中打包 Figma Bridge 可用化、云端上传连通性、Prompt/@ 媒体引用、放置栏恢复、顶部画布教程入口和 LLM 默认模型调整。本次按规范打包 Electron 并发布 GitHub Release 自动更新资产；GitHub 公开源码仍排除本地私有计费/支付/充值/分组令牌实现。",
+    "installer": "v2.1.4 生成 T8-PenguinCanvas-Setup-2.1.4.exe、T8-PenguinCanvas-Setup-2.1.4.exe.blockmap 与 latest.yml；发布必须走 clean public worktree + npm run dist:release + npm run release:verify。",
     "updaterInstallMode": "自动更新下载完成后不得静默安装：main.cjs 必须设置 autoInstallOnAppQuit=false，显式安装调用 quitAndInstall(false,true)；electron/build-resources/installer.nsh 通过 SetSilent normal 让新版 NSIS 安装器即使收到旧客户端传入的 /S 也尽量切回前台安装向导。",
     "installerShortcutPolicy": "安装完成后必须创建桌面和开始菜单快捷方式：package.json build.nsis.createDesktopShortcut 必须为 \"always\"，createStartMenuShortcut 必须为 true；electron/build-resources/installer.nsh 必须保留 customInstall 兜底 CreateShortCut \"$newStartMenuLink\" 与 \"$DESKTOP\\${SHORTCUT_NAME}.lnk\"，防止更新安装/keepShortcuts 路径遗漏入口。",
     "updaterEntryPolicy": "顶栏桌面更新入口不得只因 window.t8pc.updater 缺失就静默消失；Electron UA 或 t8pc.getInfo/openExternal 可用时必须显示诊断入口，提示重新安装完整桌面包，Web/纯浏览器环境才隐藏。状态为 not-available 时按钮仍保留“更新”字样，避免用户误以为自动更新入口被删除。",
@@ -3301,7 +3507,7 @@
         {
           "type": "llm",
           "label": "LLM/Vision 节点",
-          "description": "LLM/Vision 模型(gemini-3.1-flash-lite 默认/gemini-3.5-flash/gpt-4o/gemini-3.1-pro/gpt-5/gpt-image-2-all) + temp/max_tokens + system 预设 + 多模态图片 + 多轮会话 + SSE 流式 + 独立 LLM Key；上游文本/图像缩略图可在节点内单项排除且不断开连线"
+          "description": "LLM/Vision 模型(gemini-3.1-flash-lite/gemini-3.5-flash 默认/gpt-4o/gemini-3.1-pro/gpt-5/gpt-image-2-all) + temp/max_tokens + system 预设 + 多模态图片 + 多轮会话 + SSE 流式 + 独立 LLM Key；上游文本/图像缩略图可在节点内单项排除且不断开连线"
         }
       ]
     },

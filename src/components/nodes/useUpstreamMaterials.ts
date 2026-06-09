@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { useNodeConnections, useNodesData } from '@xyflow/react';
+import { useEdges, useNodeConnections, useNodesData } from '@xyflow/react';
 import { collectMaterialSetBucketsFromData, valueOfMaterialSetItem } from '../../utils/materialSet';
+import { fileNameFromUrl } from '../../utils/mediaCollection';
 import { normalizeRhNodeId } from '../../utils/rhTextBinding';
 
 /**
@@ -46,7 +47,133 @@ export interface UpstreamMaterials {
 }
 
 const VIDEO_RE = /\.(mp4|webm|mov|m4v|mkv)(\?|$)/i;
-const AUDIO_RE = /\.(mp3|wav|ogg|m4a|flac)(\?|$)/i;
+const AUDIO_RE = /\.(mp3|wav|ogg|m4a|flac|aac)(\?|$)/i;
+const IMAGE_RE = /\.(png|jpe?g|webp|gif|bmp|avif|tiff?)(\?|$)/i;
+
+type MediaBuckets = Pick<UpstreamMaterials, 'images' | 'videos' | 'audios'>;
+type MentionableKind = Exclude<MaterialKind, 'text'>;
+
+function classifyMediaKind(kind: MentionableKind, url: string): MentionableKind {
+  if (/^data:video\//i.test(url) || VIDEO_RE.test(url)) return 'video';
+  if (/^data:audio\//i.test(url) || AUDIO_RE.test(url)) return 'audio';
+  if (/^data:image\//i.test(url) || IMAGE_RE.test(url)) return 'image';
+  return kind;
+}
+
+function pushMediaMaterial(
+  buckets: MediaBuckets,
+  seen: Set<string>,
+  sourceId: string,
+  kind: MentionableKind,
+  value: any,
+  key: string,
+  label?: string,
+) {
+  if (typeof value !== 'string') return;
+  const url = value.trim();
+  if (!url) return;
+  const actualKind = classifyMediaKind(kind, url);
+  const dedupeKey = `${actualKind}:${url}`;
+  if (seen.has(dedupeKey)) return;
+  seen.add(dedupeKey);
+  const arr = actualKind === 'image' ? buckets.images : actualKind === 'video' ? buckets.videos : buckets.audios;
+  arr.push({
+    id: `${sourceId}::${key}:${dedupeKey}`,
+    kind: actualKind,
+    url,
+    sourceNodeId: sourceId,
+    origin: 'upstream',
+    label: label || fileNameFromUrl(url).slice(0, 28),
+  });
+}
+
+function pushMediaArray(
+  buckets: MediaBuckets,
+  seen: Set<string>,
+  sourceId: string,
+  kind: MentionableKind,
+  data: any,
+  field: string,
+  label: string,
+) {
+  const arr = data?.[field];
+  if (!Array.isArray(arr)) return;
+  arr.forEach((url: any, index: number) => {
+    pushMediaMaterial(buckets, seen, sourceId, kind, url, `${field}:${index}`, `${label}${index + 1}`);
+  });
+}
+
+function collectMentionableMediaFromNodeData(sourceId: string, data: any, type?: string): Material[] {
+  const buckets: MediaBuckets = { images: [], videos: [], audios: [] };
+  const seen = new Set<string>();
+  if (!data) return [];
+
+  // 生成产物 / 输出节点 / 循环累积产物。
+  pushMediaMaterial(buckets, seen, sourceId, 'image', data.imageUrl, 'imageUrl', '下游图像');
+  pushMediaMaterial(buckets, seen, sourceId, 'image', data.directImageUrl, 'directImageUrl', '下游图像');
+  for (const field of ['imageUrls', 'urls', 'generatedImages', 'directImageUrls'] as const) {
+    pushMediaArray(buckets, seen, sourceId, 'image', data, field, '下游图像');
+  }
+  pushMediaMaterial(buckets, seen, sourceId, 'image', data.firstFrameUrl, 'firstFrameUrl', '首帧');
+  pushMediaMaterial(buckets, seen, sourceId, 'image', data.lastFrameUrl, 'lastFrameUrl', '尾帧');
+
+  pushMediaMaterial(buckets, seen, sourceId, 'video', data.videoUrl, 'videoUrl', '下游视频');
+  pushMediaMaterial(buckets, seen, sourceId, 'video', data.directVideoUrl, 'directVideoUrl', '下游视频');
+  for (const field of ['videoUrls', 'directVideoUrls'] as const) {
+    pushMediaArray(buckets, seen, sourceId, 'video', data, field, '下游视频');
+  }
+
+  pushMediaMaterial(buckets, seen, sourceId, 'audio', data.audioUrl, 'audioUrl', '下游音频');
+  pushMediaMaterial(buckets, seen, sourceId, 'audio', data.audioUrl_1, 'audioUrl_1', '下游音频');
+  pushMediaMaterial(buckets, seen, sourceId, 'audio', data.directAudioUrl, 'directAudioUrl', '下游音频');
+  for (const field of ['audioUrls', 'directAudioUrls'] as const) {
+    pushMediaArray(buckets, seen, sourceId, 'audio', data, field, '下游音频');
+  }
+
+  // 节点内本地参考素材。文本节点作为上游时, @ 需要能引用下游生成节点里手动放入的素材。
+  for (const field of ['referenceImages', 'localRefImages', 'mjSrefImages', 'mjOrefImages'] as const) {
+    pushMediaArray(buckets, seen, sourceId, 'image', data, field, '下游参考图');
+  }
+  for (const field of ['referenceVideos', 'localRefVideos'] as const) {
+    pushMediaArray(buckets, seen, sourceId, 'video', data, field, '下游参考视频');
+  }
+  pushMediaMaterial(buckets, seen, sourceId, 'audio', data.localRefAudio, 'localRefAudio', '下游参考音频');
+  for (const field of ['referenceAudios', 'localRefAudios'] as const) {
+    pushMediaArray(buckets, seen, sourceId, 'audio', data, field, '下游参考音频');
+  }
+
+  if (Array.isArray(data.pickedFiles)) {
+    data.pickedFiles.forEach((file: any, index: number) => {
+      const url = file?.dataUrl || file?.url;
+      const label = typeof file?.name === 'string' && file.name ? file.name : `下游视觉输入${index + 1}`;
+      pushMediaMaterial(buckets, seen, sourceId, 'image', url, `pickedFiles:${index}`, label);
+    });
+  }
+
+  if (Array.isArray(data.tracks)) {
+    data.tracks.forEach((track: any, index: number) => {
+      const label = typeof track?.title === 'string' && track.title ? track.title : `下游音轨${index + 1}`;
+      pushMediaMaterial(buckets, seen, sourceId, 'audio', track?.audioUrl || track?.remoteUrl, `tracks:${index}:audio`, label);
+      pushMediaMaterial(buckets, seen, sourceId, 'image', track?.imageUrl, `tracks:${index}:image`, `${label}封面`);
+    });
+  }
+
+  // 显式素材集按内部顺序读取；非素材集节点也可借此兼容标准 image/video/audio 字段。
+  if (type === 'material-set' || Array.isArray(data.materialSetItems)) {
+    const materialBuckets = collectMaterialSetBucketsFromData(data);
+    materialBuckets.image.forEach((item, index) => {
+      pushMediaMaterial(buckets, seen, sourceId, 'image', item.url, `material-set:image:${index}`, item.name);
+    });
+    materialBuckets.video.forEach((item, index) => {
+      pushMediaMaterial(buckets, seen, sourceId, 'video', item.url, `material-set:video:${index}`, item.name);
+    });
+    materialBuckets.audio.forEach((item, index) => {
+      pushMediaMaterial(buckets, seen, sourceId, 'audio', item.url, `material-set:audio:${index}`, item.name);
+    });
+  }
+
+  return [...buckets.images, ...buckets.videos, ...buckets.audios];
+}
 
 export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
   const conns = useNodeConnections({ id: nodeId, handleType: 'target' });
@@ -257,4 +384,46 @@ export function useUpstreamMaterials(nodeId: string): UpstreamMaterials {
 
     return { texts, images: fixedImages, videos, audios };
   }, [upstreamNodes, handleMap]);
+}
+
+/**
+ * 供文本节点 @ 引用使用: 文本节点通常是提示词上游, 但用户也会把图片/视频/音频
+ * 直接放在下游生成节点里。这里只读取下游媒体, 不读取下游文本, 避免形成提示词回环。
+ */
+export function useDownstreamMediaMaterials(nodeId: string): Material[] {
+  const conns = useNodeConnections({ id: nodeId, handleType: 'source' });
+  const edges = useEdges();
+  const downstreamIds = useMemo(
+    () => Array.from(new Set(conns.map((c) => c.target).filter(Boolean))),
+    [conns],
+  );
+  const siblingMediaSourceIds = useMemo(() => {
+    const targets = new Set(downstreamIds);
+    if (targets.size === 0) return [];
+    return Array.from(new Set(
+      edges
+        .filter((edge) => targets.has(edge.target) && edge.source !== nodeId)
+        .map((edge) => edge.source)
+        .filter(Boolean),
+    ));
+  }, [downstreamIds, edges, nodeId]);
+  const downstreamNodes = useNodesData(downstreamIds);
+  const siblingMediaSourceNodes = useNodesData(siblingMediaSourceIds);
+
+  return useMemo<Material[]>(() => {
+    const siblingList = Array.isArray(siblingMediaSourceNodes) ? siblingMediaSourceNodes : [];
+    const downstreamList = Array.isArray(downstreamNodes) ? downstreamNodes : [];
+    const out: Material[] = [];
+    const seen = new Set<string>();
+    for (const n of [...siblingList, ...downstreamList]) {
+      if (!n) continue;
+      for (const material of collectMentionableMediaFromNodeData(n.id, n.data || {}, n.type)) {
+        const key = `${material.kind}:${material.url}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(material);
+      }
+    }
+    return out;
+  }, [downstreamNodes, siblingMediaSourceNodes]);
 }

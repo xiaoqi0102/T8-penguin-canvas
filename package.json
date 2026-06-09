@@ -29,6 +29,7 @@
     "dev": "concurrently \"cd backend && npm start\" \"vite\"",
     "dev:vite": "vite",
     "dev:backend": "cd backend && npm start",
+    "figma:bridge": "node tools/figma-bridge/server.cjs",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
@@ -163,6 +164,13 @@
       {
         "from": "tools/parsehub-bridge",
         "to": "tools/parsehub-bridge",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "tools/figma-bridge",
+        "to": "tools/figma-bridge",
         "filter": [
           "**/*"
         ]

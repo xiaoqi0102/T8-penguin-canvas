@@ -7,6 +7,7 @@ const config = require('../config');
 
 const RESOURCE_DB_FILE = 'resource_library.json';
 const REMOTE_FETCH_TIMEOUT_MS = 30_000;
+const CLOUD_CONNECTIVITY_TIMEOUT_MS = 12_000;
 const REMOTE_MAX_BYTES = 1024 * 1024 * 1024;
 
 const MIME_BY_EXT = {
@@ -270,7 +271,7 @@ function inferFileName(filePath, requestedName) {
 function encodeObjectKeyPath(value) {
   return String(value || '')
     .split('/')
-    .map((part) => encodeURIComponent(part))
+    .map((part) => strictEncode(part))
     .join('/');
 }
 
@@ -312,26 +313,189 @@ function hmacSha1Base64(key, value) {
   return crypto.createHmac('sha1', key).update(value).digest('base64');
 }
 
+function strictEncode(value) {
+  return encodeURIComponent(String(value || ''))
+    .replace(/[!'()*]/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function canonicalQuery(params = {}) {
+  return Object.entries(params)
+    .filter(([key, value]) => key && value !== undefined && value !== null)
+    .map(([key, value]) => [String(key).toLowerCase(), String(value)])
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${strictEncode(key)}=${strictEncode(value)}`)
+    .join('&');
+}
+
+function queryKeyList(params = {}) {
+  return Object.keys(params)
+    .filter((key) => key)
+    .map((key) => String(key).toLowerCase())
+    .sort()
+    .map((key) => strictEncode(key))
+    .join(';');
+}
+
+function xmlUnescape(value) {
+  return String(value || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function extractXmlTag(value, tag) {
+  const match = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(String(value || ''));
+  return match ? xmlUnescape(match[1]).trim() : '';
+}
+
+function headersToObject(headers) {
+  const out = {};
+  try {
+    for (const [key, value] of headers.entries()) out[key.toLowerCase()] = value;
+  } catch {
+    // Headers may be missing in mocked tests.
+  }
+  return out;
+}
+
+function responseRequestId(headers = {}, provider = '') {
+  return headers['x-cos-request-id']
+    || headers['x-oss-request-id']
+    || headers['x-request-id']
+    || (provider === 'tencent-cos' ? headers['x-cos-trace-id'] : '')
+    || '';
+}
+
+function tencentCosHost(cfg) {
+  return `${cfg.bucket}.cos.${cfg.region}.myqcloud.com`;
+}
+
+function aliyunOssHost(cfg) {
+  const endpoint = normalizeAliyunOssEndpoint(cfg.endpoint);
+  return `${cfg.bucket}.${endpoint}`;
+}
+
+function normalizeAliyunOssEndpoint(value) {
+  const endpoint = String(value || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  if (/^oss-[a-z0-9-]+$/i.test(endpoint)) return `${endpoint}.aliyuncs.com`;
+  if (/^(cn|ap|us|eu|me)-[a-z0-9-]+$/i.test(endpoint)) return `oss-${endpoint}.aliyuncs.com`;
+  return endpoint;
+}
+
+function buildUrlQuery(params = {}) {
+  const query = canonicalQuery(params);
+  return query ? `?${query}` : '';
+}
+
+function signTencentCosRequest({ method, host, uriPath = '/', query = {}, secretId, secretKey, expiresSeconds = 900 }) {
+  const now = Math.floor(Date.now() / 1000);
+  const keyTime = `${now};${now + expiresSeconds}`;
+  const normalizedMethod = String(method || 'GET').toLowerCase();
+  const normalizedPath = uriPath.startsWith('/') ? uriPath : `/${uriPath}`;
+  const urlParamString = canonicalQuery(query);
+  const urlParamList = queryKeyList(query);
+  const headerString = `host=${String(host || '').toLowerCase()}\n`;
+  const httpString = `${normalizedMethod}\n${normalizedPath}\n${urlParamString}\n${headerString}`;
+  const stringToSign = `sha1\n${keyTime}\n${sha1Hex(httpString)}\n`;
+  const signKey = hmacSha1Hex(secretKey, keyTime);
+  const signature = hmacSha1Hex(signKey, stringToSign);
+  return [
+    'q-sign-algorithm=sha1',
+    `q-ak=${strictEncode(secretId)}`,
+    `q-sign-time=${keyTime}`,
+    `q-key-time=${keyTime}`,
+    'q-header-list=host',
+    `q-url-param-list=${urlParamList}`,
+    `q-signature=${signature}`,
+  ].join('&');
+}
+
+function aliyunOssSubresourceString(query = {}) {
+  const subresources = Object.keys(query)
+    .filter((key) => key)
+    .map((key) => String(key).toLowerCase())
+    .sort()
+    .map((key) => {
+      const value = query[key];
+      return value === '' || value === undefined || value === null ? key : `${key}=${value}`;
+    })
+    .join('&');
+  return subresources;
+}
+
+function signAliyunOssAuthorization({
+  method,
+  bucket,
+  objectKey = '',
+  query = {},
+  accessKeyId,
+  accessKeySecret,
+  date,
+  contentMd5 = '',
+  contentType = '',
+}) {
+  const subresources = aliyunOssSubresourceString(query);
+  const canonicalResource = `/${bucket}/${objectKey}${subresources ? `?${subresources}` : ''}`;
+  const stringToSign = `${String(method || 'GET').toUpperCase()}\n${contentMd5}\n${contentType}\n${date}\n${canonicalResource}`;
+  const signature = hmacSha1Base64(accessKeySecret, stringToSign);
+  return `OSS ${accessKeyId}:${signature}`;
+}
+
+async function responseToUploadError(res, fallbackMessage, provider = '') {
+  const text = await res.text().catch(() => '');
+  const headers = headersToObject(res.headers);
+  const code = extractXmlTag(text, 'Code') || extractXmlTag(text, 'ErrorCode') || '';
+  const remoteMessage = extractXmlTag(text, 'Message') || extractXmlTag(text, 'ErrorMessage') || '';
+  const requestId = extractXmlTag(text, 'RequestId') || responseRequestId(headers, provider);
+  const parts = [
+    fallbackMessage || `上传失败 HTTP ${res.status}`,
+    code ? `Code=${code}` : '',
+    remoteMessage ? `Message=${remoteMessage}` : '',
+    requestId ? `RequestId=${requestId}` : '',
+    text && !code ? text.slice(0, 300) : '',
+  ].filter(Boolean);
+  const error = new Error(parts.join('；'));
+  error.statusCode = res.status;
+  error.responseText = text;
+  error.responseHeaders = headers;
+  error.providerCode = code;
+  error.providerMessage = remoteMessage;
+  error.requestId = requestId;
+  return error;
+}
+
 function contentLength(filePath) {
   return fs.statSync(filePath).size;
 }
 
 async function putStream(url, filePath, headers = {}) {
+  const { __provider: provider = '', ...requestHeaders } = headers;
   const res = await fetch(url, {
     method: 'PUT',
     headers: {
-      ...headers,
+      ...requestHeaders,
       'Content-Length': String(contentLength(filePath)),
     },
     body: fs.createReadStream(filePath),
     duplex: 'half',
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    const error = new Error(`上传失败 HTTP ${res.status}${text ? `：${text.slice(0, 300)}` : ''}`);
-    error.statusCode = res.status;
-    error.responseText = text;
-    throw error;
+    throw await responseToUploadError(res, `上传失败 HTTP ${res.status}`, provider);
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = CLOUD_CONNECTIVITY_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -353,9 +517,14 @@ function classifyCloudUploadError(target, error) {
   const statusCode = Number(error?.statusCode || error?.status || 0) || undefined;
   const text = getUploadErrorText(error);
   const lower = text.toLowerCase();
+  const providerCode = String(error?.providerCode || extractXmlTag(error?.responseText || '', 'Code') || '').trim();
+  const providerMessage = String(error?.providerMessage || extractXmlTag(error?.responseText || '', 'Message') || '').trim();
   const base = {
     provider,
     statusCode,
+    providerCode,
+    providerMessage,
+    requestId: String(error?.requestId || ''),
     rawMessage: String(error?.message || error || ''),
   };
 
@@ -379,11 +548,28 @@ function classifyCloudUploadError(target, error) {
     };
   }
 
-  const signatureMismatch = /signaturedoesnotmatch|signature.*not match|q-signature|签名/.test(lower);
-  const accessKeyInvalid = /invalidaccesskeyid|invalidsecretid|accesskeyid|secretid.*not exist|access key.*not exist/.test(lower);
+  const codeLower = providerCode.toLowerCase();
+  const signatureMismatch = codeLower === 'signaturedoesnotmatch' || /signaturedoesnotmatch|signature.*not match|q-signature|签名/.test(lower);
+  const accessKeyInvalid = ['invalidaccesskeyid', 'invalidsecretid'].includes(codeLower)
+    || /invalidaccesskeyid|invalidsecretid|accesskeyid|secretid.*not exist|access key.*not exist/.test(lower);
   const accessDenied = /accessdenied|forbidden|permission|not authorized|unauthorized|拒绝|无权限/.test(lower);
-  const noSuchBucket = /nosuchbucket|bucket.*not exist|bucketnotexist|no such bucket|bucket不存在/.test(lower);
-  const timeSkew = /requesttimeskewed|expire|expired|time skew|clock/.test(lower);
+  const noSuchBucket = ['nosuchbucket', 'bucketnotexist'].includes(codeLower)
+    || /nosuchbucket|bucket.*not exist|bucketnotexist|no such bucket|bucket不存在/.test(lower);
+  const timeSkew = codeLower === 'requesttimeskewed' || /requesttimeskewed|expire|expired|time skew|clock/.test(lower);
+  const wrongRegion = ['permanentredirect', 'incorrectendpoint'].includes(codeLower)
+    || /permanentredirect|incorrectendpoint|wrong region|region.*not/.test(lower);
+
+  if (wrongRegion) {
+    const name = provider === 'aliyun-oss' ? '阿里云 OSS' : provider === 'tencent-cos' ? '腾讯云 COS' : '云端目标';
+    return {
+      ...base,
+      code: 'region',
+      message: `${name} 区域/Endpoint 不匹配：请确认 Bucket 所在地域。`,
+      hint: provider === 'tencent-cos'
+        ? '腾讯云 COS 的 Region 形如 ap-nanjing / ap-guangzhou，必须和 Bucket 详情页一致。'
+        : '阿里云 OSS 的 Endpoint 必须和 Bucket 地域一致，例如 oss-cn-hangzhou.aliyuncs.com。',
+    };
+  }
 
   if (signatureMismatch || accessKeyInvalid || timeSkew) {
     const name = provider === 'aliyun-oss' ? '阿里云 OSS' : provider === 'tencent-cos' ? '腾讯云 COS' : '云端目标';
@@ -453,28 +639,90 @@ function validateTargetConfig(target) {
   throw new Error(`暂不支持的云端目标：${target.provider}`);
 }
 
+async function testTencentCosTarget(target) {
+  const cfg = target.tencentCos || {};
+  validateTargetConfig(target);
+  const host = tencentCosHost(cfg);
+  const query = { location: '' };
+  const uriPath = '/';
+  const authorization = signTencentCosRequest({
+    method: 'GET',
+    host,
+    uriPath,
+    query,
+    secretId: cfg.secretId,
+    secretKey: cfg.secretKey,
+    expiresSeconds: 120,
+  });
+  const url = `https://${host}${uriPath}${buildUrlQuery(query)}`;
+  const res = await fetchWithTimeout(url, {
+    method: 'GET',
+    headers: { Authorization: authorization },
+  });
+  if (!res.ok) {
+    throw await responseToUploadError(res, `腾讯云 COS 配置检查失败 HTTP ${res.status}`, 'tencent-cos');
+  }
+  return {
+    ok: true,
+    supported: true,
+    message: '腾讯云 COS 连接可用：Bucket、Region、SecretId / SecretKey 已通过签名检查',
+    provider: target.provider,
+  };
+}
+
+async function testAliyunOssTarget(target) {
+  const cfg = target.aliyunOss || {};
+  validateTargetConfig(target);
+  const host = aliyunOssHost(cfg);
+  const date = new Date().toUTCString();
+  const query = { location: '' };
+  const authorization = signAliyunOssAuthorization({
+    method: 'GET',
+    bucket: cfg.bucket,
+    query,
+    accessKeyId: cfg.accessKeyId,
+    accessKeySecret: cfg.accessKeySecret,
+    date,
+  });
+  const url = `https://${host}/${buildUrlQuery(query)}`;
+  const res = await fetchWithTimeout(url, {
+    method: 'GET',
+    headers: {
+      Date: date,
+      Authorization: authorization,
+    },
+  });
+  if (!res.ok) {
+    throw await responseToUploadError(res, `阿里云 OSS 配置检查失败 HTTP ${res.status}`, 'aliyun-oss');
+  }
+  return {
+    ok: true,
+    supported: true,
+    message: '阿里云 OSS 连接可用：Bucket、Endpoint、AccessKey 已通过签名检查',
+    provider: target.provider,
+  };
+}
+
+async function testCloudTargetConnectivity(target) {
+  if (target?.provider === 'tencent-cos') return testTencentCosTarget(target);
+  if (target?.provider === 'aliyun-oss') return testAliyunOssTarget(target);
+  return validateTargetConfig(target);
+}
+
 async function uploadToTencentCos(target, filePath, payload) {
   const cfg = target.tencentCos || {};
   const objectKey = buildObjectKey(target, filePath, payload);
-  const host = `${cfg.bucket}.cos.${cfg.region}.myqcloud.com`;
-  const now = Math.floor(Date.now() / 1000);
-  const keyTime = `${now};${now + 900}`;
+  const host = tencentCosHost(cfg);
   const uriPath = `/${encodeObjectKeyPath(objectKey)}`;
-  const httpString = `put\n${uriPath}\n\nhost=${host}\n`;
-  const stringToSign = `sha1\n${keyTime}\n${sha1Hex(httpString)}\n`;
-  const signKey = hmacSha1Hex(cfg.secretKey, keyTime);
-  const signature = hmacSha1Hex(signKey, stringToSign);
-  const authorization = [
-    'q-sign-algorithm=sha1',
-    `q-ak=${encodeURIComponent(cfg.secretId)}`,
-    `q-sign-time=${keyTime}`,
-    `q-key-time=${keyTime}`,
-    'q-header-list=host',
-    'q-url-param-list=',
-    `q-signature=${signature}`,
-  ].join('&');
+  const authorization = signTencentCosRequest({
+    method: 'PUT',
+    host,
+    uriPath,
+    secretId: cfg.secretId,
+    secretKey: cfg.secretKey,
+  });
   const url = `https://${host}${uriPath}`;
-  await putStream(url, filePath, { Authorization: authorization });
+  await putStream(url, filePath, { Authorization: authorization, __provider: 'tencent-cos' });
   return {
     provider: target.provider,
     targetId: target.id,
@@ -488,14 +736,18 @@ async function uploadToTencentCos(target, filePath, payload) {
 async function uploadToAliyunOss(target, filePath, payload) {
   const cfg = target.aliyunOss || {};
   const objectKey = buildObjectKey(target, filePath, payload);
-  const endpoint = String(cfg.endpoint || '').replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  const host = `${cfg.bucket}.${endpoint}`;
-  const expires = Math.floor(Date.now() / 1000) + 900;
-  const canonicalResource = `/${cfg.bucket}/${objectKey}`;
-  const stringToSign = `PUT\n\n\n${expires}\n${canonicalResource}`;
-  const signature = hmacSha1Base64(cfg.accessKeySecret, stringToSign);
-  const url = `https://${host}/${encodeObjectKeyPath(objectKey)}?OSSAccessKeyId=${encodeURIComponent(cfg.accessKeyId)}&Expires=${expires}&Signature=${encodeURIComponent(signature)}`;
-  await putStream(url, filePath);
+  const host = aliyunOssHost(cfg);
+  const date = new Date().toUTCString();
+  const authorization = signAliyunOssAuthorization({
+    method: 'PUT',
+    bucket: cfg.bucket,
+    objectKey,
+    accessKeyId: cfg.accessKeyId,
+    accessKeySecret: cfg.accessKeySecret,
+    date,
+  });
+  const url = `https://${host}/${encodeObjectKeyPath(objectKey)}`;
+  await putStream(url, filePath, { Date: date, Authorization: authorization, __provider: 'aliyun-oss' });
   return {
     provider: target.provider,
     targetId: target.id,
@@ -534,6 +786,7 @@ module.exports = {
   kindFromExt,
   mimeFromPath,
   resolveUploadSource,
+  testCloudTargetConnectivity,
   uploadCloudAsset,
   validateTargetConfig,
 };

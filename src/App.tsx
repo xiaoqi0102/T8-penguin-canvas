@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Moon, Settings, Sun, Wifi, WifiOff, Sparkles, Cloud, ExternalLink, Copy, Check, Gift, Heart, Youtube, PlayCircle, Bell, Wand2, Globe, MessageCircle, CalendarDays, Rocket, Key, Library, Palette, Skull, Sailboat } from 'lucide-react';
+import { Moon, Settings, Sun, Wifi, WifiOff, Sparkles, Cloud, ExternalLink, Copy, Check, Gift, Heart, Youtube, PlayCircle, Bell, Wand2, Globe, MessageCircle, CalendarDays, Rocket, Library, Palette, Skull, Sailboat, BookOpen } from 'lucide-react';
 import { useThemeStore } from './stores/theme';
 import { seedDragonBallRadarForShenronTest, useDragonBallRadarStore } from './stores/dragonBallRadar';
 import { trackAchievementEvent } from './stores/achievements';
@@ -103,6 +103,54 @@ async function workflowResourceToFragment(item: ResourceItem) {
   return workflowManifestToFragment(await res.json());
 }
 
+const CANVAS_TUTORIALS = [
+  {
+    title: '基础功能教程第一弹1.2.3版',
+    bilibili: 'https://www.bilibili.com/video/BV18sG76AE9Y/',
+    youtube: 'https://www.youtube.com/watch?v=V8oCBhemmCQ',
+  },
+  {
+    title: '教程第二弹（循环系统，RH超市等）',
+    bilibili: 'https://www.bilibili.com/video/BV1CVGx6kEMV/',
+    youtube: 'https://www.youtube.com/watch?v=hSpoXclezqw',
+  },
+  {
+    title: '教程第三弹（节点回避算法，资产库，自定义主题等）',
+    bilibili: 'https://www.bilibili.com/video/BV1qeVP6kEZi/',
+    youtube: 'https://www.youtube.com/watch?v=oJUbD88kvnk',
+  },
+  {
+    title: '教程第四弹（RH主题隐藏模式Red,素材集节点，导演节点三件套，多角度可视化，图像对比，高级版多宫格剪裁）',
+    bilibili: 'https://www.bilibili.com/video/BV1gfGm6HERH/',
+    youtube: 'https://www.youtube.com/watch?v=9Bn0BjsfwlE',
+  },
+  {
+    title: '教程第五弹（人造人系统，灵魂画手控制系统，贞贞无限画布！火影忍者，EVA，幽游白书主题，设计师专属优化多画布及Eagle发送）',
+    bilibili: 'https://www.bilibili.com/video/BV1KhVY6MEFP/',
+    youtube: 'https://www.youtube.com/watch?v=_lmRmlPZ2y0',
+  },
+  {
+    title: '教程第六弹（灌篮高手主题上线！新Red隐藏模式，姿势大师节点，全新交互及连线方式）',
+    bilibili: 'https://www.bilibili.com/video/BV1RjVZ69En1/',
+    youtube: 'https://www.youtube.com/watch?v=pSLqhcpmpn8',
+  },
+  {
+    title: '教程第七弹（即梦CLI调用，Seedance2.0不卡人脸！支持modelscope免费版生成，OpenAI兼容调用，RH超市，画板功能再升级！宫格编辑！新增AI检测消除功能）',
+    bilibili: 'https://www.bilibili.com/video/BV18eVz68ENs/',
+    youtube: 'https://www.youtube.com/watch?v=PQ5rKtOZ-tM',
+  },
+  {
+    title: '教程第八弹（本地Comfyui植入贞贞的无限画布！超简单超好用！新增足球小将主题，视频解析功能，节点对齐，即梦CLI修复多参，免费版魔搭API Lora支持，素材黏贴新模式，APIKEY导入导出功能）',
+    bilibili: 'https://www.bilibili.com/video/BV1ha7R6DES5/',
+    youtube: 'https://www.youtube.com/watch?v=LViGXsMTFhs',
+  },
+  {
+    title: '教程第九弹（新增3D全景功能及资产库，一键自动更新功能，输入框放大按钮，修复即梦CLI的多参问题，AI去水印节点功能升级，新增聚合解析功能，可获取17个平台无水印视频，优化启动速度，优化画布加载如慢加载，支持自定义快捷键设置）',
+    bilibili: 'https://www.bilibili.com/video/BV1gSEA6GEDQ/',
+    youtube: 'https://www.youtube.com/watch?v=-nmX9oB-MX',
+  },
+];
+
 function InfiniteCanvasBootLoading() {
   return (
     <div className="t8-boot-screen" role="status" aria-label="正在打开画布工作台">
@@ -142,6 +190,9 @@ function App() {
   // 「视频教程」推广浮层开关
   const [videoOpen, setVideoOpen] = useState(false);
   const videoWrapRef = useRef<HTMLDivElement>(null);
+  // 「画布教程」教程合集浮层开关
+  const [canvasTutorialOpen, setCanvasTutorialOpen] = useState(false);
+  const canvasTutorialWrapRef = useRef<HTMLDivElement>(null);
   // 「贞贞工坊」推广浮层开关
   const [zhenOpen, setZhenOpen] = useState(false);
   const zhenWrapRef = useRef<HTMLDivElement>(null);
@@ -190,6 +241,24 @@ function App() {
       document.removeEventListener('keydown', onKey);
     };
   }, [videoOpen]);
+
+  // 「画布教程」浮层: 点击容器外部 / 按 ESC 自动关闭
+  useEffect(() => {
+    if (!canvasTutorialOpen) return;
+    const onDocDown = (e: MouseEvent) => {
+      if (!canvasTutorialWrapRef.current) return;
+      if (!canvasTutorialWrapRef.current.contains(e.target as Node)) setCanvasTutorialOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setCanvasTutorialOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [canvasTutorialOpen]);
 
   // 「贞贞工坊」浮层: 点击容器外部 / 按 ESC 自动关闭
   useEffect(() => {
@@ -246,7 +315,7 @@ function App() {
   }, [aixOpen]);
 
   useEffect(() => {
-    const hasOpenTopSurface = cloudOpen || videoOpen || zhenOpen || appOpen || aixOpen || resourceOpen;
+    const hasOpenTopSurface = cloudOpen || videoOpen || canvasTutorialOpen || zhenOpen || appOpen || aixOpen || resourceOpen;
     if (!hasOpenTopSurface) return;
 
     const onDocPointerDown = (e: PointerEvent) => {
@@ -267,6 +336,7 @@ function App() {
 
       setCloudOpen(false);
       setVideoOpen(false);
+      setCanvasTutorialOpen(false);
       setZhenOpen(false);
       setAppOpen(false);
       setAixOpen(false);
@@ -277,7 +347,7 @@ function App() {
     return () => {
       document.removeEventListener('pointerdown', onDocPointerDown, true);
     };
-  }, [cloudOpen, videoOpen, zhenOpen, appOpen, aixOpen, resourceOpen]);
+  }, [cloudOpen, videoOpen, canvasTutorialOpen, zhenOpen, appOpen, aixOpen, resourceOpen]);
 
   const handleCopyWx = async () => {
     try {
@@ -657,6 +727,153 @@ function App() {
           )}
         </div>
         <div className="flex items-center gap-1">
+          {/* 「画布教程」教程合集按钮: 放在最新应用左侧, 方便新用户按版本学习 */}
+          <div ref={canvasTutorialWrapRef} className="relative">
+            <button
+              onClick={() => setCanvasTutorialOpen((v) => !v)}
+              className={
+                isPixel
+                  ? `px-btn px-btn--sm px-btn--yellow`
+                  : `flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all border ${
+                      isDark
+                        ? canvasTutorialOpen
+                          ? 'bg-amber-500/20 border-amber-400/50 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.35)]'
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20'
+                        : canvasTutorialOpen
+                          ? 'bg-amber-100 border-amber-400 text-amber-800'
+                          : 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                    }`
+              }
+              title="画布教程 · T8 教程合集"
+            >
+              <BookOpen size={14} />
+              <span className="text-[11px]">画布教程</span>
+            </button>
+
+            {canvasTutorialOpen && (
+              <div
+                className={
+                  isPixel
+                    ? 'absolute right-0 top-full mt-2 z-[60] w-[520px] max-w-[calc(100vw-24px)] px-panel rounded-2xl p-3 animate-[fadeIn_.18s_ease-out]'
+                    : `absolute right-0 top-full mt-2 z-[60] w-[520px] max-w-[calc(100vw-24px)] rounded-xl p-3 border shadow-2xl backdrop-blur-md animate-[fadeIn_.18s_ease-out] ${
+                        isDark
+                          ? 'bg-zinc-900/95 border-amber-400/20 shadow-amber-500/10'
+                          : 'bg-white/95 border-amber-200 shadow-amber-500/10'
+                      }`
+                }
+                style={{ zoom: 1.25 }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className={`flex items-center gap-2 ${isPixel ? '' : isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                  <BookOpen size={16} className={isPixel ? '' : 'shrink-0'} />
+                  <span className={`text-sm font-bold ${isPixel ? 'px-title' : ''}`}>画布教程 · T8 系列</span>
+                </div>
+
+                <div
+                  className={`mt-2 text-[12px] leading-relaxed ${
+                    isPixel ? '' : isDark ? 'text-white/75' : 'text-zinc-700'
+                  }`}
+                >
+                  从基础功能到 3D 全景、资产库、即梦 CLI、ComfyUI 和自定义主题，按集数往下看就能把画布工作流串起来。
+                </div>
+
+                <div className="mt-3 grid gap-2 max-h-[70vh] overflow-y-auto pr-1">
+                  {CANVAS_TUTORIALS.map((tutorial, index) => (
+                    <div
+                      key={tutorial.bilibili}
+                      className={
+                        isPixel
+                          ? 'rounded-xl border-2 border-black bg-[#FFF8D6] p-2 shadow-[3px_3px_0_#111]'
+                          : `rounded-lg border p-2 ${
+                              isDark
+                                ? 'bg-white/5 border-white/10'
+                                : 'bg-amber-50/70 border-amber-200'
+                            }`
+                      }
+                    >
+                      <div className="flex items-start gap-2">
+                        <span
+                          className={
+                            isPixel
+                              ? 'px-chip px-chip--yellow shrink-0'
+                              : `inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1.5 text-[10px] font-bold ${
+                                  isDark
+                                    ? 'bg-amber-400/20 text-amber-200'
+                                    : 'bg-amber-200 text-amber-900'
+                                }`
+                          }
+                        >
+                          {index + 1}
+                        </span>
+                        <div className={`text-[12px] font-bold leading-snug ${isPixel ? '' : isDark ? 'text-white' : 'text-zinc-900'}`}>
+                          {tutorial.title}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        <a
+                          href={tutorial.bilibili}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setCanvasTutorialOpen(false)}
+                          title={`B站教程：${tutorial.bilibili}`}
+                          className={
+                            isPixel
+                              ? 'px-btn px-btn--sm px-btn--pink justify-start min-w-0'
+                              : `flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                                  isDark
+                                    ? 'border-pink-400/30 bg-pink-500/10 text-pink-200 hover:bg-pink-500/20'
+                                    : 'border-pink-300 bg-white text-pink-700 hover:bg-pink-50'
+                                }`
+                          }
+                        >
+                          <span
+                            className={
+                              isPixel
+                                ? 'inline-flex items-center justify-center w-4 h-4 rounded-sm bg-white text-black text-[10px] font-black border border-black shrink-0'
+                                : 'inline-flex items-center justify-center w-4 h-4 rounded-sm bg-pink-600 text-white text-[10px] font-black shrink-0'
+                            }
+                          >
+                            B
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block leading-tight">B站教程</span>
+                            <span className="block truncate text-[9px] opacity-70">{tutorial.bilibili}</span>
+                          </span>
+                          <ExternalLink size={10} className="ml-auto shrink-0 opacity-70" />
+                        </a>
+
+                        <a
+                          href={tutorial.youtube}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setCanvasTutorialOpen(false)}
+                          title={`Youtube教程：${tutorial.youtube}`}
+                          className={
+                            isPixel
+                              ? 'px-btn px-btn--sm px-btn--mint justify-start min-w-0'
+                              : `flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                                  isDark
+                                    ? 'border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20'
+                                    : 'border-red-300 bg-white text-red-700 hover:bg-red-50'
+                                }`
+                          }
+                        >
+                          <Youtube size={14} className="shrink-0" />
+                          <span className="min-w-0">
+                            <span className="block leading-tight">Youtube教程</span>
+                            <span className="block truncate text-[9px] opacity-70">{tutorial.youtube}</span>
+                          </span>
+                          <ExternalLink size={10} className="ml-auto shrink-0 opacity-70" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* 「最新应用」推广按钮: 同款胶囊, 主调 橙桃色(区分于 violet/mint/yellow/pink) */}
           <div ref={appWrapRef} className="relative">
             <button
@@ -674,7 +891,7 @@ function App() {
                           : 'bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100'
                     }`
               }
-              title="最新应用 · RunningHub 工作流 / API"
+              title="最新应用 · RunningHub 工作流"
             >
               <Rocket size={14} />
               <span className="text-[11px]">最新应用</span>
@@ -749,27 +966,6 @@ function App() {
                 >
                   <Globe size={14} className={isPixel ? '' : 'shrink-0'} />
                   <span>海外站 RunningHub.ai</span>
-                  <ExternalLink size={11} className="opacity-70" />
-                </a>
-
-                {/* RH ApiKey 获取按钮 */}
-                <a
-                  href="https://www.runninghub.cn/enterprise-api/consumerApi"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setAppOpen(false)}
-                  className={
-                    isPixel
-                      ? 'mt-2 px-btn px-btn--ghost w-full justify-center'
-                      : `mt-2 flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-xs font-semibold transition-all border ${
-                          isDark
-                            ? 'bg-zinc-800/60 border-zinc-600/60 text-zinc-200 hover:bg-zinc-700/60 hover:border-zinc-500/80'
-                            : 'bg-zinc-50 border-zinc-300 text-zinc-700 hover:bg-zinc-100'
-                        }`
-                  }
-                >
-                  <Key size={14} className={isPixel ? '' : 'shrink-0'} />
-                  <span>获取 RH ApiKey</span>
                   <ExternalLink size={11} className="opacity-70" />
                 </a>
 

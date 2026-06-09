@@ -50,6 +50,11 @@ test('mention prompt input keeps media mentions in expanded editor', () => {
   assert.match(mention, /isImeCompositionInput/);
   assert.match(mention, /onBeforeInput=\{\(event\) =>/);
   assert.match(mention, /if \(isImeCompositionInput\(event\.nativeEvent\)\) composingRef\.current = true/);
+  assert.match(mention, /const nativeEvent = event\?\.nativeEvent/);
+  assert.match(mention, /Some Chromium IME paths leave the component in a composing state/);
+  assert.match(mention, /if \(composingRef\.current\) \{[\s\S]*composingRef\.current = false;/);
+  assert.match(mention, /const flushEditorToData = \(\) =>/);
+  assert.match(mention, /onBlur=\{\(\) => \{\s*composingRef\.current = false;\s*flushEditorToData\(\)/);
   assert.match(mention, /zIndex:\s*expandable \? 10050 : 10120/);
   assert.match(mention, /height:\s*expandable \? style\?\.height : '100%'/);
   assert.match(mention, /minHeight:\s*expandable \? \(style\?\.minHeight \?\? 56\) : '100%'/);
@@ -61,6 +66,36 @@ test('mention prompt input keeps media mentions in expanded editor', () => {
   assert.match(mention, /span\.replaceChildren\(content\)/);
   assert.match(mention, /expandable=\{false\}/);
   assert.match(mention, /setDraftMentions\(nextMentions\)/);
+});
+
+test('text node media mentions can read downstream generation node media', () => {
+  const textNode = read('../src/components/nodes/TextNode.tsx');
+  const materialsHook = read('../src/components/nodes/useUpstreamMaterials.ts');
+  const mediaMentions = read('../src/components/nodes/mediaMentions.ts');
+
+  assert.match(textNode, /useDownstreamMediaMaterials/);
+  assert.match(textNode, /const downstreamMedia = useDownstreamMediaMaterials\(id\)/);
+  assert.match(textNode, /uniqueMentionMaterials\(\[/);
+  assert.match(textNode, /\.\.\.downstreamMedia/);
+
+  assert.match(materialsHook, /export function useDownstreamMediaMaterials/);
+  assert.match(materialsHook, /useEdges/);
+  assert.match(materialsHook, /handleType:\s*'source'/);
+  assert.match(materialsHook, /conns\.map\(\(c\) => c\.target\)/);
+  assert.match(materialsHook, /siblingMediaSourceIds/);
+  assert.match(materialsHook, /targets\.has\(edge\.target\) && edge\.source !== nodeId/);
+  assert.match(materialsHook, /\[\.\.\.siblingList,\s*\.\.\.downstreamList\]/);
+  assert.match(materialsHook, /collectMentionableMediaFromNodeData/);
+  assert.match(materialsHook, /referenceImages/);
+  assert.match(materialsHook, /localRefImages/);
+  assert.match(materialsHook, /localRefVideos/);
+  assert.match(materialsHook, /localRefAudios/);
+  assert.match(materialsHook, /localRefAudio/);
+  assert.match(materialsHook, /generatedImages/);
+  assert.match(materialsHook, /tracks/);
+
+  assert.match(mediaMentions, /function tokenMatchesMentionKind/);
+  assert.match(mediaMentions, /tokenMatchesMentionKind\(mention\) && text\.slice\(mention\.start,\s*mention\.end\) === mention\.token/);
 });
 
 test('core generation nodes use expanded prompt editing', () => {

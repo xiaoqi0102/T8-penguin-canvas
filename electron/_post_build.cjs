@@ -240,6 +240,15 @@ function checkParseHubRuntime() {
   console.log('     Refresh with: tools\\remove-ai-watermarks-runtime\\python\\python.exe -m pip install --upgrade --target tools\\parsehub-pythonlibs .\\ParseHub, then npm run prepack:runtimes');
 }
 
+function checkFigmaBridgeRuntime() {
+  const root = path.join(RES, 'tools', 'figma-bridge');
+  checkFile(path.join(root, 'server.cjs'));
+  checkFile(path.join(root, 'start-figma-bridge.cmd'));
+  checkFile(path.join(root, 'plugin', 'manifest.json'));
+  checkFile(path.join(root, 'plugin', 'code.js'));
+  checkFile(path.join(root, 'plugin', 'ui.html'));
+}
+
 function checkUpdateArtifacts() {
   const distDir = path.join(ROOT, 'dist_electron');
   const installerName = `${PRODUCT_NAME}-Setup-${APP_VERSION}.exe`;
@@ -346,6 +355,7 @@ function main() {
   checkFile(path.join(RES, 'backend-enc', 'tools', 'aiWatermark', 'media.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'tools', 'topaz', 'runner.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'utils', 'duckPayload.t8c'));
+  checkFile(path.join(RES, 'backend-enc', 'utils', 'figmaBridge.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'utils', 'parseHubBridge.t8c'));
   checkFile(path.join(RES, 'backend-enc', 'utils', 'runtimeArchive.t8c'));
 
@@ -382,10 +392,13 @@ function main() {
   console.log('\n[7] ParseHub bridge/runtime:');
   checkParseHubRuntime();
 
-  console.log('\n[8] RH工具箱制作器分发检查:');
+  console.log('\n[8] Figma bridge/plugin:');
+  checkFigmaBridgeRuntime();
+
+  console.log('\n[9] RH工具箱制作器分发检查:');
   checkNoRhToolboxMaker();
 
-  console.log('\n[9] GitHub 自动更新资产:');
+  console.log('\n[10] GitHub 自动更新资产:');
   checkUpdateArtifacts();
 
   console.log('\n[10] resources/ 完整结构:');

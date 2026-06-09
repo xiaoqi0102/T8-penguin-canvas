@@ -459,16 +459,31 @@ const MentionPromptInput = ({
   const handleEditorInput = (event?: FormEvent<HTMLDivElement>) => {
     const el = localRef.current;
     if (!el) return;
-    if (isImeCompositionInput(event?.nativeEvent)) {
+    const nativeEvent = event?.nativeEvent;
+    if (isImeCompositionInput(nativeEvent)) {
       composingRef.current = true;
       return;
     }
-    if (composingRef.current) return;
+    if (composingRef.current) {
+      // Some Chromium IME paths leave the component in a composing state after the
+      // final insertText input. When the native event is no longer composing, treat
+      // it as the committed text so the visible DOM does not drift from node data.
+      composingRef.current = false;
+    }
     const caret = getCaretPlainOffset(el);
     const { text: nextValue, mentions: nextMentions } = readRichEditor(el, mentions);
     onChange(nextValue, nextMentions);
     if (composingRef.current) return;
     openFromCaret(nextValue, caret, nextMentions);
+  };
+
+  const flushEditorToData = () => {
+    const el = localRef.current;
+    if (!el) return null;
+    const caret = getCaretPlainOffset(el);
+    const { text, mentions: nextMentions } = readRichEditor(el, mentions);
+    onChange(text, nextMentions);
+    return { text, mentions: nextMentions, caret };
   };
 
   const selectMaterial = (material: Material) => {
@@ -638,11 +653,10 @@ const MentionPromptInput = ({
             window.setTimeout(() => {
               if (!el) return;
               composingRef.current = false;
-              const caret = getCaretPlainOffset(el);
-              const { text, mentions: nextMentions } = readRichEditor(el, mentions);
-              onChange(text, nextMentions);
-              pendingCaretRef.current = caret;
-              openFromCaret(text, caret, nextMentions);
+              const flushed = flushEditorToData();
+              if (!flushed) return;
+              pendingCaretRef.current = flushed.caret;
+              openFromCaret(flushed.text, flushed.caret, flushed.mentions);
             }, 0);
           }}
           onFocus={() => {
@@ -692,6 +706,8 @@ const MentionPromptInput = ({
             }
           }}
           onBlur={() => {
+            composingRef.current = false;
+            flushEditorToData();
             setIsFocused(false);
             window.setTimeout(() => setQueryState((s) => ({ ...s, open: false })), 120);
           }}
